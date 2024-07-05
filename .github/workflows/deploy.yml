@@ -28,13 +28,13 @@ jobs:
 
       - name: Build and push Docker image for NestJS
         run: |
-          docker build -t ghcr.io/${{ github.repository }}/aiolos-backend:latest -f backend/Dockerfile ./backend
-          docker push ghcr.io/${{ github.repository }}/aiolos-backend:latest
+          docker build -t ghcr.io/${{ github.repository_owner }}/aiolos-backend:latest -f backend/Dockerfile ./backend
+          docker push ghcr.io/${{ github.repository_owner }}/aiolos-backend:latest
 
       - name: Build and push Docker image for Next.js
         run: |
-          docker build -t ghcr.io/${{ github.repository }}/aiolos-frontend:latest -f frontend/Dockerfile ./frontend
-          docker push ghcr.io/${{ github.repository }}/aiolos-frontend:latest
+          docker build -t ghcr.io/${{ github.repository_owner }}/aiolos-frontend:latest -f frontend/Dockerfile ./frontend
+          docker push ghcr.io/${{ github.repository_owner }}/aiolos-frontend:latest
 
   deploy_to_vm:
     needs: build_and_push
@@ -49,8 +49,8 @@ jobs:
       - name: Deploy to VM
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
-            docker pull ghcr.io/${{ github.repository }}/aiolos-backend:latest
-            docker pull ghcr.io/${{ github.repository }}/aiolos-frontend:latest
+            docker pull ghcr.io/${{ github.repository_owner }}/aiolos-backend:latest
+            docker pull ghcr.io/${{ github.repository_owner }}/aiolos-frontend:latest
             cd /home/kuba/aiolos
             docker-compose down
             docker-compose up -d
