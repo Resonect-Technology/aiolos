@@ -15,6 +15,10 @@ jobs:
         with:
           submodules: true
 
+      - name: Set up authentication for submodules
+        run: |
+          git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
 
@@ -25,11 +29,14 @@ jobs:
           username: ${{ secrets.GITHUB_ACTOR }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker images
+      - name: Build and push Docker image for NestJS
         run: |
           docker build -t ghcr.io/${{ github.repository }}/aiolos-backend:latest -f backend/Dockerfile ./backend
-          docker build -t ghcr.io/${{ github.repository }}/aiolos-frontend:latest -f frontend/Dockerfile ./frontend
           docker push ghcr.io/${{ github.repository }}/aiolos-backend:latest
+
+      - name: Build and push Docker image for Next.js
+        run: |
+          docker build -t ghcr.io/${{ github.repository }}/aiolos-frontend:latest -f frontend/Dockerfile ./frontend
           docker push ghcr.io/${{ github.repository }}/aiolos-frontend:latest
 
   deploy_to_vm:
@@ -47,6 +54,7 @@ jobs:
           ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
             docker pull ghcr.io/${{ github.repository }}/aiolos-backend:latest
             docker pull ghcr.io/${{ github.repository }}/aiolos-frontend:latest
-            docker-compose -f /home/kuba/aiolos/compose.yaml down
-            docker-compose -f /home/kuba/aiolos/compose.yaml up -d
+            cd /home/kuba/aiolos
+            docker-compose down
+            docker-compose up -d
           EOF
