@@ -11,9 +11,7 @@ services:
       - ./mosquitto/log:/mosquitto/log
 
   aiolos-backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: ghcr.io/resonect-technology/aiolos-backend:latest
     container_name: aiolos-backend
     ports:
       - "3030:3000"
@@ -21,16 +19,14 @@ services:
       - aiolos-network
 
   aiolos-frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: ghcr.io/resonect-technology/aiolos-frontend:latest
     container_name: aiolos-frontend
     ports:
       - "3040:3000"
-    environment:
-      - NEXT_PUBLIC_API_URL=http://aiolos-backend:3000
     networks:
       - aiolos-network
+    environment:
+      - NEXT_PUBLIC_API_URL=http://aiolos-backend:3000
 
   caddy:
     image: caddy:latest
