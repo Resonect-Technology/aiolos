@@ -1,0 +1,48 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    container_name: mosquitto
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+
+  aiolos-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aiolos-backend
+    ports:
+      - "3030:3000"
+    networks:
+      - aiolos-network
+
+  aiolos-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: aiolos-frontend
+    ports:
+      - "3040:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://aiolos-backend:3000
+    networks:
+      - aiolos-network
+
+  caddy:
+    image: caddy:latest
+    container_name: caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+    networks:
+      - aiolos-network
+
+networks:
+  aiolos-network:
+    driver: bridge
