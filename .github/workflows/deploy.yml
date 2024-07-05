@@ -49,9 +49,10 @@ jobs:
       - name: Deploy to VM
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
-            docker pull ghcr.io/resonect-technology/aiolos-backend:latest
-            docker pull ghcr.io/resonect-technology/aiolos-frontend:latest
+            echo ${{ secrets.GH_PAT }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            sudo docker pull ghcr.io/resonect-technology/aiolos-backend:latest
+            sudo docker pull ghcr.io/resonect-technology/aiolos-frontend:latest
             cd /home/kuba/aiolos
-            docker compose down
-            docker compose up -d
+            sudo docker compose down
+            sudo docker compose up -d
           EOF
