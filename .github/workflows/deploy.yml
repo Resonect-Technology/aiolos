@@ -24,7 +24,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ secrets.GITHUB_ACTOR }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GH_PAT }}
 
       - name: Build and push Docker image for NestJS
         run: |
