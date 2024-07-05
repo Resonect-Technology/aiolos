@@ -1,7 +1,12 @@
-aiolos.yourdomain.com {
-    reverse_proxy aiolos-frontend:3000
-}
+aiolos.resonect.cz {
+    @api {
+        path /api /api/*
+    }
 
-api.aiolos.yourdomain.com {
-    reverse_proxy aiolos-backend:3000
+    handle @api {
+        reverse_proxy aiolos-backend:3000
+    }
+    handle {
+        reverse_proxy aiolos-frontend:3000
+    }
 }
