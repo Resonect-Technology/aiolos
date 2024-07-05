@@ -1,0 +1,6 @@
+[submodule "backend"]
+	path = backend
+	url = https://github.com/Resonect-Technology/Aiolos-Backend.git
+[submodule "frontend"]
+	path = frontend
+	url = https://github.com/Resonect-Technology/Aiolos-Frontend.git
