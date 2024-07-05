@@ -29,12 +29,12 @@ jobs:
       - name: Build and push Docker image for NestJS
         run: |
           docker build -t aiolos-backend:latest -f backend/aiolos-backend/Dockerfile ./backend/aiolos-backend
-          docker push ghcr.io/${{ github.repository_owner }}/aiolos-backend:latest
+          docker push aiolos-backend:latest
 
       - name: Build and push Docker image for Next.js
         run: |
           docker build -t aiolos-frontend:latest -f frontend/aiolos-frontend/Dockerfile ./frontend/aiolos-frontend
-          docker push ghcr.io/${{ github.repository_owner }}/aiolos-frontend:latest
+          docker push aiolos-frontend:latest
 
   deploy_to_vm:
     needs: build_and_push
