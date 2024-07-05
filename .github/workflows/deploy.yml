@@ -28,12 +28,12 @@ jobs:
 
       - name: Build and push Docker image for NestJS
         run: |
-          docker build -t aiolos-backend:latest -f backend/aiolos-backend/Dockerfile ./backend/aiolos-backend
+          docker build -t ghcr.io/resonect-technology/aiolos-backend:latest -f backend/aiolos-backend/Dockerfile ./backend/aiolos-backend
           docker push ghcr.io/resonect-technology/aiolos-backend:latest
 
       - name: Build and push Docker image for Next.js
         run: |
-          docker build -t aiolos-frontend:latest -f frontend/aiolos-frontend/Dockerfile ./frontend/aiolos-frontend
+          docker build -t ghcr.io/resonect-technology/aiolos-frontend:latest -f frontend/aiolos-frontend/Dockerfile ./frontend/aiolos-frontend
           docker push ghcr.io/resonect-technology/aiolos-frontend:latest
 
   deploy_to_vm:
