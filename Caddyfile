@@ -1,0 +1,7 @@
+aiolos.yourdomain.com {
+    reverse_proxy aiolos-frontend:3000
+}
+
+api.aiolos.yourdomain.com {
+    reverse_proxy aiolos-backend:3000
+}
