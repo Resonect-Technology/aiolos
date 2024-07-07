@@ -53,6 +53,5 @@ jobs:
             sudo docker pull ghcr.io/resonect-technology/aiolos-backend:latest
             sudo docker pull ghcr.io/resonect-technology/aiolos-frontend:latest
             cd /home/kuba/aiolos
-            sudo docker compose down
             sudo docker compose up -d
           EOF
