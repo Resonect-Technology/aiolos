@@ -1,4 +1,4 @@
-aiolos-dev.resonect.cz {
+aiolos.resonect.cz {
     @api {
         path /api /api/*
     }
