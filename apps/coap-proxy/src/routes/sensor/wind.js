@@ -1,5 +1,25 @@
-// /routes/sensor/wind.js
-// Handles POST /sensor/wind
+/**
+ * POST /sensor/wind
+ * @summary Receives wind speed and direction from a sensor
+ * @description Accepts wind data from a meteostation sensor. Requires a sensorId, speed, and direction.
+ *
+ * Example payload:
+ * ```json
+ * {
+ *   "sensorId": "station-001",
+ *   "speed": 5.2,
+ *   "direction": 270
+ * }
+ * ```
+ *
+ * @bodyContent {object} application/json
+ * @bodyRequired
+ * @queryParam {string} [unit] - Optional wind speed unit (e.g., "m/s", "km/h")
+ * @response 204 - Data accepted (no content)
+ * @response 400 - Missing or invalid wind data
+ * @response 502 - HTTP forwarding failed
+ * @tag Sensor
+ */
 
 export const httpPath = '/sensor/wind';
 
