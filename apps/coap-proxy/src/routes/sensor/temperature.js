@@ -1,5 +1,24 @@
-// /routes/sensor/temperature.js
-// Handles POST /sensor/temperature
+/**
+ * POST /sensor/temperature
+ * @summary Receives temperature data from a sensor
+ * @description Accepts temperature data from a meteostation sensor. Requires a sensorId and temperature value.
+ *
+ * Example payload:
+ * ```json
+ * {
+ *   "sensorId": "station-001",
+ *   "temperature": 22.5
+ * }
+ * ```
+ *
+ * @bodyContent {object} application/json
+ * @bodyRequired
+ * @queryParam {string} [unit] - Optional temperature unit (e.g., "C" or "F")
+ * @response 204 - Data accepted (no content)
+ * @response 400 - Missing or invalid temperature data
+ * @response 502 - HTTP forwarding failed
+ * @tag Sensor
+ */
 
 export const httpPath = '/sensor/temperature';
 

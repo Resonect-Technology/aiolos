@@ -5,7 +5,8 @@
     "main": "src/index.js",
     "type": "module",
     "scripts": {
-        "dev": "node src/index.js"
+        "dev": "node src/index.js",
+        "generate:openapi": "openapi-comment-parser . openapi.json"
     },
     "dependencies": {
         "coap": "^0.26.0",
