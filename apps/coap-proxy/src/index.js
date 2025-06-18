@@ -66,9 +66,9 @@ server.on('request', async (req, res) => {
     return;
   }
 
-  // Use the route's handler
+  // Use the route's handler, pass params if present
   try {
-    await route.handler(payload, req, res, logger, API_BASE_URL, axios);
+    await route.handler(payload, req, res, logger, API_BASE_URL, axios, route.params);
   } catch (err) {
     logger.error({ err }, 'Route handler error');
     res.code = '5.00'; // Internal Server Error
