@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit"
   },
   "imports": {
-    "#controllers/*": "./app/controllers/*.js",
+    "#app/*": "./app/*.js",
+    "#controllers/*": "./app/*.js",
     "#exceptions/*": "./app/exceptions/*.js",
     "#models/*": "./app/models/*.js",
     "#mails/*": "./app/mails/*.js",
@@ -56,6 +57,7 @@
     "@adonisjs/cors": "^2.2.1",
     "@adonisjs/lucid": "^21.6.1",
     "@vinejs/vine": "^3.0.1",
+    "adonis-autoswagger": "^3.73.0",
     "better-sqlite3": "^11.10.0",
     "luxon": "^3.6.1",
     "reflect-metadata": "^0.2.2"
