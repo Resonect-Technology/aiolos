@@ -2,12 +2,15 @@
     "name": "aiolos-monorepo",
     "private": true,
     "version": "0.1.0",
-    "packageManager": "pnpm@8.0.0",
+    "packageManager": "pnpm@10.5.0",
     "scripts": {
         "dev": "turbo run dev",
         "build": "turbo run build"
     },
     "devDependencies": {
         "turbo": "^1.13.0"
+    },
+    "dependencies": {
+        "openapi-comment-parser": "^1.0.0"
     }
 }
