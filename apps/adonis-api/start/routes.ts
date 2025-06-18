@@ -18,9 +18,10 @@ router.get('/', async () => {
   }
 })
 
-router.get('/sensor-readings', [SensorReadingsController, 'index'])
-router.get('/sensor-readings/:id', [SensorReadingsController, 'show'])
-router.post('/sensor-readings', [SensorReadingsController, 'store'])
+// Sensor readings routes with sensor_id in the path for IoT-friendly API
+router.get('/sensors/:sensor_id/readings', [SensorReadingsController, 'index'])
+router.get('/sensors/:sensor_id/readings/:id', [SensorReadingsController, 'show'])
+router.post('/sensors/:sensor_id/readings', [SensorReadingsController, 'store'])
 
 router.get('/swagger', async () => {
   return AutoSwagger.default.docs(router.toJSON(), swagger)
