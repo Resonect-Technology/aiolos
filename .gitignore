@@ -20,8 +20,8 @@ yarn-error.log*
 # Build & Output Artifacts
 # ------------------------
 # General build outputs (will apply to root and any subdirectory)
-build/ # Was /build
-dist/  # Was /dist
+build/
+dist/
 out/
 
 # Turborepo
@@ -35,25 +35,33 @@ out/
 apps/adonis-api/tmp/
 apps/adonis-api/ace-manifest.json
 # Development databases for Adonis (if not intended to be committed)
+# Ensure these are not your production database files if they are named differently.
 apps/adonis-api/*.sqlite
 apps/adonis-api/*.sqlite3
 
 # Vite (apps/react-frontend)
 apps/react-frontend/.vite/
-# Note: apps/react-frontend/dist/ is covered by the general 'dist/' pattern above
+# Note: apps/react-frontend/dist/ is covered by the general 'dist/' pattern above.
+
+# CoAP Proxy (apps/coap-proxy)
+# Add any specific build outputs or temp files for coap-proxy if they exist
+# and are not covered by general patterns (e.g., custom log locations).
 
 # Test & Coverage Reports
 # -----------------------
 coverage/
 *.lcov
 
-# VSCode
-.vscode/
+# IDE / Editor
+# ------------
+.vscode/ # User-specific VSCode settings. Consider if all team members should share some settings.
 
-# OS
+# OS Specific
+# -----------
 .DS_Store
 Thumbs.db
 
-# Others
+# Other Temporary Files
+# ---------------------
 *.swp
 *.swo
