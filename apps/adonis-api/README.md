@@ -7,6 +7,7 @@ This is the backend API for the Aiolos meteostation, built with [AdonisJS v6](ht
 - Uses SQLite by default (see `config/database.ts`)
 - Fully auto-generated OpenAPI docs with [adonis-autoswagger](https://github.com/ad-on-is/adonis-autoswagger)
 - RESTful endpoints for sensor readings
+- **Live wind data streaming via Server-Sent Events (SSE) with [Transmit](https://docs.adonisjs.com/guides/transmit/introduction)**
 
 ## Project Structure
 ```
@@ -46,9 +47,55 @@ pnpm --filter adonis-api run dev
 ```
 
 ### API Endpoints
-- `GET /sensor-readings` — List all sensor readings (filter by `sensor_id` or `type`)
-- `GET /sensor-readings/:id` — Get a single sensor reading
-- `POST /sensor-readings` — Create a new sensor reading
+- `GET /stations/:station_id/readings` — List all readings for a station (optionally filter by `type`)
+- `GET /stations/:station_id/readings/:id` — Get a single reading for a station
+- `POST /stations/:station_id/readings` — Create a new reading for a station
+
+### Live Wind Data (SSE)
+- **Subscribe to live wind speed and direction for a station using Server-Sent Events (SSE) via Transmit.**
+- **Channel:** `wind/live/:station_id`
+- **Endpoint:** `/__transmit/events` (SSE stream, managed by Transmit)
+- See [@adonisjs/transmit docs](https://docs.adonisjs.com/guides/transmit/introduction) for client usage.
+
+#### Example (React)
+```js
+import { Transmit } from '@adonisjs/transmit-client'
+const transmit = new Transmit({ baseUrl: window.location.origin })
+const subscription = transmit.subscription('wind/live/station-001')
+await subscription.create()
+subscription.onMessage((data) => {
+  // data: { wind_speed, wind_direction, timestamp }
+  // Update your UI here
+})
+```
+
+### Ingesting Live Wind Data (for IoT/CoAP Proxy)
+- **Endpoint:** `POST /stations/:station_id/live/wind`
+- **Body:** `{ wind_speed: number, wind_direction: number, timestamp?: string }`
+- Broadcasts to SSE channel: `wind/live/:station_id`
+- Use this endpoint to push new wind data from your IoT/CoAP proxy to all live subscribers.
+
+#### Example (curl)
+```sh
+curl -X POST http://localhost:3333/stations/station-001/live/wind \
+  -H 'Content-Type: application/json' \
+  -d '{"wind_speed":5.2,"wind_direction":270}'
+```
+
+### Mocking Live Wind Data (Development Only)
+- **Endpoint:** `POST /stations/:station_id/live/wind/mock` — Broadcasts a single random (or provided) wind data event
+- **Endpoint:** `POST /stations/:station_id/live/wind/mock/start` — Starts 1s interval random wind data streaming
+- **Endpoint:** `POST /stations/:station_id/live/wind/mock/stop` — Stops the interval stream
+- **Body:** Optionally provide `wind_speed`, `wind_direction`, `timestamp` to `/mock`, otherwise random values are used
+- Use these endpoints to simulate live wind data for frontend or SSE testing.
+
+#### Example (curl)
+```sh
+# Start 1s interval mock wind data
+curl -X POST http://localhost:3333/stations/station-001/live/wind/mock/start
+# Stop the mock stream
+curl -X POST http://localhost:3333/stations/station-001/live/wind/mock/stop
+```
 
 ### OpenAPI & Swagger UI
 - Live docs: [http://localhost:3333/docs](http://localhost:3333/docs)
