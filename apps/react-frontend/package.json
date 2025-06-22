@@ -1,7 +1,7 @@
 {
-  "name": "@aiolos/react-frontend",
+  "name": "react-frontend",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,7 +10,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@adonisjs/transmit-client": "^1.0.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
