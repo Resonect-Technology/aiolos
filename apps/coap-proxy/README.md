@@ -1,45 +1,40 @@
-# CoAP Proxy Service
+# CoAP Proxy - Aiolos Project
 
-A standalone Node.js service that bridges CoAP IoT sensors and the HTTP backend API.
+This application acts as a CoAP (Constrained Application Protocol) proxy for the Aiolos project. It is designed to receive data from CoAP-enabled IoT devices or sensors and forward it to the main AdonisJS backend API.
 
-- **Tech:** Node.js, [coap](https://www.npmjs.com/package/coap), [axios](https://www.npmjs.com/package/axios), [dotenv](https://www.npmjs.com/package/dotenv), [pino](https://www.npmjs.com/package/pino)
-- **Config:** `.env` file in `apps/coap-proxy/` (see `.env.example`)
-- **Logging:** Structured with pino
-- **Routing:** File-based, extensible (see `src/routes/`)
-- **OpenAPI:** Comments in route files, spec generated with [openapi-comment-parser](https://github.com/bee-travels/openapi-comment-parser)
-- **Fault Tolerance:** Proxy does not crash if backend is unavailable; returns CoAP 5.02 error
+## Key Features
 
-### Example .env
-```
-COAP_PORT=5683
-API_BASE_URL=http://localhost:3333/api
-LOG_LEVEL=info
-```
+-   **CoAP Server**: Listens for incoming CoAP messages from devices.
+-   **Request Handling**: Defines routes to handle specific sensor data, such as temperature and wind data (e.g., `/sensor/temperature`, `/sensor/wind`, `/sensor/:sensorId/temperature`).
+-   **Data Forwarding**: Translates CoAP messages and forwards the relevant payload to the appropriate endpoint on the main AdonisJS API (e.g., to `/stations/:station_id/live/wind`).
+-   **API Description**: Includes OpenAPI specifications (`openapi.json`, `openapi.yaml`) for its own interface or the interface it interacts with.
+-   **Test Client**: Contains a `test-coap-client.js` for testing CoAP communication with the proxy.
 
-### Running the Proxy
-From the repo root:
-```sh
-pnpm install
-pnpm --filter coap-proxy run dev
-```
+## Purpose
 
-### Testing the Proxy
-A test script is provided to simulate real device messages:
-```sh
-pnpm exec node apps/coap-proxy/test-coap-client.js
-```
+In an IoT context, many sensors use lightweight protocols like CoAP due to resource constraints. This proxy serves as a bridge:
 
-### OpenAPI Documentation
-- Route files are documented with JSDoc comments.
-- Generate OpenAPI spec:
-  ```sh
-  npx openapi-comment-parser apps/coap-proxy/src openapi.json
-  ```
-- See `openapi.yaml` for base info. Header clearly states this is a CoAP-to-HTTP proxy for CoAP clients.
+1.  Sensors send data via CoAP to this proxy.
+2.  The proxy receives the CoAP data.
+3.  The proxy then makes an HTTP request to the main AdonisJS API (`adonis-api` service) to ingest this data.
 
-### Adding Routes
-- Add new `.js` files in `src/routes/` (supports subdirectories, e.g., `src/routes/sensor/wind.js` → `/sensor/wind`)
-- Document with JSDoc for OpenAPI
+## Technologies Used
+
+-   [Node.js](https://nodejs.org/)
+-   Likely uses a CoAP library for Node.js (e.g., `coap` npm package - to be confirmed by checking `package.json`).
+-   Express.js or a similar framework for routing and HTTP handling if it also exposes HTTP endpoints (to be confirmed).
+
+## Setup and Running
+
+1.  Navigate to the `apps/coap-proxy` directory.
+2.  Install dependencies: `pnpm install` (or `npm install`)
+3.  Configure environment variables if necessary (e.g., the target URL for the AdonisJS API).
+4.  Start the proxy server: `node src/index.js` (or as defined in `package.json` scripts).
+
+## Development Notes
+
+-   The `test-coap-client.js` can be used to simulate a CoAP device sending data to this proxy.
+-   Ensure the main AdonisJS API is running and accessible for the proxy to forward data.
 
 ---
 

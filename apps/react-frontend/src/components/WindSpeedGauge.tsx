@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Transmit } from '@adonisjs/transmit-client'; // Re-add Transmit import
 import GaugeComponent from 'react-gauge-component';
+import { WindDirectionCompass } from './WindDirectionCompass'; // Import the new component
+import './WindDirectionCompass.css'; // Import its CSS
 
 interface WindData {
   wind_speed: number;
@@ -153,6 +155,8 @@ export function WindSpeedGauge({ stationId }: WindSpeedGaugeProps) {
     };
   }, [stationId]); // Re-run effect if stationId changes
 
+  console.log('WindSpeedGauge rendering. Current windData:', windData); // DEBUG LOG
+
   return (
     <div className="flex flex-col space-y-6 p-6 max-w-2xl mx-auto bg-card rounded-lg shadow-md">
       <div className="space-y-2">
@@ -209,8 +213,13 @@ export function WindSpeedGauge({ stationId }: WindSpeedGaugeProps) {
         )}
       </div>
 
+      {/* Wind Direction Compass - Always visible, will show N/A or Loading... initially */}
+      <div className="mt-6">
+        <WindDirectionCompass windDirection={windData?.wind_direction} />
+      </div>
+
       {/* Last Updated and Controls */}
-      <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0 p-4 bg-background rounded-lg">
+      <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0 p-4 bg-background rounded-lg mt-6">
         {windData ? (
           <div className="text-muted-foreground">
             Last Updated: <span className="font-medium">{formatTimestamp(windData.timestamp)}</span>

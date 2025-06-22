@@ -1,13 +1,35 @@
-# Adonis API (Meteostation Backend)
+# AdonisJS API - Aiolos Project
 
-This is the backend API for the Aiolos meteostation, built with [AdonisJS v6](https://adonisjs.com/).
+This application serves as the backend API for the Aiolos live wind data monitoring system. It is built with AdonisJS and TypeScript.
 
-## Features
-- Stores and exposes sensor data (wind, temperature) from IoT devices
-- Uses SQLite by default (see `config/database.ts`)
-- Fully auto-generated OpenAPI docs with [adonis-autoswagger](https://github.com/ad-on-is/adonis-autoswagger)
-- RESTful endpoints for sensor readings
-- **Live wind data streaming via Server-Sent Events (SSE) with [Transmit](https://docs.adonisjs.com/guides/transmit/introduction)**
+## Key Features
+
+-   **Real-time Data Streaming**: Utilizes Server-Sent Events (SSE) via `@adonisjs/transmit` to stream live wind data to connected clients.
+-   **Data Ingestion**: Provides an endpoint (`/stations/:station_id/live/wind`) for ingesting wind speed and direction data from sensors or other sources.
+-   **Mock Data Generation**: Includes endpoints for development and testing:
+    -   `/stations/:station_id/live/wind/mock`: Sends a single mock wind data event.
+    -   `/stations/:station_id/live/wind/mock/start`: Starts a 1-second interval stream of mock wind data with gradually changing values.
+    -   `/stations/:station_id/live/wind/mock/stop`: Stops the mock data stream.
+-   **Channel Authorization**: Configured to authorize client subscriptions to specific data channels (e.g., `wind/live/:station_id`).
+-   **Database Integration**: Includes a migration for a `sensor_readings` table (further development can expand on data persistence).
+-   **API Documentation**: Setup for OpenAPI/Swagger documentation (accessible via `/docs`).
+
+## Technologies Used
+
+-   [AdonisJS](https://adonisjs.com/) v6
+-   [TypeScript](https://www.typescriptlang.org/)
+-   [@adonisjs/transmit](https://github.com/adonisjs/transmit) for SSE
+-   [SQLite](https://www.sqlite.org/) (default database for development)
+-   [adonis-autoswagger](https://github.com/Julien-R44/adonis-autoswagger) for OpenAPI documentation
+
+## Setup and Running
+
+1.  Navigate to the `apps/adonis-api` directory.
+2.  Install dependencies: `pnpm install` (or `npm install`)
+3.  Run database migrations: `node ace migration:run`
+4.  Start the development server: `node ace serve --watch`
+
+The API will typically run on `http://localhost:3333`.
 
 ## Project Structure
 ```
