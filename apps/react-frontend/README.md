@@ -1,3 +1,37 @@
+# React Frontend - Aiolos Project
+
+This application is the frontend for the Aiolos live wind data monitoring system. It is built with React (using Vite), TypeScript, Tailwind CSS, and shadcn/ui components.
+
+## Key Features
+
+-   **Live Data Visualization**: Connects to the AdonisJS backend via Server-Sent Events (SSE) to receive and display real-time wind data.
+-   **Wind Speed Gauge**: Utilizes a `react-gauge-component` to visually represent live wind speed.
+-   **Station Selection**: Allows users to input a station ID to monitor specific wind data channels.
+-   **Connection Status**: Displays the current connection status (Connected/Disconnected) to the SSE stream and any errors.
+-   **Mock Data Controls**: Provides UI buttons to interact with the backend's mock data generation features:
+    -   Start Mock Data: Initiates a stream of simulated wind data from the backend.
+    -   Stop Mock Data: Halts the simulated data stream.
+    -   Send Single Event: Triggers a single mock wind data event from the backend.
+-   **Proxy to Backend**: Vite development server is configured to proxy API (`/api`) and SSE (`/__transmit`) requests to the AdonisJS backend (typically `http://localhost:3333`).
+
+## Technologies Used
+
+-   [React](https://react.dev/)
+-   [Vite](https://vitejs.dev/)
+-   [TypeScript](https://www.typescriptlang.org/)
+-   [@adonisjs/transmit-client](https://github.com/adonisjs/transmit-client) for SSE communication
+-   [Tailwind CSS](https://tailwindcss.com/)
+-   [shadcn/ui](https://ui.shadcn.com/)
+-   [react-gauge-component](https://github.com/antoniolago/react-gauge-component)
+
+## Setup and Running
+
+1.  Navigate to the `apps/react-frontend` directory.
+2.  Install dependencies: `pnpm install` (or `npm install`)
+3.  Start the development server: `pnpm run dev` (or `npm run dev`)
+
+The frontend will typically run on `http://localhost:5173` and proxy relevant requests to the backend.
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
