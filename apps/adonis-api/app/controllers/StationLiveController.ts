@@ -71,16 +71,29 @@ export default class StationLiveController {
         if (mockIntervals[station_id]) {
             return response.conflict({ error: 'Mock already running' })
         }
+
+        console.log(`Starting mock wind data for station: ${station_id}`)
+
+        // Send initial data immediately
+        const initialWind = {
+            wind_speed: Math.round((Math.random() * 20 + 1) * 10) / 10,
+            wind_direction: Math.floor(Math.random() * 360),
+            timestamp: new Date().toISOString()
+        }
+        console.log(`Broadcasting initial wind data:`, initialWind)
+        await transmit.broadcast(`wind/live/${station_id}`, initialWind)
+
         mockIntervals[station_id] = setInterval(async () => {
             const wind_speed = Math.round((Math.random() * 20 + 1) * 10) / 10
             const wind_direction = Math.floor(Math.random() * 360)
             const timestamp = new Date().toISOString()
-            await transmit.broadcast(`wind/live/${station_id}`, {
-                wind_speed,
-                wind_direction,
-                timestamp,
-            })
+
+            const data = { wind_speed, wind_direction, timestamp }
+            console.log(`Broadcasting wind data:`, data)
+
+            await transmit.broadcast(`wind/live/${station_id}`, data)
         }, 1000)
+
         return { ok: true, message: `Mock wind started for ${station_id}` }
     }
 
