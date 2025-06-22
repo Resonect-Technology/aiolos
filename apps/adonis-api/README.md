@@ -60,7 +60,8 @@ pnpm --filter adonis-api run dev
 #### Example (React)
 ```js
 import { Transmit } from '@adonisjs/transmit-client'
-const transmit = new Transmit({ baseUrl: window.location.origin })
+// Use the correct port (33891 in development, or your production port)
+const transmit = new Transmit({ baseUrl: 'http://localhost:33891' })
 const subscription = transmit.subscription('wind/live/station-001')
 await subscription.create()
 subscription.onMessage((data) => {
@@ -83,19 +84,21 @@ curl -X POST http://localhost:3333/stations/station-001/live/wind \
 ```
 
 ### Mocking Live Wind Data (Development Only)
-- **Endpoint:** `POST /stations/:station_id/live/wind/mock` — Broadcasts a single random (or provided) wind data event
-- **Endpoint:** `POST /stations/:station_id/live/wind/mock/start` — Starts 1s interval random wind data streaming
-- **Endpoint:** `POST /stations/:station_id/live/wind/mock/stop` — Stops the interval stream
-- **Body:** Optionally provide `wind_speed`, `wind_direction`, `timestamp` to `/mock`, otherwise random values are used
-- Use these endpoints to simulate live wind data for frontend or SSE testing.
+- **Endpoint:** `POST /stations/:station_id/live/wind/mock`
+- **Body:** Optionally provide `wind_speed`, `wind_direction`, `timestamp` (otherwise random values are used)
+- Use this endpoint to simulate live wind data for frontend or SSE testing.
 
 #### Example (curl)
 ```sh
-# Start 1s interval mock wind data
-curl -X POST http://localhost:3333/stations/station-001/live/wind/mock/start
-# Stop the mock stream
-curl -X POST http://localhost:3333/stations/station-001/live/wind/mock/stop
+curl -X POST http://localhost:33891/stations/station-001/live/wind/mock
 ```
+
+#### Example (Postman - Setting up SSE)
+1. **Create a GET request to:** `http://localhost:33891/__transmit/events?channels=wind/live/station-001`
+2. **In Settings:** Enable "Event stream" option
+3. **In a separate tab:** Send `POST http://localhost:33891/stations/station-001/live/wind/mock/start`
+4. **Watch:** Events will appear in the response of the SSE request
+5. **To stop:** Send `POST http://localhost:33891/stations/station-001/live/wind/mock/stop`
 
 ### OpenAPI & Swagger UI
 - Live docs: [http://localhost:3333/docs](http://localhost:3333/docs)
