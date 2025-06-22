@@ -2,7 +2,12 @@ import type { HttpContext } from '@adonisjs/core/http'
 import transmit from '@adonisjs/transmit/services/main'
 
 // In-memory interval map for dev-only mock streaming
-const mockIntervals: Record<string, NodeJS.Timeout> = {}
+interface MockStationData {
+    intervalId: NodeJS.Timeout
+    lastWindSpeed: number
+    lastWindDirection: number
+}
+const mockStationStates: Record<string, MockStationData> = {}
 
 export default class StationLiveController {
     /**
@@ -68,33 +73,56 @@ export default class StationLiveController {
      */
     async startMockWind({ params, response }: HttpContext) {
         const { station_id } = params
-        if (mockIntervals[station_id]) {
+        if (mockStationStates[station_id]) {
             return response.conflict({ error: 'Mock already running' })
         }
 
-        console.log(`Starting mock wind data for station: ${station_id}`)
+        console.log(`Starting smoother mock wind data for station: ${station_id}`)
+
+        // Initial random values
+        let currentWindSpeed = Math.round((Math.random() * 15 + 5) * 10) / 10 // Start between 5 and 20 m/s
+        let currentWindDirection = Math.floor(Math.random() * 360)
+
+        const sendData = async (speed: number, direction: number) => {
+            const timestamp = new Date().toISOString()
+            const data = { wind_speed: speed, wind_direction: direction, timestamp }
+            console.log(`Broadcasting wind data for ${station_id}:`, data)
+            await transmit.broadcast(`wind/live/${station_id}`, data)
+            return data
+        }
 
         // Send initial data immediately
-        const initialWind = {
-            wind_speed: Math.round((Math.random() * 20 + 1) * 10) / 10,
-            wind_direction: Math.floor(Math.random() * 360),
-            timestamp: new Date().toISOString()
-        }
-        console.log(`Broadcasting initial wind data:`, initialWind)
-        await transmit.broadcast(`wind/live/${station_id}`, initialWind)
+        await sendData(currentWindSpeed, currentWindDirection)
 
-        mockIntervals[station_id] = setInterval(async () => {
-            const wind_speed = Math.round((Math.random() * 20 + 1) * 10) / 10
-            const wind_direction = Math.floor(Math.random() * 360)
-            const timestamp = new Date().toISOString()
+        const intervalId = setInterval(async () => {
+            // Generate small changes
+            const speedChange = (Math.random() - 0.5) * 2; // -1 to +1 m/s change
+            const directionChange = Math.floor((Math.random() - 0.5) * 30); // -15 to +15 degrees change
 
-            const data = { wind_speed, wind_direction, timestamp }
-            console.log(`Broadcasting wind data:`, data)
+            currentWindSpeed += speedChange;
+            currentWindDirection += directionChange;
 
-            await transmit.broadcast(`wind/live/${station_id}`, data)
+            // Clamp values to reasonable ranges
+            currentWindSpeed = Math.max(0, Math.min(25, currentWindSpeed)); // 0-25 m/s
+            currentWindSpeed = Math.round(currentWindSpeed * 10) / 10; // Round to 1 decimal place
+
+            currentWindDirection = (currentWindDirection + 360) % 360; // Keep direction 0-359
+            currentWindDirection = Math.floor(currentWindDirection);
+
+            // Update state for next iteration (though not strictly needed here as vars are in closure)
+            mockStationStates[station_id].lastWindSpeed = currentWindSpeed;
+            mockStationStates[station_id].lastWindDirection = currentWindDirection;
+
+            await sendData(currentWindSpeed, currentWindDirection);
         }, 1000)
 
-        return { ok: true, message: `Mock wind started for ${station_id}` }
+        mockStationStates[station_id] = {
+            intervalId,
+            lastWindSpeed: currentWindSpeed,
+            lastWindDirection: currentWindDirection,
+        }
+
+        return { ok: true, message: `Smoother mock wind started for ${station_id}` }
     }
 
     /**
@@ -103,9 +131,10 @@ export default class StationLiveController {
      */
     async stopMockWind({ params, response }: HttpContext) {
         const { station_id } = params
-        if (mockIntervals[station_id]) {
-            clearInterval(mockIntervals[station_id])
-            delete mockIntervals[station_id]
+        if (mockStationStates[station_id]) {
+            clearInterval(mockStationStates[station_id].intervalId)
+            delete mockStationStates[station_id]
+            console.log(`Mock wind stopped for station: ${station_id}`)
             return { ok: true, message: `Mock wind stopped for ${station_id}` }
         }
         return response.notFound({ error: 'No mock running for this station' })
