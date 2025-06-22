@@ -5,7 +5,12 @@ This application is the frontend for the Aiolos live wind data monitoring system
 ## Key Features
 
 -   **Live Data Visualization**: Connects to the AdonisJS backend via Server-Sent Events (SSE) to receive and display real-time wind data.
--   **Wind Speed Gauge**: Utilizes a `react-gauge-component` to visually represent live wind speed.
+-   **Dynamic Wind Speed Gauge**:
+    -   Utilizes a `react-gauge-component` to visually represent live wind speed.
+    -   **Unit Selection**: Allows users to switch between different units of speed: meters per second (m/s), kilometers per hour (km/h), knots, and the Beaufort scale (Bft).
+    -   **Adaptive Scale**: The gauge's scale, colored sub-arcs, tick marks, and value labels dynamically adjust based on the selected unit.
+    -   **Informative Tooltips**: Sub-arcs on the gauge display descriptive tooltips (e.g., "Too slow", "Moderate breeze", "Let's gooo!") relevant to the speed range in the chosen unit.
+-   **Wind Direction Compass**: Displays the wind direction using a visual compass that rotates based on the incoming data.
 -   **Station Selection**: Allows users to input a station ID to monitor specific wind data channels.
 -   **Connection Status**: Displays the current connection status (Connected/Disconnected) to the SSE stream and any errors.
 -   **Mock Data Controls**: Provides UI buttons to interact with the backend's mock data generation features:
