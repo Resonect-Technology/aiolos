@@ -1,21 +1,51 @@
-# Node
+# Node / Package Manager
+# ----------------------
 node_modules/
 .pnpm/
 
 # Logs
+# ----
 logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Env
+# Environment Variables
+# ---------------------
 .env
 .env.*
+!.env.example # It's a common practice to commit an example env file
 
-# Build
-/dist
-/build
+# Build & Output Artifacts
+# ------------------------
+# General build outputs (will apply to root and any subdirectory)
+build/ # Was /build
+dist/  # Was /dist
+out/
+
+# Turborepo
+# ---------
+.turbo/
+
+# Application Specific
+# --------------------
+
+# AdonisJS (apps/adonis-api)
+apps/adonis-api/tmp/
+apps/adonis-api/ace-manifest.json
+# Development databases for Adonis (if not intended to be committed)
+apps/adonis-api/*.sqlite
+apps/adonis-api/*.sqlite3
+
+# Vite (apps/react-frontend)
+apps/react-frontend/.vite/
+# Note: apps/react-frontend/dist/ is covered by the general 'dist/' pattern above
+
+# Test & Coverage Reports
+# -----------------------
+coverage/
+*.lcov
 
 # VSCode
 .vscode/
