@@ -10,12 +10,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@adonisjs/transmit-client": "^1.0.0",
     "@tailwindcss/vite": "^4.1.10",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.522.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-gauge-component": "^1.2.64",
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4.1.10"
   },

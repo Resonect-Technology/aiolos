@@ -10,9 +10,6 @@
 import router from '@adonisjs/core/services/router'
 const SensorReadingsController = () => import('#app/SensorReadingsController')
 const StationLiveController = () => import('#app/controllers/StationLiveController')
-const EventStreamController = () => import('#app/controllers/EventStreamController')
-const SubscribeController = () => import('#app/controllers/SubscribeController')
-const UnsubscribeController = () => import('#app/controllers/UnsubscribeController')
 import AutoSwagger from 'adonis-autoswagger'
 import swagger from '#config/swagger'
 import transmit from '@adonisjs/transmit/services/main'
@@ -44,7 +41,5 @@ router.get('/docs', async () => {
   return AutoSwagger.default.ui('/swagger', swagger)
 })
 
-// Register custom Transmit routes with our PascalCase controllers
-router.get('/__transmit/events', [EventStreamController, 'handle'])
-router.post('/__transmit/subscriptions', [SubscribeController, 'handle'])
-router.delete('/__transmit/subscriptions/:id', [UnsubscribeController, 'handle'])
+// Let Transmit register its own routes
+transmit.registerRoutes()
