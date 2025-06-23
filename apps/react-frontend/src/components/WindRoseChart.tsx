@@ -1,13 +1,15 @@
 import { useMemo, useState } from 'react';
-import { Chart, calculateWindRose } from '@eunchurn/react-windrose';
-import type { ChartData } from '@eunchurn/react-windrose';
+import { Chart } from '@eunchurn/react-windrose';
+import type { ChartData as BaseChartData } from '@eunchurn/react-windrose';
 import { 
-  WIND_DIRECTIONS, 
   getWindRoseColumns,
   getWindSpeedRangeDisplay,
   WIND_SPEED_COLORS
 } from '../lib/wind-utils';
-import type { WindDirectionAngle } from '../lib/wind-utils';
+import { 
+  calculateCustomWindRose, 
+  createEmptyWindRoseData
+} from '../lib/windrose-utils';
 
 interface WindData {
   wind_speed: number;
@@ -21,20 +23,7 @@ interface WindRoseChartProps {
 }
 
 // Default empty wind rose data showing all directions with zero values
-const createEmptyWindRoseData = (): ChartData[] => {
-  return WIND_DIRECTIONS.map(angle => ({
-    angle,
-    '0-1': 0,
-    '1-2': 0,
-    '2-3': 0,
-    '3-4': 0,
-    '4-5': 0,
-    '5-6': 0,
-    '6-7': 0,
-    '7+': 0,
-    total: 0
-  }));
-};
+const emptyWindRoseData = createEmptyWindRoseData();
 
 export function WindRoseChart({ windHistory, selectedUnit }: WindRoseChartProps) {
   const [showExplanation, setShowExplanation] = useState(false);
@@ -42,7 +31,7 @@ export function WindRoseChart({ windHistory, selectedUnit }: WindRoseChartProps)
   // Process wind data for the Windrose chart
   const windRoseData = useMemo(() => {
     if (windHistory.length === 0) {
-      return createEmptyWindRoseData();
+      return emptyWindRoseData;
     }
     
     const data = {
@@ -50,7 +39,7 @@ export function WindRoseChart({ windHistory, selectedUnit }: WindRoseChartProps)
       speed: windHistory.map(data => data.wind_speed)
     };
     
-    return calculateWindRose(data);
+    return calculateCustomWindRose(data);
   }, [windHistory]);
 
   // Define Windrose columns
@@ -68,7 +57,7 @@ export function WindRoseChart({ windHistory, selectedUnit }: WindRoseChartProps)
       <h3 className="text-lg font-medium mb-4 text-center">Wind Rose Chart</h3>
       <div className="w-full h-96">
         <Chart 
-          chartData={windRoseData} 
+          chartData={windRoseData as unknown as BaseChartData[]} 
           columns={windRoseColumns}
           responsive 
           legendGap={20}
