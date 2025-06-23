@@ -21,7 +21,7 @@
   transform: translateX(-50%);
   border-style: solid;
   border-width: 30px 20px 0 20px;
-  border-color: red transparent transparent transparent;
+  border-color: #f44242 transparent transparent transparent; /* Using unified wind color scheme - red */
   z-index: 1;
 }
 
@@ -43,7 +43,7 @@
   opacity: 0;
   width: 20%;
   height: 20%;
-  background: rgb(8, 223, 69);
+  background: #42f456; /* Using unified wind color scheme - green */
   border-radius: 50%;
   transition: opacity 0.5s ease-out;
 }

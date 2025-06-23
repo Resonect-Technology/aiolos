@@ -21,26 +21,53 @@ export const WindDirectionCompass: React.FC<WindDirectionCompassProps> = ({ wind
   }, [windDirection]);
 
   return (
-    <div className="flex flex-col items-center bg-background p-4 rounded-lg">
-      <h2 className="text-xl font-semibold text-primary-content mb-2">Wind Direction</h2>
-      <p className="text-sm text-muted-foreground mb-4">
-        The red arrow shows the direction from which the wind blows. For good
-        Vasiliki wind we&apos;re looking for W direction (around 270&deg;).
-      </p>
-      <div className="compass"> {/* Class from user's CSS */}
-        <div className="arrow" /> {/* Class from user's CSS */}
-        <div
-          className="compass-circle" /* Class from user's CSS */
-          style={{ transform: compassCircleTransformStyle }}
-        />
-        <div className="my-point" /> {/* Class from user's CSS */}
+    <div className="text-center">
+      <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-4">Wind Direction</h2>
+      <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+        <p className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
+          The red arrow shows the direction from which the wind blows. For optimal 
+          Vasiliki conditions, we look for westerly winds (around 270°).
+        </p>
       </div>
-      <div className="text-neutral mt-4 text-lg">
-        Direction:{" "}
-        {windDirection !== null && windDirection !== undefined
-          ? `${Math.round(windDirection)}°`
-          : "Loading..."}
+      
+      <div className="flex justify-center mb-6">
+        <div className="compass"> {/* Class from user's CSS */}
+          <div className="arrow" /> {/* Class from user's CSS */}
+          <div
+            className="compass-circle" /* Class from user's CSS */
+            style={{ transform: compassCircleTransformStyle }}
+          />
+          <div className="my-point" /> {/* Class from user's CSS */}
+        </div>
+      </div>
+      
+      <div className="p-4 bg-slate-50 dark:bg-slate-700 rounded-lg">
+        <div className="text-center">
+          <span className="text-sm font-medium text-slate-600 dark:text-slate-400 block mb-1">
+            Current Direction
+          </span>
+          <span className="text-3xl font-bold text-slate-800 dark:text-slate-100">
+            {windDirection !== null && windDirection !== undefined
+              ? `${Math.round(windDirection)}°`
+              : "---"}
+          </span>
+          {windDirection !== null && windDirection !== undefined && (
+            <span className="text-sm text-slate-500 dark:text-slate-400 block mt-1">
+              {getCompassDirection(windDirection)}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
+};
+
+// Helper function to convert degrees to compass direction
+function getCompassDirection(degrees: number): string {
+  const directions = [
+    'N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
+    'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'
+  ];
+  const index = Math.round(degrees / 22.5) % 16;
+  return directions[index];
 };

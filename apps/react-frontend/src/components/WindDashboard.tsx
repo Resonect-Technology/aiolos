@@ -146,40 +146,76 @@ export function WindDashboard({ stationId }: WindDashboardProps) {
   }, [stationId]);
 
   return (
-    <div className="flex flex-col space-y-6 p-6 max-w-2xl mx-auto bg-card rounded-lg shadow-md">
-      <ConnectionStatus 
-        stationId={stationId}
-        isConnected={isConnected}
-        error={error}
-      />
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
+        {/* Header Section */}
+        <div className="mb-10">
+          <ConnectionStatus 
+            stationId={stationId}
+            isConnected={isConnected}
+            error={error}
+          />
+        </div>
 
-      <UnitSelector 
-        selectedUnit={selectedUnit} 
-        onUnitChange={handleUnitChange} 
-      />
+        {/* Unit Selector */}
+        <div className="mb-10 flex justify-center">
+          <UnitSelector 
+            selectedUnit={selectedUnit} 
+            onUnitChange={handleUnitChange} 
+            className="w-full max-w-md"
+          />
+        </div>
 
-      <WindSpeedDisplay 
-        windData={windData} 
-        selectedUnit={selectedUnit} 
-      />
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-10">
+          {/* Left column with speed gauge and direction compass */}
+          <div className="space-y-8">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-2xl transition-shadow duration-300">
+              <div className="p-8">
+                <WindSpeedDisplay 
+                  windData={windData} 
+                  selectedUnit={selectedUnit} 
+                />
+              </div>
+            </div>
+            
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-2xl transition-shadow duration-300">
+              <div className="p-8">
+                <WindDirectionCompass 
+                  windDirection={windData?.wind_direction} 
+                />
+              </div>
+            </div>
+          </div>
 
-      <WindDirectionCompass 
-        windDirection={windData?.wind_direction} 
-      />
+          {/* Right column with wind rose chart */}
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-2xl transition-shadow duration-300">
+            <div className="p-8 h-full min-h-[700px] flex flex-col">
+              <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-6 text-center">
+                Wind Rose Analysis
+              </h2>
+              <div className="flex-1">
+                <WindRoseChart 
+                  windHistory={windHistory} 
+                  selectedUnit={selectedUnit} 
+                />
+              </div>
+            </div>
+          </div>
+        </div>
 
-      <WindRoseChart 
-        windHistory={windHistory} 
-        selectedUnit={selectedUnit} 
-      />
-
-      <ControlPanel 
-        windData={windData}
-        formatTimestamp={formatTimestamp}
-        startMockData={startMockData}
-        stopMockData={stopMockData}
-        sendSingleMockData={sendSingleMockData}
-        clearWindHistory={clearWindHistory}
-      />
+        {/* Control Panel */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-2xl transition-shadow duration-300">
+          <ControlPanel 
+            windData={windData}
+            formatTimestamp={formatTimestamp}
+            startMockData={startMockData}
+            stopMockData={stopMockData}
+            sendSingleMockData={sendSingleMockData}
+            clearWindHistory={clearWindHistory}
+          />
+        </div>
+      </div>
     </div>
   );
 }

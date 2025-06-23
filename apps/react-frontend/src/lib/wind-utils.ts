@@ -1,5 +1,12 @@
 /**
  * Wind unit conversion and utility functions for Aiolos
+ * 
+ * This file contains the unified color scheme used across all wind components:
+ * - WindSpeedDisplay (gauge colors)
+ * - WindRoseChart (legend colors)
+ * - WindDirectionCompass (arrow and point colors)
+ * 
+ * Colors are based on the @eunchurn/react-windrose default palette to ensure consistency.
  */
 
 // Wind unit labels
@@ -49,18 +56,36 @@ export const WIND_SPEED_RANGES = [
     { min: 20, max: Infinity, description: 'Gale or stronger' }
 ];
 
-// Color codes for different wind speed ranges
+// Color codes for different wind speed ranges (matching WindRose chart)
 export const WIND_SPEED_COLORS = [
-    '#d73027', // 0-1 m/s (red)
-    '#f46d43', // 1-3 m/s (orange-red)
-    '#fdae61', // 3-5 m/s (light orange)
-    '#fee090', // 5-8 m/s (yellow)
-    '#e0f3f8', // 8-11 m/s (light blue)
-    '#abd9e9', // 11-14 m/s (medium light blue)
-    '#74add1', // 14-17 m/s (medium blue)
-    '#4575b4', // 17-20 m/s (dark blue)
-    '#313695'  // 20+ m/s (deep blue)
+    "#8e44ad", // 0-1 m/s (purple)
+    "#4242f4", // 1-3 m/s (blue)
+    "#42c5f4", // 3-5 m/s (light blue)
+    "#42f4ce", // 5-8 m/s (cyan)
+    "#42f456", // 8-11 m/s (green)
+    "#adf442", // 11-14 m/s (light green/yellow)
+    "#f4e242", // 14-17 m/s (yellow)
+    "#f4a142", // 17-20 m/s (orange)
+    "#f44242"  // 20+ m/s (red)
 ];
+
+// Helper function to get color by wind speed range index
+export const getWindSpeedColor = (rangeIndex: number): string => {
+    return WIND_SPEED_COLORS[Math.min(rangeIndex, WIND_SPEED_COLORS.length - 1)];
+};
+
+// Helper function to get color by wind speed value (in m/s)
+export const getWindSpeedColorByValue = (speed: number): string => {
+    if (speed < 1) return WIND_SPEED_COLORS[0];      // 0-1 m/s
+    if (speed < 3) return WIND_SPEED_COLORS[1];      // 1-3 m/s  
+    if (speed < 5) return WIND_SPEED_COLORS[2];      // 3-5 m/s
+    if (speed < 8) return WIND_SPEED_COLORS[3];      // 5-8 m/s
+    if (speed < 11) return WIND_SPEED_COLORS[4];     // 8-11 m/s
+    if (speed < 14) return WIND_SPEED_COLORS[5];     // 11-14 m/s
+    if (speed < 17) return WIND_SPEED_COLORS[6];     // 14-17 m/s
+    if (speed < 20) return WIND_SPEED_COLORS[7];     // 17-20 m/s
+    return WIND_SPEED_COLORS[8];                     // 20+ m/s
+};
 
 /**
  * Convert wind speed to different units
