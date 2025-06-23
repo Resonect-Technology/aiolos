@@ -39,21 +39,27 @@ export const BEAUFORT_DESCRIPTIONS = [
 // Wind speed ranges for the wind rose chart
 export const WIND_SPEED_RANGES = [
     { min: 0, max: 1, description: 'Calm' },
-    { min: 1, max: 2, description: 'Light air' },
-    { min: 2, max: 3, description: 'Light breeze' },
-    { min: 3, max: 4, description: 'Gentle breeze' },
-    { min: 4, max: 5, description: 'Moderate breeze' },
-    { min: 5, max: Infinity, description: 'Fresh breeze or stronger' }
+    { min: 1, max: 3, description: 'Light air' },
+    { min: 3, max: 5, description: 'Light breeze' },
+    { min: 5, max: 8, description: 'Gentle breeze' },
+    { min: 8, max: 11, description: 'Moderate breeze' },
+    { min: 11, max: 14, description: 'Fresh breeze' },
+    { min: 14, max: 17, description: 'Strong breeze' },
+    { min: 17, max: 20, description: 'Near gale' },
+    { min: 20, max: Infinity, description: 'Gale or stronger' }
 ];
 
 // Color codes for different wind speed ranges
 export const WIND_SPEED_COLORS = [
     '#d73027', // 0-1 m/s (red)
-    '#fc8d59', // 1-2 m/s (orange)
-    '#fee090', // 2-3 m/s (yellow)
-    '#e0f3f8', // 3-4 m/s (light blue)
-    '#91bfdb', // 4-5 m/s (medium blue)
-    '#4575b4'  // 5+ m/s (dark blue)
+    '#f46d43', // 1-3 m/s (orange-red)
+    '#fdae61', // 3-5 m/s (light orange)
+    '#fee090', // 5-8 m/s (yellow)
+    '#e0f3f8', // 8-11 m/s (light blue)
+    '#abd9e9', // 11-14 m/s (medium light blue)
+    '#74add1', // 14-17 m/s (medium blue)
+    '#4575b4', // 17-20 m/s (dark blue)
+    '#313695'  // 20+ m/s (deep blue)
 ];
 
 /**
@@ -101,11 +107,14 @@ export const getWindSpeedRangeDisplay = (unit: string) => {
             unitLabel,
             ranges: [
                 { range: '0', description: 'Calm' },
-                { range: '1', description: 'Light air' },
-                { range: '2', description: 'Light breeze' },
-                { range: '3', description: 'Gentle breeze' },
-                { range: '4', description: 'Moderate breeze' },
-                { range: '5+', description: 'Fresh breeze or stronger' }
+                { range: '1-2', description: 'Light air' },
+                { range: '3', description: 'Light breeze' },
+                { range: '4', description: 'Gentle breeze' },
+                { range: '5', description: 'Moderate breeze' },
+                { range: '6', description: 'Fresh breeze' },
+                { range: '7', description: 'Strong breeze' },
+                { range: '8', description: 'Near gale' },
+                { range: '9+', description: 'Gale or stronger' }
             ]
         };
     }
@@ -134,7 +143,7 @@ export const getWindSpeedRangeDisplay = (unit: string) => {
  * @returns Array of column names for wind rose chart
  */
 export const getWindRoseColumns = (): string[] => {
-    return ['angle', '0-1', '1-2', '2-3', '3-4', '4-5', '5-6', '6-7', '7+'];
+    return ['angle', '0-1', '1-3', '3-5', '5-8', '8-11', '11-14', '14-17', '17-20', '20+'];
 };
 
 /**
@@ -153,10 +162,10 @@ export const getGaugeMinValue = (_unit: string): number => {
  */
 export const getGaugeMaxValue = (unit: string): number => {
     switch (unit) {
-        case 'm/s': return 30;
-        case 'km/h': return 120;
-        case 'knots': return 60;
-        case 'beaufort': return 12;
+        case 'm/s': return 30;       // Up to 30 m/s for Vasiliki conditions
+        case 'km/h': return 120;     // Approx 30 m/s in km/h
+        case 'knots': return 60;     // Approx 30 m/s in knots
+        case 'beaufort': return 12;  // Max on Beaufort scale
         default: return 30;
     }
 };
