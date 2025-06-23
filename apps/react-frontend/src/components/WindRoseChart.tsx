@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Chart } from '@eunchurn/react-windrose';
 import type { ChartData as BaseChartData } from '@eunchurn/react-windrose';
 import { 
   getWindRoseColumns,
-  getWindSpeedRangeDisplay
+  getWindSpeedRangeDisplay,
+  WIND_SPEED_COLORS
 } from '../lib/wind-utils';
 import { 
   calculateCustomWindRose, 
@@ -26,8 +27,6 @@ interface WindRoseChartProps {
 const emptyWindRoseData = createEmptyWindRoseData();
 
 export function WindRoseChart({ windHistory, selectedUnit }: WindRoseChartProps) {
-  const [showExplanation, setShowExplanation] = useState(false);
-
   // Process wind data for the Windrose chart
   const windRoseData = useMemo(() => {
     if (windHistory.length === 0) {
@@ -53,9 +52,10 @@ export function WindRoseChart({ windHistory, selectedUnit }: WindRoseChartProps)
   }, [selectedUnit]);
 
   return (
-    <div className="mt-8 bg-background p-4 rounded-lg">
-      <h3 className="text-lg font-medium mb-4 text-center">Wind Rose Chart</h3>
-      <div className="w-full h-96">
+    <div className="h-full flex flex-col">
+      <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-6 text-center">Wind Rose Chart</h3>
+      
+      <div className="flex-grow flex items-center justify-center min-h-[400px]">
         <Chart 
           chartData={windRoseData as unknown as BaseChartData[]} 
           columns={windRoseColumns}
@@ -63,67 +63,48 @@ export function WindRoseChart({ windHistory, selectedUnit }: WindRoseChartProps)
           legendGap={20}
         />
       </div>
-      <p className="text-sm text-center text-muted-foreground mt-2">
-        {windHistory.length > 0 
-          ? `Based on ${windHistory.length} most recent measurements` 
-          : "No wind data collected yet. The chart will update as data arrives."}
-      </p>
       
-      {/* Toggle button for explanation */}
-      <div className="mt-3 text-center">
-        <button 
-          onClick={() => setShowExplanation(prev => !prev)}
-          className="inline-flex items-center text-xs font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-        >
-          {showExplanation ? "Hide explanation" : "What is this chart?"}
-          <svg 
-            className={`w-4 h-4 ml-1 transition-transform ${showExplanation ? 'rotate-180' : ''}`} 
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24" 
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
-          </svg>
-        </button>
+      <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-700 rounded-lg text-center">
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          {windHistory.length > 0 
+            ? `Based on ${windHistory.length} most recent measurements` 
+            : "No wind data collected yet. The chart will update as data arrives."}
+        </p>
       </div>
       
-      {/* WindRose Explanation */}
-      {showExplanation && (
-        <div className="mt-4 p-3 bg-slate-50 dark:bg-slate-800 rounded-md text-sm">
-          <h4 className="font-medium mb-2">Understanding the Wind Rose Chart</h4>
-          <p className="mb-2">
-            A wind rose is a graphical tool that shows wind speed and direction patterns at a location.
-            All measurements are displayed in {unitDisplay.unitLabel}.
-          </p>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <h5 className="font-medium text-xs mb-1">Reading the Chart:</h5>
-              <ul className="list-disc pl-5 text-xs space-y-1">
-                <li>Each "spoke" represents a wind direction (N, NE, E, SE, etc.)</li>
-                <li>The length of each colored segment shows how frequently wind blows from that direction</li>
-                <li>Different colors represent different wind speed ranges</li>
-                <li>Longer sections indicate more frequent winds from that direction</li>
-              </ul>
+      {/* WindRose Legend */}
+      <div className="mt-6 p-6 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700 dark:to-slate-800 rounded-xl border border-slate-200 dark:border-slate-600">
+        <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4 text-center">
+          Wind Speed Ranges ({unitDisplay.unitLabel})
+        </h4>
+        
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {unitDisplay.ranges.map((range, index) => (
+            <div key={index} className="flex items-center space-x-3 p-2 bg-white dark:bg-slate-800 rounded-lg shadow-sm">
+              <span 
+                className="w-4 h-4 rounded-full shadow-sm border border-slate-300 dark:border-slate-600"
+                style={{ backgroundColor: WIND_SPEED_COLORS[index] }}
+              ></span>
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                {range.range} {unitDisplay.unitLabel}
+              </span>
             </div>
-            
-            <div>
-              <h5 className="font-medium text-xs mb-1">Color Legend:</h5>
-              <ul className="space-y-1 text-xs">
-                {unitDisplay.ranges.map((range, index) => (
-                  <li key={index} className="flex items-center windrose-legend-item">
-                    <span 
-                      className="w-3 h-3 inline-block mr-2 color-box"
-                    ></span>
-                    <span>{`${range.range} ${unitDisplay.unitLabel} (${range.description})`}</span>
-                  </li>
-                ))}
-              </ul>
+          ))}
+        </div>
+        
+        <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-600">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-600 dark:text-slate-400">
+            <div className="space-y-1">
+              <p className="font-medium">• Each spoke represents a wind direction</p>
+              <p className="font-medium">• Length shows frequency of winds from that direction</p>
+            </div>
+            <div className="space-y-1">
+              <p className="font-medium">• Colors represent different wind speed ranges</p>
+              <p className="font-medium">• Longer sections = more frequent winds</p>
             </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
