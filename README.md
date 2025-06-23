@@ -19,6 +19,10 @@ Aiolos is a modern, scalable platform for collecting, storing, and serving real-
 
 ---
 
+![Aiolos Dashboard Screenshot](docs/screenshot-dashboard.png)
+
+---
+
 ## Monorepo Structure
 
 ```

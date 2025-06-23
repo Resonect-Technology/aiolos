@@ -1,54 +1,160 @@
 # React Frontend - Aiolos Project
 
-This application is the frontend for the Aiolos live wind data monitoring system. It is built with React (using Vite), TypeScript, Tailwind CSS, and shadcn/ui components.
+This application is the frontend for the Aiolos live wind data monitoring system. It features a professional, modular wind monitoring dashboard built with React (using Vite), TypeScript, Tailwind CSS, and modern UI components.
 
 ## Key Features
 
--   **Live Data Visualization**: Connects to the AdonisJS backend via Server-Sent Events (SSE) to receive and display real-time wind data.
+### 🌪️ **Comprehensive Wind Dashboard**
+-   **Modular Component Architecture**: Clean separation of concerns with dedicated components for each feature
+-   **Responsive Design**: Professional layout that adapts beautifully from mobile to desktop
+-   **Modern UI**: Polished interface with cards, shadows, rounded corners, and smooth transitions
+
+### 📊 **Advanced Wind Visualization**
 -   **Dynamic Wind Speed Gauge**:
-    -   Utilizes a `react-gauge-component` to visually represent live wind speed.
-    -   **Unit Selection**: Allows users to switch between different units of speed: meters per second (m/s), kilometers per hour (km/h), knots, and the Beaufort scale (Bft).
-    -   **Adaptive Scale**: The gauge's scale, colored sub-arcs, tick marks, and value labels dynamically adjust based on the selected unit.
-    -   **Informative Tooltips**: Sub-arcs on the gauge display descriptive tooltips (e.g., "Too slow", "Moderate breeze", "Let's gooo!") relevant to the speed range in the chosen unit.
--   **Wind Direction Compass**: Displays the wind direction using a visual compass that rotates based on the incoming data.
--   **Station Selection**: Allows users to input a station ID to monitor specific wind data channels.
--   **Connection Status**: Displays the current connection status (Connected/Disconnected) to the SSE stream and any errors.
--   **Mock Data Controls**: Provides UI buttons to interact with the backend's mock data generation features:
-    -   Start Mock Data: Initiates a stream of simulated wind data from the backend.
-    -   Stop Mock Data: Halts the simulated data stream.
-    -   Send Single Event: Triggers a single mock wind data event from the backend.
--   **Proxy to Backend**: Vite development server is configured to proxy API (`/api`) and SSE (`/__transmit`) requests to the AdonisJS backend (typically `http://localhost:3333`).
+    -   Large, prominent semicircular gauge with unified color scheme
+    -   **Multi-Unit Support**: Switch between m/s, km/h, knots, and Beaufort scale
+    -   **Adaptive Scaling**: Automatic scale adjustment with appropriate tick marks and ranges
+    -   **Color-Coded Ranges**: Unified wind speed color palette across all components
+    -   **Informative Tooltips**: Descriptive tooltips for each wind speed range (e.g., "Calm", "Moderate breeze", "Gale")
+
+-   **Wind Direction Compass**: 
+    -   Interactive compass with animated wind direction indicator
+    -   Real-time rotation based on incoming wind direction data
+    -   Clean, minimalist design with clear directional markings
+
+-   **Wind Rose Chart**:
+    -   Professional wind rose visualization showing wind patterns over time
+    -   Consistent color scheme matching the speed gauge
+    -   Always-visible legend positioned below the chart
+    -   Historical wind data analysis capabilities
+
+### 🎛️ **User Controls & Status**
+-   **Unit Selector**: Clean dropdown for switching between wind speed units
+-   **Connection Status**: Real-time connection indicator with visual feedback
+-   **Control Panel**: Comprehensive mock data controls for testing:
+    -   Start/Stop continuous mock data streams
+    -   Send single mock data events
+    -   Clear historical wind data
+    -   View latest wind data with timestamps
+
+### 🔧 **Technical Features**
+-   **Real-time Data**: SSE connection to AdonisJS backend via `@adonisjs/transmit-client`
+-   **Station Selection**: Dynamic station ID input for monitoring specific data channels
+-   **Error Handling**: Robust error handling with user-friendly error messages
+-   **Development Proxy**: Vite proxy configuration for seamless backend integration
+-   **Type Safety**: Full TypeScript implementation with proper type definitions
+
+## Component Architecture
+
+The application is built with a modular component structure for maintainability and reusability:
+
+### Core Components
+-   **`WindDashboard`**: Main dashboard container with responsive grid layout
+-   **`WindSpeedDisplay`**: Large wind speed gauge with unit conversion
+-   **`WindDirectionCompass`**: Animated compass showing wind direction
+-   **`WindRoseChart`**: Historical wind pattern visualization
+-   **`UnitSelector`**: Wind speed unit selection dropdown
+-   **`ControlPanel`**: Mock data controls and wind data display
+-   **`ConnectionStatus`**: Real-time connection status indicator
+
+### Utilities
+-   **`wind-utils.ts`**: Centralized wind data utilities including:
+    -   Unit conversion functions
+    -   Unified color scheme for wind speeds
+    -   Gauge configuration helpers
+    -   Wind speed range definitions
 
 ## Technologies Used
 
--   [React](https://react.dev/)
--   [Vite](https://vitejs.dev/)
--   [TypeScript](https://www.typescriptlang.org/)
--   [@adonisjs/transmit-client](https://github.com/adonisjs/transmit-client) for SSE communication
--   [Tailwind CSS](https://tailwindcss.com/)
--   [shadcn/ui](https://ui.shadcn.com/)
--   [react-gauge-component](https://github.com/antoniolago/react-gauge-component)
+-   [React](https://react.dev/) - UI framework
+-   [Vite](https://vitejs.dev/) - Build tool and dev server
+-   [TypeScript](https://www.typescriptlang.org/) - Type safety
+-   [@adonisjs/transmit-client](https://github.com/adonisjs/transmit-client) - SSE communication
+-   [Tailwind CSS](https://tailwindcss.com/) - Utility-first CSS framework
+-   [shadcn/ui](https://ui.shadcn.com/) - UI component library
+-   [react-gauge-component](https://github.com/antoniolago/react-gauge-component) - Wind speed gauge
+-   [Plotly.js](https://plotly.com/javascript/) - Wind rose chart visualization
 
 ## Setup and Running
 
-1.  Navigate to the `apps/react-frontend` directory.
-2.  Install dependencies: `pnpm install` (or `npm install`)
-3.  Start the development server: `pnpm run dev` (or `npm run dev`)
+### Prerequisites
+-   Node.js (v18 or higher)
+-   pnpm (recommended) or npm
 
-The frontend will typically run on `http://localhost:5173` and proxy relevant requests to the backend.
+### Installation & Development
+1.  Navigate to the `apps/react-frontend` directory:
+    ```bash
+    cd apps/react-frontend
+    ```
 
-# React + TypeScript + Vite
+2.  Install dependencies:
+    ```bash
+    pnpm install
+    # or
+    npm install
+    ```
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+3.  Start the development server:
+    ```bash
+    pnpm run dev
+    # or
+    npm run dev
+    ```
 
-Currently, two official plugins are available:
+4.  Open your browser to `http://localhost:5173`
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### Backend Integration
+The frontend is configured to proxy API and SSE requests to the AdonisJS backend:
+-   API requests (`/api/*`) → `http://localhost:3333`
+-   SSE requests (`/__transmit/*`) → `http://localhost:3333`
 
-## Expanding the ESLint configuration
+Make sure the AdonisJS backend is running on port 3333 for full functionality.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Available Scripts
+
+-   `pnpm run dev` - Start development server
+-   `pnpm run build` - Build for production
+-   `pnpm run preview` - Preview production build
+-   `pnpm run lint` - Run ESLint
+
+## Project Structure
+
+```
+src/
+├── components/          # React components
+│   ├── WindDashboard.tsx
+│   ├── WindSpeedDisplay.tsx
+│   ├── WindDirectionCompass.tsx
+│   ├── WindRoseChart.tsx
+│   ├── UnitSelector.tsx
+│   ├── ControlPanel.tsx
+│   └── ConnectionStatus.tsx
+├── lib/                 # Utilities and helpers
+│   ├── utils.ts         # General utilities
+│   └── wind-utils.ts    # Wind-specific utilities
+├── App.tsx             # Main application component
+└── main.tsx            # Application entry point
+```
+
+---
+
+# Development Notes
+
+## Vite + React + TypeScript Template
+
+This project was bootstrapped with Vite's React TypeScript template, providing:
+- ⚡️ Lightning fast HMR (Hot Module Replacement)
+- 🔧 TypeScript support out of the box
+- 📦 Optimized production builds
+- 🎯 ESLint configuration for code quality
+
+### Available Vite Plugins
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) - Uses Babel for Fast Refresh
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) - Uses SWC for Fast Refresh (currently used)
+
+## Extending ESLint Configuration
+
+For production applications, consider enabling type-aware lint rules:
 
 ```js
 export default tseslint.config({
