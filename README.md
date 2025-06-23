@@ -25,7 +25,8 @@ Aiolos is a modern, scalable platform for collecting, storing, and serving real-
 /
 ├── apps/
 │   ├── coap-proxy/      # CoAP-to-HTTP proxy service (Node.js)
-│   └── adonis-api/      # RESTful backend API (AdonisJS v6)
+│   ├── adonis-api/      # RESTful backend API (AdonisJS v6)
+│   └── react-frontend/  # User interface for live data (React, Vite)
 ├── package.json
 ├── pnpm-workspace.yaml
 ├── turbo.json
@@ -47,6 +48,12 @@ Aiolos is a modern, scalable platform for collecting, storing, and serving real-
 - Stores and exposes sensor data (wind, temperature)
 - RESTful, IoT-friendly routes: `/sensors/:sensor_id/readings`
 - Auto-generated OpenAPI docs with [adonis-autoswagger](https://github.com/ad-on-is/adonis-autoswagger)
+
+### React Frontend ([docs](apps/react-frontend/README.md))
+- User interface built with React, Vite, and TypeScript.
+- Displays live wind speed (with unit conversion) and direction using dynamic gauges and a compass.
+- Connects to the Adonis API via Server-Sent Events (SSE) for real-time data.
+- Provides controls for interacting with mock data streams from the backend.
 
 ---
 
