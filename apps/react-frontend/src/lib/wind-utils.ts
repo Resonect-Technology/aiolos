@@ -106,15 +106,15 @@ export const getWindSpeedRangeDisplay = (unit: string) => {
         return {
             unitLabel,
             ranges: [
-                { range: '0', description: 'Calm' },
-                { range: '1-2', description: 'Light air' },
-                { range: '3', description: 'Light breeze' },
-                { range: '4', description: 'Gentle breeze' },
-                { range: '5', description: 'Moderate breeze' },
-                { range: '6', description: 'Fresh breeze' },
-                { range: '7', description: 'Strong breeze' },
-                { range: '8', description: 'Near gale' },
-                { range: '9+', description: 'Gale or stronger' }
+                { range: '0-1', description: 'Calm' },
+                { range: '1-3', description: 'Light air' },
+                { range: '3-5', description: 'Light breeze' },
+                { range: '5-8', description: 'Gentle breeze' },
+                { range: '8-11', description: 'Moderate breeze' },
+                { range: '11-14', description: 'Fresh breeze' },
+                { range: '14-17', description: 'Strong breeze' },
+                { range: '17-20', description: 'Near gale' },
+                { range: '20+', description: 'Gale or stronger' }
             ]
         };
     }

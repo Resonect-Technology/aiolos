@@ -3,13 +3,13 @@ import { Chart } from '@eunchurn/react-windrose';
 import type { ChartData as BaseChartData } from '@eunchurn/react-windrose';
 import { 
   getWindRoseColumns,
-  getWindSpeedRangeDisplay,
-  WIND_SPEED_COLORS
+  getWindSpeedRangeDisplay
 } from '../lib/wind-utils';
 import { 
   calculateCustomWindRose, 
   createEmptyWindRoseData
 } from '../lib/windrose-utils';
+import './WindRoseChart.css';
 
 interface WindData {
   wind_speed: number;
@@ -112,8 +112,10 @@ export function WindRoseChart({ windHistory, selectedUnit }: WindRoseChartProps)
               <h5 className="font-medium text-xs mb-1">Color Legend:</h5>
               <ul className="space-y-1 text-xs">
                 {unitDisplay.ranges.map((range, index) => (
-                  <li key={index} className="flex items-center">
-                    <span className={`w-3 h-3 inline-block mr-2 ${WIND_SPEED_COLORS[index]}`} style={{ backgroundColor: WIND_SPEED_COLORS[index] }}></span>
+                  <li key={index} className="flex items-center windrose-legend-item">
+                    <span 
+                      className="w-3 h-3 inline-block mr-2 color-box"
+                    ></span>
                     <span>{`${range.range} ${unitDisplay.unitLabel} (${range.description})`}</span>
                   </li>
                 ))}
