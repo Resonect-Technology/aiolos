@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { WindSpeedGauge } from './components/WindSpeedGauge'
+import { WindDashboard } from './components/WindDashboard'
 
 function App() {
   const [stationId, setStationId] = useState('station-001');
@@ -26,7 +26,7 @@ function App() {
         </div>
       </div>
 
-      <WindSpeedGauge stationId={stationId} />
+      <WindDashboard stationId={stationId} />
 
       <footer className="mt-12 text-center text-muted-foreground text-sm">
         <p>Aiolos Project &copy; {new Date().getFullYear()}</p>

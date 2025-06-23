@@ -1,0 +1,45 @@
+/* WindRose Chart CSS */
+
+/* 
+ * The colors in this file match the default colors from the windrose chart:
+ * ["#8e44ad", "#4242f4", "#42c5f4", "#42f4ce", "#42f456", "#adf442", "#f4e242", "#f4a142", "#f44242"]
+ *
+ * Note: The chart uses these colors in reverse order in the legend, so we've applied them accordingly
+ */
+
+/* Legend colors - ordered from lowest wind speed to highest */
+.windrose-legend-item:nth-child(1) .color-box {
+  background-color: #8e44ad; /* Purple - for the lowest range */
+}
+
+.windrose-legend-item:nth-child(2) .color-box {
+  background-color: #4242f4; /* Blue */
+}
+
+.windrose-legend-item:nth-child(3) .color-box {
+  background-color: #42c5f4; /* Light Blue */
+}
+
+.windrose-legend-item:nth-child(4) .color-box {
+  background-color: #42f4ce; /* Cyan */
+}
+
+.windrose-legend-item:nth-child(5) .color-box {
+  background-color: #42f456; /* Green */
+}
+
+.windrose-legend-item:nth-child(6) .color-box {
+  background-color: #adf442; /* Light Green/Yellow */
+}
+
+.windrose-legend-item:nth-child(7) .color-box {
+  background-color: #f4e242; /* Yellow */
+}
+
+.windrose-legend-item:nth-child(8) .color-box {
+  background-color: #f4a142; /* Orange */
+}
+
+.windrose-legend-item:nth-child(9) .color-box {
+  background-color: #f44242; /* Red - for the highest range */
+}
