@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useMemo } from 'react'; // Added useMemo
 import { Transmit } from '@adonisjs/transmit-client';
 import GaugeComponent from 'react-gauge-component';
+import { convertWindSpeed, WIND_UNIT_LABELS, getGaugeMinValue, getGaugeMaxValue } from '../lib/wind-utils';
 
 import { WindDirectionCompass } from './WindDirectionCompass';
+import { WindRoseChart } from './WindRoseChart';
 import './WindDirectionCompass.css';
 
 interface WindData {
@@ -34,28 +36,7 @@ interface GaugeTick {
 
 // Helper function to convert speed
 const convertSpeed = (speed: number, unit: string): number => {
-  switch (unit) {
-    case "km/h":
-      return speed * 3.6;
-    case "knots":
-      return speed * 1.94384;
-    case "beaufort":
-      if (speed < 0.3) return 0;
-      if (speed < 1.6) return 1;
-      if (speed < 3.4) return 2;
-      if (speed < 5.5) return 3;
-      if (speed < 8.0) return 4;
-      if (speed < 10.8) return 5;
-      if (speed < 13.9) return 6;
-      if (speed < 17.2) return 7;
-      if (speed < 20.8) return 8;
-      if (speed < 24.5) return 9;
-      if (speed < 28.5) return 10;
-      if (speed < 32.7) return 11;
-      return 12;
-    default: // m/s
-      return speed;
-  }
+  return convertWindSpeed(speed, unit);
 };
 
 export function WindSpeedGauge({ stationId }: WindSpeedGaugeProps) {
@@ -63,6 +44,7 @@ export function WindSpeedGauge({ stationId }: WindSpeedGaugeProps) {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedUnit, setSelectedUnit] = useState<string>("m/s");
+  const [windHistory, setWindHistory] = useState<WindData[]>([]);
 
   const transmitInstanceRef = useRef<Transmit | null>(null);
   const subscriptionRef = useRef<any | null>(null);
@@ -123,18 +105,17 @@ export function WindSpeedGauge({ stationId }: WindSpeedGaugeProps) {
     }
   };
 
+  const clearWindHistory = () => {
+    setWindHistory([]);
+  };
+
   // --- Unit Conversion and Gauge Configuration Logic from user's example ---
   const handleUnitChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedUnit(event.target.value);
   };
 
   const currentUnitLabel = useMemo((): string => {
-    switch (selectedUnit) {
-      case "km/h": return "km/h";
-      case "knots": return "knots";
-      case "beaufort": return "Bft";
-      default: return "m/s";
-    }
+    return WIND_UNIT_LABELS[selectedUnit] || 'm/s';
   }, [selectedUnit]);
 
   const convertedValue = useMemo(
@@ -207,17 +188,9 @@ export function WindSpeedGauge({ stationId }: WindSpeedGaugeProps) {
     return arcs;
   }, [selectedUnit]);
 
-  const gaugeMinValue = useMemo(() => 0, []);
+  const gaugeMinValue = useMemo(() => getGaugeMinValue(selectedUnit), [selectedUnit]);
 
-  const gaugeMaxValue = useMemo(() => {
-    switch (selectedUnit) {
-      case "m/s": return 30;
-      case "km/h": return 120;
-      case "knots": return 60;
-      case "beaufort": return 12;
-      default: return 30;
-    }
-  }, [selectedUnit]);
+  const gaugeMaxValue = useMemo(() => getGaugeMaxValue(selectedUnit), [selectedUnit]);
 
   const gaugeTicks = useMemo((): GaugeTick[] => {
     let values: number[] = [];
@@ -265,11 +238,13 @@ export function WindSpeedGauge({ stationId }: WindSpeedGaugeProps) {
           console.log('Received wind data via Transmit:', data);
           if (data && typeof data.wind_speed === 'number') {
              setWindData(data);
+             setWindHistory(prev => [...prev.slice(-99), data]); // Keep last 100 readings
           } else {
             const messagePayload = (data as any).data;
             if (messagePayload && typeof messagePayload.wind_speed === 'number') {
               console.log('Received wrapped wind data, using .data property:', messagePayload);
               setWindData(messagePayload);
+              setWindHistory(prev => [...prev.slice(-99), messagePayload]); // Keep last 100 readings
             } else {
                console.warn('Received message in unexpected format:', data);
             }
@@ -377,6 +352,9 @@ export function WindSpeedGauge({ stationId }: WindSpeedGaugeProps) {
         <WindDirectionCompass windDirection={windData?.wind_direction} />
       </div>
 
+      {/* Wind Rose Chart */}
+      <WindRoseChart windHistory={windHistory} selectedUnit={selectedUnit} />
+
       {/* Last Updated and Controls */}
       <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0 p-4 bg-background rounded-lg mt-6">
         {windData ? (
@@ -396,6 +374,9 @@ export function WindSpeedGauge({ stationId }: WindSpeedGaugeProps) {
           </button>
           <button onClick={sendSingleMockData} className="bg-secondary text-secondary-foreground px-4 py-2 rounded-md hover:bg-secondary/90">
             Send Single Event
+          </button>
+          <button onClick={clearWindHistory} className="bg-tertiary text-tertiary-foreground px-4 py-2 rounded-md hover:bg-tertiary/90">
+            Clear History
           </button>
         </div>
       </div>
