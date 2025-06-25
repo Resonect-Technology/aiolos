@@ -45,11 +45,12 @@ The project represents a complete redesign of an older MQTT-based weather statio
   - Supports observe pattern for subscription-like functionality
   - Built-in retransmission mechanisms for reliability
 
-- **CoAP Library**: libcoap
-  - Selected for stability, documentation quality, and feature completeness
-  - Full support for CoAP observe option
-  - Robust error handling and established reliability
-  - Active maintenance and community support
+- **CoAP Library**: ESP-CoAP simple library (Automote)
+  - PlatformIO registry: `automote/ESP-CoAP simple library`
+  - Designed for ESP32/ESP8266 with Arduino framework
+  - Supports CoAP client and server, including observe functionality
+  - Actively maintained and suitable for embedded use
+  - Simple API for message creation, sending, and handling
 
 - **Data Format**: JSON payloads
   - Human-readable format for easier debugging and interoperability
@@ -178,7 +179,7 @@ The project represents a complete redesign of an older MQTT-based weather statio
    - Exposes a TinyGsmClient instance for CoAP communication
 
 2. **CoapClient**: 
-   - Manages CoAP communication using libcoap
+   - Manages CoAP communication using ESP-CoAP simple library
    - Implements message formatting and parsing
    - Handles confirmable and non-confirmable messages
    - Supports observe registration and notification
