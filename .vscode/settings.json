@@ -1,5 +1,8 @@
 {
     "yaml.schemas": {
         "https://json.schemastore.org/yamllint.json": "file:///home/kuba/Projects/Resonect/Aiolos/apps/coap-proxy/openapi.yaml"
-    }
+    },
+    "arduino.path": "/usr/share/arduino",
+    "arduino.enableUSBDetection": true,
+    "arduino.logLevel": "info"
 }
