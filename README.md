@@ -59,6 +59,12 @@ Aiolos is a modern, scalable platform for collecting, storing, and serving real-
 - Connects to the Adonis API via Server-Sent Events (SSE) for real-time data.
 - Provides controls for interacting with mock data streams from the backend.
 
+### Firmware ([docs](firmware/README.md))
+- Embedded code for the Aiolos meteostation hardware
+- Written for Arduino-compatible microcontrollers
+- Handles sensor readings, power management, and CoAP communication
+- Includes configuration and usage guides for hardware setup
+
 ---
 
 ## Quickstart
