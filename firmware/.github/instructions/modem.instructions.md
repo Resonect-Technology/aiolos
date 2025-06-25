@@ -3,7 +3,7 @@ applyTo: '**'
 ---
 # LilyGO T-SIM7000G Modem Usage Guide
 
-This document serves as a reference guide for using the LilyGO T-SIM7000G cellular modem in the Aiolos Weather Station project. It is based on the official examples from the manufacturer and consolidates best practices for modem initialization, network connection, power management, and communication.
+This document serves as a reference guide for using the LilyGO T-SIM7000G cellular modem in the Aiolos Weather Station project. It is based on our optimized implementation and aligns with LilyGO's official examples, consolidating best practices for robust modem initialization, reliable network connection, power management, and error handling that allows the system to continue operating even when cellular connectivity is unavailable.
 
 ## Table of Contents
 
@@ -50,53 +50,108 @@ Standard baud rate is 115200, but other rates are also supported.
 The correct power-on sequence for the SIM7000G is critical for reliable operation:
 
 ```cpp
-// Power on the modem
+// Power on the modem with proper timing according to SIM7000G datasheet
 pinMode(PWR_PIN, OUTPUT);
 digitalWrite(PWR_PIN, HIGH);
-delay(1000);                // At least 1 second delay (Datasheet Ton time = 1s)
+delay(1200);                // At least 1 second delay (Datasheet Ton time = 1s)
 digitalWrite(PWR_PIN, LOW);
-delay(1000);                // Give the modem time to start up
-```
+delay(2000);                // Give the modem time to start up
+
+// Verify the modem is responsive with retries
+bool modemResponsive = false;
+for (int attempt = 0; attempt < 10; attempt++) {
+    if (modem.testAT()) {
+        modemResponsive = true;
+        break;
+    }
+    delay(1000);
+}
+
+// Handle non-responsive modem without system restart
+if (!modemResponsive) {
+    // Log error but continue with limited functionality
+    // DO NOT restart the system
+}
 
 ### Initialize and Test
 
 After powering on, initialize the modem and test its response:
 
 ```cpp
-// Initialize the modem
-if (!modem.restart()) {
-    // If restart fails, try continuing without restart
-    Serial.println("Failed to restart modem, attempting to continue without restarting");
-}
-
-// Test if modem is responsive
-int attempts = 0;
-const int maxAttempts = 10;
-bool modemResponsive = false;
-
-while (attempts < maxAttempts) {
-    if (modem.testAT()) {
-        modemResponsive = true;
-        break;
-    }
-    delay(1000);
-    attempts++;
-}
-
-if (!modemResponsive) {
-    // Handle modem not responding
-}
-```
-
-### Modem Information
-
-Get basic information about the modem:
-
-```cpp
-// Get modem information
+// Get basic modem information
 String modemName = modem.getModemName();
 String modemInfo = modem.getModemInfo();
 String imei = modem.getIMEI();
+Logger.info(LOG_TAG_MODEM, "Modem Name: %s", modemName.c_str());
+Logger.info(LOG_TAG_MODEM, "Modem Info: %s", modemInfo.c_str());
+Logger.info(LOG_TAG_MODEM, "Device IMEI: %s", imei.c_str());
+
+// Check SIM card status with multiple methods and retries
+SimStatus simStatus = SIM_ERROR;
+int maxSimRetries = 5;
+
+for (int i = 0; i < maxSimRetries; i++) {
+    // Add delay between attempts to let SIM interface stabilize
+    if (i > 0) delay(2000);
+    
+    simStatus = getSimStatus();
+    if (simStatus == SIM_READY) {
+        Logger.info(LOG_TAG_MODEM, "SIM card is ready");
+        break;
+    }
+    
+    // Additional SIM detection methods on later attempts
+    if (i >= 2) {
+        // Reset RF functionality to help with SIM detection
+        modem.sendAT("+CFUN=0");
+        modem.waitResponse(1000);
+        delay(500);
+        modem.sendAT("+CFUN=1");
+        modem.waitResponse(1000);
+        delay(1000);
+        
+        // Try checking CCID as alternative SIM detection method
+        String ccid = getCCID();
+        if (ccid.length() > 10) {
+            Logger.info(LOG_TAG_MODEM, "SIM detected via CCID: %s", ccid.c_str());
+            simStatus = SIM_READY;
+            break;
+        }
+    }
+}
+
+// IMPORTANT: Always continue operation even if SIM status is not SIM_READY
+// This allows the system to still function for non-cellular operations
+```
+
+### SIM Detection and Status
+
+Multiple methods to detect SIM card presence and status:
+
+```cpp
+// Method 1: Using TinyGSM's getSimStatus()
+SimStatus simStatus = getSimStatus();
+if (simStatus == SIM_READY) {
+    Logger.info(LOG_TAG_MODEM, "SIM card is ready");
+} else if (simStatus == SIM_LOCKED) {
+    Logger.warn(LOG_TAG_MODEM, "SIM card is locked with PIN");
+} else {
+    Logger.error(LOG_TAG_MODEM, "SIM card error");
+}
+
+// Method 2: Check SIM status via AT+CPIN?
+modem.sendAT("+CPIN?");
+if (modem.waitResponse(10000L, "+CPIN: READY") == 1) {
+    Logger.info(LOG_TAG_MODEM, "SIM detected via CPIN command");
+    // SIM is ready
+}
+
+// Method 3: Try to get CCID (SIM card ID)
+String ccid = getCCID();
+if (ccid.length() > 10) {
+    Logger.info(LOG_TAG_MODEM, "SIM detected via CCID: %s", ccid.c_str());
+    // SIM is present
+}
 ```
 
 ## Network Connection
@@ -107,32 +162,58 @@ Set the preferred network mode and connection type:
 
 ```cpp
 // Set preferred mode for optimal connectivity
-// 1=CAT-M, 2=NB-IoT, 3=CAT-M and NB-IoT
+// (1=CAT-M, 2=NB-IoT, 3=CAT-M and NB-IoT)
 modem.setPreferredMode(3);
 
 // Set network mode
-// 2=Automatic, 13=GSM only, 38=LTE only, 51=GSM and LTE only
+// (2=Automatic, 13=GSM only, 38=LTE only, 51=GSM and LTE only)
 modem.setNetworkMode(2);
+
+// Enable or disable RF functionality as needed
+modem.sendAT("+CFUN=1"); // Full functionality
+modem.waitResponse();
 ```
 
 ### Connecting to Network
 
-Wait for network registration:
+Wait for network registration with watchdog-friendly approach:
 
 ```cpp
+// Temporarily disable watchdog during network connection
+esp_task_wdt_deinit();
+
 // Wait for network with timeout (in milliseconds)
-Serial.println("Waiting for network...");
-if (!modem.waitForNetwork(60000L)) {
-    Serial.println("Network connection failed");
-    // Handle network connection failure
-    return;
+Logger.info(LOG_TAG_MODEM, "Waiting for network...");
+bool networkConnected = false;
+
+// Use multiple shorter attempts instead of one long wait
+for (int attempt = 0; attempt < 3; attempt++) {
+    // Each attempt waits for up to 30 seconds
+    if (modem.waitForNetwork(30000L)) {
+        networkConnected = true;
+        break;
+    }
+    Logger.warn(LOG_TAG_MODEM, "Network connection attempt %d failed", attempt+1);
+    delay(1000);
 }
 
-// Check if network is connected
-if (modem.isNetworkConnected()) {
-    Serial.println("Network connected");
+// Re-enable watchdog after network operations
+setupWatchdog();
+
+// Check if network is connected and get network info
+if (networkConnected && modem.isNetworkConnected()) {
+    Logger.info(LOG_TAG_MODEM, "Network connected");
+    
+    // Get network information
+    String operatorName = modem.getOperator();
+    int signalQuality = modem.getSignalQuality();
+    Logger.info(LOG_TAG_MODEM, "Operator: %s, Signal: %d", 
+                operatorName.c_str(), signalQuality);
+                
+    return true;
 } else {
-    Serial.println("Network connection issue");
+    Logger.error(LOG_TAG_MODEM, "Network connection failed");
+    return false;
 }
 ```
 
@@ -143,25 +224,38 @@ if (modem.isNetworkConnected()) {
 After network registration, connect to GPRS:
 
 ```cpp
-// Connect to GPRS with APN
-Serial.print("Connecting to GPRS with APN: ");
-Serial.println(apn);
-if (!modem.gprsConnect(apn, user, pass)) {
-    Serial.println("GPRS connection failed");
-    // Handle GPRS connection failure
-    return;
+// Connect to GPRS with APN "simbase" (no username/password)
+Logger.info(LOG_TAG_MODEM, "Connecting to GPRS with APN: %s", APN);
+
+// Temporarily disable watchdog during GPRS connection
+esp_task_wdt_deinit();
+
+// Try to connect with retry logic
+bool gprsConnected = false;
+for (int attempt = 0; attempt < 3; attempt++) {
+    if (modem.gprsConnect(APN, GPRS_USER, GPRS_PASS)) {
+        gprsConnected = true;
+        break;
+    }
+    Logger.warn(LOG_TAG_MODEM, "GPRS connection attempt %d failed", attempt+1);
+    delay(1000);
 }
 
-// Check GPRS connection
-if (modem.isGprsConnected()) {
-    Serial.println("GPRS connected");
+// Re-enable watchdog after GPRS operations
+setupWatchdog();
+
+// Check if GPRS is connected
+if (gprsConnected && modem.isGprsConnected()) {
+    Logger.info(LOG_TAG_MODEM, "GPRS connected");
     
-    // Get assigned IP address
+    // Get IP address
     IPAddress localIP = modem.localIP();
-    Serial.print("Local IP: ");
-    Serial.println(localIP);
+    Logger.info(LOG_TAG_MODEM, "Local IP: %s", localIP.toString().c_str());
+    
+    return true;
 } else {
-    Serial.println("GPRS connection issue");
+    Logger.error(LOG_TAG_MODEM, "GPRS connection failed");
+    return false;
 }
 ```
 
@@ -186,20 +280,21 @@ if (!modem.isGprsConnected()) {
 Enter sleep mode to conserve power:
 
 ```cpp
-// Pull DTR pin HIGH to enable sleep mode
+// Method 1: Using DTR pin (recommended)
 pinMode(PIN_DTR, OUTPUT);
-digitalWrite(PIN_DTR, HIGH);
+digitalWrite(PIN_DTR, HIGH);  // HIGH = sleep mode enabled
 
-// If using with ESP32 deep sleep, hold the GPIO state during sleep
+// Method 2: Using AT commands
+bool sleepEnabled = modem.sleepEnable(true);
+if (sleepEnabled) {
+    Logger.info(LOG_TAG_MODEM, "Modem entered sleep mode");
+} else {
+    Logger.warn(LOG_TAG_MODEM, "Failed to enter sleep mode");
+}
+
+// For ESP32 deep sleep integration, preserve pin state
 gpio_hold_en((gpio_num_t)PIN_DTR);
 gpio_deep_sleep_hold_en();
-
-// Enable sleep mode via AT command
-if (modem.sleepEnable(true)) {
-    Serial.println("Modem entered sleep mode");
-} else {
-    Serial.println("Failed to enter sleep mode");
-}
 ```
 
 ### Wake Up
@@ -208,20 +303,28 @@ Wake up the modem from sleep mode:
 
 ```cpp
 // If waking from ESP32 deep sleep, release GPIO hold
-if (fromDeepSleep) {
+if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER) {
     gpio_hold_dis((gpio_num_t)PIN_DTR);
+    gpio_deep_sleep_hold_dis();
 }
 
-// Pull DTR pin LOW to wake up modem
+// Method 1: Using DTR pin (recommended)
 pinMode(PIN_DTR, OUTPUT);
-digitalWrite(PIN_DTR, LOW);
-delay(1000);
+digitalWrite(PIN_DTR, LOW);  // LOW = normal operation
+delay(1500);
 
-// Disable sleep mode via AT command
+// Method 2: Using AT commands
 modem.sleepEnable(false);
 
-// Wait for modem to wake up and respond
+// Give the modem time to fully wake up
 delay(2000);
+
+// Verify modem is responsive after wake-up
+bool modemResponsive = modem.testAT(5000);
+if (!modemResponsive) {
+    Logger.warn(LOG_TAG_MODEM, "Modem not responsive after wake-up");
+    // Consider power cycle if needed
+}
 ```
 
 ### Power Off
@@ -380,27 +483,40 @@ if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER) {
 
 ### Common Error Patterns
 
-Proper error handling is essential for robust modem operation:
+Robust error handling is essential for reliable modem operation:
 
 ```cpp
-// Example of error handling pattern
-if (!modem.functionCall()) {
-    int retries = 0;
-    const int maxRetries = 3;
-    
-    while (retries < maxRetries) {
-        delay(1000);
-        if (modem.functionCall()) {
-            break;
+// Robust error handling pattern with graceful degradation
+bool performModemOperation() {
+    // First verify network status
+    if (!isNetworkConnected() || !isGprsConnected()) {
+        Logger.warn(LOG_TAG_MODEM, "Network connection lost, attempting to reconnect");
+        
+        // Try to reconnect network
+        if (!connectNetwork() || !connectGprs()) {
+            Logger.error(LOG_TAG_MODEM, "Reconnection failed, trying power cycle");
+            
+            // Try power cycling the modem
+            powerOff();
+            delay(5000);
+            powerOn();
+            
+            // Try connecting again after power cycle
+            if (!connectNetwork() || !connectGprs()) {
+                Logger.error(LOG_TAG_MODEM, "Reconnection failed after power cycle");
+                return false;
+            }
         }
-        retries++;
     }
     
-    if (retries >= maxRetries) {
-        // Handle persistent failure
-        // Consider modem reset or system restart
-    }
+    // Proceed with operation now that connection is verified
+    // ...
+    
+    return true;
 }
+
+// IMPORTANT: Never restart the system due to modem errors
+// Instead, continue with limited functionality
 ```
 
 ### Modem Reset
@@ -408,21 +524,33 @@ if (!modem.functionCall()) {
 Reset the modem when it becomes unresponsive:
 
 ```cpp
-// Hardware reset sequence
-digitalWrite(PWR_PIN, HIGH);
-delay(1500);
-digitalWrite(PWR_PIN, LOW);
-delay(1000);
-digitalWrite(PWR_PIN, HIGH);
-delay(1000);
-digitalWrite(PWR_PIN, LOW);
-
-// Wait for modem to restart
-delay(10000);
-
-// Re-initialize the modem
-if (!modem.restart()) {
-    // Handle restart failure
+// Hardware reset sequence aligned with datasheet timings
+bool resetModem() {
+    Logger.info(LOG_TAG_MODEM, "Performing hardware reset of modem");
+    
+    // Power down sequence
+    digitalWrite(PWR_PIN, HIGH);
+    delay(1500);  // Minimum 1.2s for Toff according to datasheet
+    digitalWrite(PWR_PIN, LOW);
+    delay(5000);  // Wait for full shutdown
+    
+    // Power up sequence
+    digitalWrite(PWR_PIN, HIGH);
+    delay(1200);  // Minimum 1s for Ton according to datasheet
+    digitalWrite(PWR_PIN, LOW);
+    delay(2000);  // Wait for modem to initialize
+    
+    // Verify modem is responsive
+    for (int attempt = 0; attempt < 5; attempt++) {
+        if (modem.testAT()) {
+            Logger.info(LOG_TAG_MODEM, "Modem reset successful");
+            return true;
+        }
+        delay(1000);
+    }
+    
+    Logger.error(LOG_TAG_MODEM, "Modem reset failed");
+    return false;
 }
 ```
 
@@ -457,15 +585,113 @@ If battery drains too quickly:
 4. Consider longer deep sleep intervals
 5. Reduce network activity frequency
 
-### Communication Timeouts
+## Handling Watchdog Timer
 
-If AT commands time out:
+The ESP32's watchdog timer needs special consideration when working with the modem:
 
-1. Increase the timeout duration for critical operations
-2. Check for network congestion
-3. Consider the signal quality
-4. Ensure watchdog timers don't interrupt long operations
+```cpp
+// Setup watchdog timer
+void setupWatchdog() {
+    esp_task_wdt_init(WATCHDOG_TIMEOUT_SECONDS, true);
+    esp_task_wdt_add(NULL);
+    Logger.debug(LOG_TAG_SYSTEM, "Watchdog initialized with timeout of %d seconds", 
+                 WATCHDOG_TIMEOUT_SECONDS);
+}
 
----
+// Reset watchdog timer
+void resetWatchdog() {
+    esp_task_wdt_reset();
+}
 
-This guide is based on the official LilyGO T-SIM7000G examples. For more specific information, refer to the SIM7000 datasheet and AT command reference.
+// Temporarily disable watchdog during long modem operations
+esp_task_wdt_deinit();
+
+// Perform long operation like modem initialization or network connection
+// ...
+
+// Re-enable watchdog after operation completes
+setupWatchdog();
+```
+
+## Graceful Degradation
+
+The system should continue operating even when cellular connectivity is unavailable:
+
+```cpp
+// In initialization code
+bool modemInitSuccess = modemManager.init();
+if (!modemInitSuccess) {
+    Logger.warn(LOG_TAG_SYSTEM, "Modem initialization failed, continuing with limited functionality");
+    // Continue operation - don't restart system
+}
+
+// In main loop
+void loop() {
+    // Check if it's time to send data
+    if (isTimeToSendData()) {
+        // First check if modem is connected
+        if (modemManager.isNetworkConnected() && modemManager.isGprsConnected()) {
+            // Send data via cellular connection
+            sendDataOverCellular();
+        } else {
+            // Store data locally since cellular connection is unavailable
+            Logger.warn(LOG_TAG_SYSTEM, "Cellular connection unavailable, storing data locally");
+            storeDataLocally();
+            
+            // Optionally try to reconnect
+            if (shouldAttemptReconnect()) {
+                reconnectModem();
+            }
+        }
+    }
+    
+    // Continue with other operations regardless of modem status
+    readSensors();
+    managePower();
+    delay(100);
+}
+```
+
+## ModemManager Integration
+
+A complete `ModemManager` class provides a clean interface for all modem operations:
+
+```cpp
+class ModemManager {
+public:
+    // Core functions
+    bool init();
+    bool powerOn();
+    bool powerOff();
+    
+    // Network functions
+    bool connectNetwork(int maxRetries = 3);
+    bool connectGprs(int maxRetries = 3);
+    bool isNetworkConnected();
+    bool isGprsConnected();
+    
+    // Client access for data transfer
+    TinyGsmClient* getClient();
+    
+    // Power management
+    bool enterSleepMode(bool enable);
+    
+    // Utilities
+    int getSignalQuality();
+    bool getNetworkTime(int *year, int *month, int *day, int *hour, int *minute, int *second, float *timezone);
+    String getIMEI();
+    String getCCID();
+    String getOperator();
+    IPAddress getLocalIP();
+    
+private:
+    // Implementation details
+    TinyGsm _modem;
+    TinyGsmClient _client;
+    bool _initialized = false;
+    // ...
+};
+
+// Global instance
+extern ModemManager modemManager;
+```
