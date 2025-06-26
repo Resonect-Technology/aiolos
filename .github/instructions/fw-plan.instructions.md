@@ -6,9 +6,9 @@ applyTo: '**'
 
 ## Project Overview
 
-This firmware powers a solar/battery-operated weather station based on the LilyGO T-SIM7000G board (ESP32 + SIM7000G cellular modem). The station collects environmental data (temperature, wind speed/direction) and transmits it to a backend server using the CoAP protocol. The system is designed for remote deployment with power efficiency and reliability as key concerns.
+This firmware powers a solar/battery-operated weather station based on the LilyGO T-SIM7000G board (ESP32 + SIM7000G cellular modem). The station collects environmental data (temperature, wind speed/direction) and transmits it to a backend server using HTTP POST requests. The system is designed for remote deployment with power efficiency and reliability as key concerns.
 
-The project represents a complete redesign of an older MQTT-based weather station firmware, transitioning to the more lightweight CoAP protocol for improved efficiency and reliability in low-power, potentially intermittent connectivity scenarios. This redesign emphasizes modularity, clear separation of concerns, and robust error handling to ensure the station can operate autonomously for extended periods in remote locations.
+The project represents a complete redesign of an older MQTT-based weather station firmware, transitioning to a simple HTTP protocol for improved compatibility and easier backend integration. This redesign emphasizes modularity, clear separation of concerns, and robust error handling to ensure the station can operate autonomously for extended periods in remote locations.
 
 ## Hardware Platform
 
@@ -39,18 +39,19 @@ The project represents a complete redesign of an older MQTT-based weather statio
 
 ## Communication Architecture
 
-- **Protocol**: CoAP (Constrained Application Protocol) over cellular connection
-  - Lightweight protocol designed for IoT/constrained devices
-  - UDP-based with minimal overhead compared to HTTP/MQTT
-  - Supports observe pattern for subscription-like functionality
-  - Built-in retransmission mechanisms for reliability
+- **Protocol**: HTTP over cellular connection
+  - Simple, widely supported protocol for IoT/constrained devices
+  - Uses HTTP POST requests to send JSON payloads to the backend
+  - Backend is an AdonisJS REST API
+  - Automatic network reconnection with backoff strategy
+  - Explicit power management of cellular module
+  - Time synchronization via cellular network
 
-- **CoAP Library**: ESP-CoAP simple library (Automote)
-  - PlatformIO registry: `automote/ESP-CoAP simple library`
-  - Designed for ESP32/ESP8266 with Arduino framework
-  - Supports CoAP client and server, including observe functionality
-  - Actively maintained and suitable for embedded use
-  - Simple API for message creation, sending, and handling
+- **HTTP Client Library**: Custom HttpClient (firmware/core/HttpClient.cpp)
+  - Designed for ESP32 with Arduino framework
+  - Uses TinyGSM for modem control and network stack
+  - Simple API for message creation and sending
+  - Handles connection, retries, and error reporting
 
 - **Data Format**: JSON payloads
   - Human-readable format for easier debugging and interoperability
@@ -58,17 +59,15 @@ The project represents a complete redesign of an older MQTT-based weather statio
   - Compact formatting to minimize payload size
   - Implemented using ArduinoJson library
 
-- **Connectivity**: 2G/NB-IoT cellular via SIM7000G modem
-  - TinyGSM library for modem control
-  - Automatic network reconnection with backoff strategy
-  - Explicit power management of cellular module
-  - Time synchronization via cellular network
-
-- **Backend**: Node.js-based CoAP server
-  - Receives and processes sensor data
+- **Backend**: AdonisJS REST API
+  - Receives and processes sensor data via HTTP endpoints
   - Provides configuration updates
   - Stores historical data
-  - Implements observe endpoints for monitoring station status
+  - Implements endpoints for monitoring station status
+
+## Note
+
+All previous references to CoAP, UDP, or MQTT (including any CoAP proxy) have been replaced with HTTP POST for simplicity and compatibility with modern web backends.
 
 ## Key Features
 
@@ -157,7 +156,7 @@ The project represents a complete redesign of an older MQTT-based weather statio
   /core
     Logger.h/cpp                // Simple logging system
     ModemManager.h/cpp          // SIM7000G modem management
-    CoapClient.h/cpp            // libcoap integration
+    HttpClient.h/cpp            // HTTP client for REST API
     OtaManager.h/cpp            // WiFi OTA updates
     PowerManager.h/cpp          // Battery/solar management
   /sensors
@@ -176,17 +175,14 @@ The project represents a complete redesign of an older MQTT-based weather statio
    - Provides network time for system synchronization
    - Handles network reconnection with exponential backoff
    - Disables unnecessary modem features (GPS, etc.)
-   - Exposes a TinyGsmClient instance for CoAP communication
+   - Exposes a TinyGsmClient instance for HTTP communication
 
-2. **CoapClient**: 
-   - Manages CoAP communication using ESP-CoAP simple library
+2. **HttpClient**: 
+   - Manages HTTP communication for sensor data transmission
    - Implements message formatting and parsing
-   - Handles confirmable and non-confirmable messages
-   - Supports observe registration and notification
-   - Manages retransmission logic and timeouts
-   - Processes incoming CoAP commands
-   - Provides robust error handling for network issues
-   - Supports standard CoAP response codes and diagnostics
+   - Handles connection, retries, and error reporting
+   - Supports standard HTTP response codes and diagnostics
+   - Processes incoming HTTP responses
 
 3. **TemperatureSensor**: 
    - Controls both internal and external temperature sensors on separate buses
@@ -278,14 +274,14 @@ The project represents a complete redesign of an older MQTT-based weather statio
 
 6. **Main Loop Operation**:
    - Reset watchdog timer
-   - Process any incoming CoAP messages
+   - Process any incoming HTTP messages
    - Check network connectivity and reconnect if needed
    - Read sensors at their configured intervals:
      - Temperature readings (every 5 minutes)
      - Wind readings (every 1 minute, configurable)
      - Battery/solar voltage (every 5 minutes)
      - Signal strength (every 5 minutes)
-   - Transmit readings via CoAP to server
+   - Transmit readings via HTTP to server
    - Implement short delay (100ms) between iterations
 
 7. **Error Handling**:
@@ -427,12 +423,11 @@ The project represents a complete redesign of an older MQTT-based weather statio
    - Implement interrupt handling with debouncing
    - Validate sensor accuracy and reliability
 
-3. **Phase 3: CoAP Integration**
-   - Add libcoap library and dependencies
-   - Implement CoapClient wrapper
+3. **Phase 3: HTTP Integration**
+   - Implement HttpClient for HTTP communication
    - Create message formatting functions
-   - Setup resource endpoints
-   - Implement CoAP error handling
+   - Setup REST API endpoints
+   - Implement HTTP error handling
    - Test connectivity with backend server
    - Validate data transmission reliability
 

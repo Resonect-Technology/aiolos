@@ -5,6 +5,10 @@ applyTo: '**'
 
 This document serves as a reference guide for using the LilyGO T-SIM7000G cellular modem in the Aiolos Weather Station project. It is based on our optimized implementation and aligns with LilyGO's official examples, consolidating best practices for robust modem initialization, reliable network connection, power management, and error handling that allows the system to continue operating even when cellular connectivity is unavailable.
 
+## Note on Communication Protocol
+
+All communication with the backend is now performed using HTTP POST requests (not CoAP, UDP, or MQTT). The modem is used to establish a cellular data connection, after which the firmware sends JSON payloads to the AdonisJS REST API backend over HTTP. Any previous references to CoAP or UDP-based protocols are obsolete.
+
 ## Table of Contents
 
 1. [Hardware Configuration](#hardware-configuration)
