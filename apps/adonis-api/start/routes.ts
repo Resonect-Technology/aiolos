@@ -10,6 +10,7 @@
 import router from '@adonisjs/core/services/router'
 const SensorReadingsController = () => import('#app/SensorReadingsController')
 const StationLiveController = () => import('#app/controllers/StationLiveController')
+const StationDiagnosticsController = () => import('#app/controllers/StationDiagnosticsController')
 import AutoSwagger from 'adonis-autoswagger'
 import swagger from '#config/swagger'
 import transmit from '@adonisjs/transmit/services/main'
@@ -32,6 +33,10 @@ router.post('/stations/:station_id/live/wind/mock', [StationLiveController, 'moc
 // Start/stop 1s interval mock wind data endpoints for development
 router.post('/stations/:station_id/live/wind/mock/start', [StationLiveController, 'startMockWind'])
 router.post('/stations/:station_id/live/wind/mock/stop', [StationLiveController, 'stopMockWind'])
+
+// Station diagnostics routes
+router.get('/stations/:station_id/diagnostics', [StationDiagnosticsController, 'show'])
+router.post('/stations/:station_id/diagnostics', [StationDiagnosticsController, 'store'])
 
 router.get('/swagger', async () => {
   return AutoSwagger.default.docs(router.toJSON(), swagger)

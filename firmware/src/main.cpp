@@ -84,6 +84,17 @@ void setup()
     Logger.debug(LOG_TAG_SYSTEM, "Re-enabling watchdog after modem initialization");
     setupWatchdog();
 
+    // Initialize HTTP client
+    Logger.info(LOG_TAG_SYSTEM, "Initializing HTTP client...");
+    if (!httpClient.init())
+    {
+        Logger.error(LOG_TAG_SYSTEM, "Failed to initialize HTTP client. Continuing without HTTP...");
+    }
+    else
+    {
+        Logger.info(LOG_TAG_SYSTEM, "HTTP client initialized successfully");
+    }
+
     // Run modem connectivity test
     testModemConnectivity();
 

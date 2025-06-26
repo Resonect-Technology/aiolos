@@ -1,159 +1,182 @@
 /**
  * @file HttpClient.cpp
  * @brief Implementation of the HTTP client for sending data to the Aiolos backend
+ *
+ * Based on the TinyGSM HttpClient example for maximum reliability
  */
 
 #include "HttpClient.h"
 #include "Logger.h"
-#include "ModemManager.h"
-#include <TinyGsmClient.h>
 
 #define LOG_TAG_HTTP "HTTP"
 
-// Global instance
-HttpClient httpClient(modemManager);
+// Global instance - defined at the end to ensure proper initialization order
+AiolosHttpClient httpClient(modemManager);
 
-HttpClient::HttpClient(ModemManager &modemManager) : _modemManager(modemManager)
+AiolosHttpClient::AiolosHttpClient(ModemManager &modemManager)
+    : _modemManager(modemManager),
+      _modem(nullptr),
+      _client(nullptr),
+      _http(nullptr),
+      _initialized(false),
+      _host(""),
+      _port(80)
 {
-    _client = _modemManager.getClient();
 }
 
-bool HttpClient::ensureConnected()
+bool AiolosHttpClient::init()
 {
-    // Check if network and GPRS are connected
-    if (!_modemManager.isNetworkConnected() || !_modemManager.isGprsConnected())
+    if (_initialized)
     {
-        Logger.warn(LOG_TAG_HTTP, "Network or GPRS not connected, attempting to reconnect");
+        return true;
+    }
 
-        // Try to reconnect to network
-        if (!_modemManager.connectNetwork() || !_modemManager.connectGprs())
+    // Get modem instance
+    _modem = _modemManager.getModem();
+    if (!_modem)
+    {
+        Logger.error(LOG_TAG_HTTP, "Failed to get modem instance");
+        return false;
+    }
+
+    // Get client instance
+    _client = _modemManager.getClient();
+    if (!_client)
+    {
+        Logger.error(LOG_TAG_HTTP, "Failed to get client instance");
+        return false;
+    }
+
+    // Extract host and port from API_BASE_URL
+    // Parse the API_BASE_URL to extract host and port
+    String url = API_BASE_URL;
+
+    // Remove protocol if present
+    int protocolEnd = url.indexOf("://");
+    if (protocolEnd > 0)
+    {
+        url = url.substring(protocolEnd + 3);
+    }
+
+    // Extract port if specified
+    int portStart = url.indexOf(':');
+    if (portStart > 0)
+    {
+        int pathStart = url.indexOf('/', portStart);
+        if (pathStart > 0)
+        {
+            _port = url.substring(portStart + 1, pathStart).toInt();
+            _host = url.substring(0, portStart);
+        }
+        else
+        {
+            _port = url.substring(portStart + 1).toInt();
+            _host = url.substring(0, portStart);
+        }
+    }
+    else
+    {
+        // No port specified, use default
+        int pathStart = url.indexOf('/');
+        if (pathStart > 0)
+        {
+            _host = url.substring(0, pathStart);
+        }
+        else
+        {
+            _host = url;
+        }
+
+        // Set default port based on protocol
+        if (String(API_BASE_URL).startsWith("https://"))
+        {
+            _port = 443;
+        }
+        else
+        {
+            _port = 80;
+        }
+    }
+
+    // Create HTTP client (static to ensure it lives for the duration of the program)
+    static HttpClient httpClient(*_client, _host.c_str(), _port);
+    _http = &httpClient;
+
+    Logger.info(LOG_TAG_HTTP, "HTTP client initialized with host: %s, port: %d", _host.c_str(), _port);
+    _initialized = true;
+    return true;
+}
+
+template <typename T>
+bool AiolosHttpClient::sendPostRequest(const String &endpoint, const T &jsonDoc)
+{
+    if (!_initialized && !init())
+    {
+        Logger.error(LOG_TAG_HTTP, "HTTP client not initialized");
+        return false;
+    }
+
+    // Check if network and GPRS are connected
+    if (!_modemManager.isNetworkConnected())
+    {
+        Logger.warn(LOG_TAG_HTTP, "Network not connected, attempting to reconnect");
+        if (!_modemManager.connectNetwork())
         {
             Logger.error(LOG_TAG_HTTP, "Failed to reconnect to network");
             return false;
         }
     }
-    return true;
-}
 
-bool HttpClient::sendHttpPost(const String &endpoint, const JsonVariant &jsonDoc)
-{
-    if (!ensureConnected())
+    if (!_modemManager.isGprsConnected())
     {
-        return false;
+        Logger.warn(LOG_TAG_HTTP, "GPRS not connected, attempting to reconnect");
+        if (!_modemManager.connectGprs())
+        {
+            Logger.error(LOG_TAG_HTTP, "Failed to reconnect to GPRS");
+            return false;
+        }
     }
 
-    // Serialize JSON to a string
+    // Serialize JSON to string
     String jsonStr;
     serializeJson(jsonDoc, jsonStr);
 
-    // Calculate content length
-    size_t contentLength = jsonStr.length();
+    Logger.info(LOG_TAG_HTTP, "Sending POST request to %s", endpoint.c_str());
+    Logger.debug(LOG_TAG_HTTP, "Request body: %s", jsonStr.c_str());
 
-    // Construct the full URL
-    String url = String(API_BASE_URL) + endpoint;
+    // Start the request
+    _http->beginRequest();
+    _http->post(endpoint);
+    _http->sendHeader("Content-Type", "application/json");
+    _http->sendHeader("Content-Length", jsonStr.length());
+    _http->beginBody();
+    _http->print(jsonStr);
+    _http->endRequest();
 
-    // Extract host and path from URL
-    String host, path;
-    int colonPos = url.indexOf("://");
-    if (colonPos > 0)
+    // Get the response
+    int statusCode = _http->responseStatusCode();
+    String responseBody = _http->responseBody();
+
+    Logger.info(LOG_TAG_HTTP, "Response status code: %d", statusCode);
+
+    if (statusCode >= 200 && statusCode < 300)
     {
-        host = url.substring(colonPos + 3);
+        Logger.info(LOG_TAG_HTTP, "Request successful");
+        return true;
     }
     else
     {
-        host = url;
-    }
-
-    int pathPos = host.indexOf('/');
-    if (pathPos > 0)
-    {
-        path = host.substring(pathPos);
-        host = host.substring(0, pathPos);
-    }
-    else
-    {
-        path = "/";
-    }
-
-    // Extract port if specified
-    int port = 80; // Default HTTP port
-    int portPos = host.indexOf(':');
-    if (portPos > 0)
-    {
-        port = host.substring(portPos + 1).toInt();
-        host = host.substring(0, portPos);
-    }
-
-    Logger.info(LOG_TAG_HTTP, "Connecting to %s:%d", host.c_str(), port);
-
-    // Connect to server
-    if (!_client->connect(host.c_str(), port))
-    {
-        Logger.error(LOG_TAG_HTTP, "Connection failed");
+        Logger.error(LOG_TAG_HTTP, "Request failed with status code %d", statusCode);
+        Logger.debug(LOG_TAG_HTTP, "Response body: %s", responseBody.c_str());
         return false;
     }
-
-    Logger.info(LOG_TAG_HTTP, "Connected to server");
-
-    // Send HTTP request
-    _client->print(F("POST "));
-    _client->print(path);
-    _client->println(F(" HTTP/1.1"));
-    _client->print(F("Host: "));
-    _client->println(host);
-    _client->println(F("Connection: close"));
-    _client->println(F("Content-Type: application/json"));
-    _client->print(F("Content-Length: "));
-    _client->println(contentLength);
-    _client->println();
-    _client->println(jsonStr);
-
-    Logger.debug(LOG_TAG_HTTP, "Sent HTTP request:");
-    Logger.debug(LOG_TAG_HTTP, "POST %s HTTP/1.1", path.c_str());
-    Logger.debug(LOG_TAG_HTTP, "Host: %s", host.c_str());
-    Logger.debug(LOG_TAG_HTTP, "Content-Length: %d", contentLength);
-    Logger.debug(LOG_TAG_HTTP, "Body: %s", jsonStr.c_str());
-
-    // Wait for server response
-    unsigned long timeout = millis() + HTTP_TIMEOUT;
-    while (_client->connected() && millis() < timeout)
-    {
-        String line = _client->readStringUntil('\n');
-        if (line.startsWith("HTTP/1.1") || line.startsWith("HTTP/1.0"))
-        {
-            int statusCode = line.substring(9, 12).toInt();
-            if (statusCode >= 200 && statusCode < 300)
-            {
-                Logger.info(LOG_TAG_HTTP, "HTTP request successful (status %d)", statusCode);
-            }
-            else
-            {
-                Logger.error(LOG_TAG_HTTP, "HTTP request failed (status %d)", statusCode);
-                _client->stop();
-                return false;
-            }
-        }
-        if (line == "\r")
-        {
-            break; // Empty line indicates end of headers
-        }
-    }
-
-    // Read response body if needed
-    // For most cases, we don't need to process the response
-    while (_client->available() && millis() < timeout)
-    {
-        _client->read();
-    }
-
-    // Close connection
-    _client->stop();
-    Logger.info(LOG_TAG_HTTP, "Connection closed");
-
-    return true;
 }
 
-bool HttpClient::sendDiagnostics(float batteryVoltage, float solarVoltage, int signalQuality, float temperature, const String &errors)
+// Template instantiations
+template bool AiolosHttpClient::sendPostRequest<StaticJsonDocument<256>>(const String &, const StaticJsonDocument<256> &);
+template bool AiolosHttpClient::sendPostRequest<StaticJsonDocument<128>>(const String &, const StaticJsonDocument<128> &);
+
+bool AiolosHttpClient::sendDiagnostics(float batteryVoltage, float solarVoltage, int signalQuality, float temperature, const String &errors)
 {
     // Create JSON document
     StaticJsonDocument<256> doc;
@@ -183,10 +206,10 @@ bool HttpClient::sendDiagnostics(float batteryVoltage, float solarVoltage, int s
     }
 
     // Send to API
-    return sendHttpPost("/stations/" STATION_ID "/diagnostics", doc);
+    return sendPostRequest("/stations/" STATION_ID "/diagnostics", doc);
 }
 
-bool HttpClient::sendWindData(float windSpeed, int windDirection)
+bool AiolosHttpClient::sendWindData(float windSpeed, int windDirection)
 {
     // Create JSON document
     StaticJsonDocument<128> doc;
@@ -195,10 +218,10 @@ bool HttpClient::sendWindData(float windSpeed, int windDirection)
     doc["wind_direction"] = windDirection;
 
     // Send to API
-    return sendHttpPost("/stations/" STATION_ID "/live/wind", doc);
+    return sendPostRequest("/stations/" STATION_ID "/live/wind", doc);
 }
 
-bool HttpClient::sendTemperatureData(float temperature, const String &sensorId)
+bool AiolosHttpClient::sendTemperatureData(float temperature, const String &sensorId)
 {
     // Create JSON document
     StaticJsonDocument<128> doc;
@@ -206,9 +229,6 @@ bool HttpClient::sendTemperatureData(float temperature, const String &sensorId)
     doc["temperature"] = temperature;
     doc["sensor_id"] = sensorId;
 
-    // Construct endpoint with sensor type
-    String endpoint = "/stations/" STATION_ID "/readings";
-
     // Send to API
-    return sendHttpPost(endpoint, doc);
+    return sendPostRequest("/stations/" STATION_ID "/readings", doc);
 }

@@ -4,30 +4,44 @@
  *
  * This class implements a simple HTTP client that can send JSON data
  * to the Aiolos backend server using the SIM7000G cellular modem.
+ * Implementation is based on the TinyGSM HttpClient example.
  */
 
 #pragma once
 
+// These defines should go before including TinyGSM
+#define TINY_GSM_MODEM_SIM7000
+#define TINY_GSM_USE_GPRS true
+#define TINY_GSM_USE_WIFI false
+
 #include <Arduino.h>
+#include <TinyGsmClient.h>
+#include <ArduinoHttpClient.h>
 #include <ArduinoJson.h>
 #include "../config/Config.h"
+#include "ModemManager.h"
 
-// Forward declarations
-class ModemManager;
-class TinyGsmClient;
-
-class HttpClient
+class AiolosHttpClient
 {
 public:
     /**
-     * @brief Construct a new HttpClient object
+     * @brief Construct a new AiolosHttpClient object
      *
      * @param modemManager Reference to the ModemManager instance
      */
-    HttpClient(ModemManager &modemManager);
+    AiolosHttpClient(ModemManager &modemManager);
 
     /**
-     * @brief Send a diagnostics message to the backend
+     * @brief Initialize the HTTP client
+     * This must be called after the modem is initialized and connected
+     *
+     * @return true if initialization was successful
+     * @return false if initialization failed
+     */
+    bool init();
+
+    /**
+     * @brief Send diagnostics data to the backend
      *
      * @param batteryVoltage Current battery voltage
      * @param solarVoltage Current solar panel voltage
@@ -66,29 +80,26 @@ public:
 
 private:
     ModemManager &_modemManager;
+    TinyGsm *_modem;
     TinyGsmClient *_client;
+    HttpClient *_http;
+    bool _initialized;
+
+    // Server details extracted from API_BASE_URL
+    String _host;
+    int _port;
 
     /**
-     * @brief Send an HTTP POST request with JSON data
+     * @brief Send a POST request with JSON data
      *
-     * @param endpoint The API endpoint to send the request to
-     * @param jsonDoc The JSON document to send
-     * @return true if the request was successful
-     * @return false if the request failed
+     * @param endpoint API endpoint to send the request to
+     * @param jsonDoc JSON document to send
+     * @return true if request was successful
+     * @return false if request failed
      */
-    bool sendHttpPost(const String &endpoint, const JsonVariant &jsonDoc);
-
-    /**
-     * @brief Check if we're connected and reconnect if necessary
-     *
-     * @return true if connected
-     * @return false if connection failed
-     */
-    bool ensureConnected();
+    template <typename T>
+    bool sendPostRequest(const String &endpoint, const T &jsonDoc);
 };
 
 // Global instance
-extern HttpClient httpClient;
-
-// Global instance
-extern HttpClient httpClient;
+extern AiolosHttpClient httpClient;
