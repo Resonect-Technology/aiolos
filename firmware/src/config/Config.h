@@ -32,15 +32,6 @@
 #define GPRS_PASS ""
 #define UART_BAUD 115200
 
-// CoAP settings
-#define COAP_SERVER "aiolos.resonect.cz"
-#define COAP_PORT 5683
-#define COAP_RESOURCE_TEMP_INT "aiolos/vasiliki/temperature/internal"
-#define COAP_RESOURCE_TEMP_EXT "aiolos/vasiliki/temperature/external"
-#define COAP_RESOURCE_WIND "aiolos/vasiliki/wind"
-#define COAP_RESOURCE_DIAGNOSTICS "aiolos/vasiliki/diagnostics"
-#define COAP_RESOURCE_CONTROL "aiolos/vasiliki/control"
-
 // OTA settings
 #define OTA_HOUR 10     // Hour of day (24h format) to enable OTA mode
 #define OTA_DURATION 15 // Minutes to keep WiFi active for OTA

@@ -14,11 +14,13 @@
 #include "config/Config.h"
 #include "core/Logger.h"
 #include "core/ModemManager.h"
+#include "core/Diagnostics.h"
 #include <Ticker.h>
 
 // Global variables
 Ticker periodicRestartTicker;
 unsigned long lastTimeUpdate = 0;
+unsigned long lastDiagnosticsUpdate = 0;
 int currentHour = 0, currentMinute = 0, currentSecond = 0;
 
 // Function prototypes
@@ -104,9 +106,8 @@ void setup()
         return;
     }
 
-    // TODO: Initialize CoAP client
-
-    // TODO: Initialize sensors
+    // Initialize sensors here
+    // TODO: Add sensor initialization code
 
     // Schedule periodic restart
     periodicRestartTicker.attach(RESTART_INTERVAL, periodicRestart);
@@ -182,9 +183,8 @@ void loop()
         setupWatchdog();
     }
 
-    // TODO: Process CoAP messages
-
-    // TODO: Read and send sensor data
+    // Read and process sensor data here
+    // TODO: Add sensor reading code
 
     // Small delay to prevent excessive looping
     delay(100);
