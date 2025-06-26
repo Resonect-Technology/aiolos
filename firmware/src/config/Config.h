@@ -32,6 +32,11 @@
 #define GPRS_PASS ""
 #define UART_BAUD 115200
 
+// API settings
+#define API_BASE_URL "http://aiolos.resonect.cz"
+#define STATION_ID "1"     // Unique identifier for this station
+#define HTTP_TIMEOUT 20000 // HTTP request timeout in milliseconds
+
 // OTA settings
 #define OTA_HOUR 10     // Hour of day (24h format) to enable OTA mode
 #define OTA_DURATION 15 // Minutes to keep WiFi active for OTA

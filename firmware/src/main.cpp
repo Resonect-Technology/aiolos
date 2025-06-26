@@ -14,7 +14,7 @@
 #include "config/Config.h"
 #include "core/Logger.h"
 #include "core/ModemManager.h"
-#include "core/Diagnostics.h"
+#include "core/HttpClient.h"
 #include <Ticker.h>
 
 // Global variables
@@ -30,6 +30,7 @@ void periodicRestart();
 bool isSleepTime();
 void enterDeepSleepUntil(int hour, int minute);
 void testModemConnectivity();
+void sendDiagnosticsData();
 
 /**
  * @brief Initial setup function
@@ -151,6 +152,13 @@ void loop()
             enterDeepSleepUntil(SLEEP_END_HOUR, 0);
             return;
         }
+    }
+
+    // Send diagnostics data periodically
+    if (currentMillis - lastDiagnosticsUpdate >= DIAG_INTERVAL)
+    {
+        lastDiagnosticsUpdate = currentMillis;
+        sendDiagnosticsData();
     }
 
     // Check network connectivity
@@ -343,4 +351,33 @@ void testModemConnectivity()
     // Re-enable watchdog after connectivity test
     Logger.debug(LOG_TAG_SYSTEM, "Re-enabling watchdog after connectivity test");
     setupWatchdog();
+}
+
+/**
+ * @brief Send diagnostics data to the backend
+ *
+ * Collects system diagnostics (battery voltage, signal quality, etc.)
+ * and sends them to the backend server.
+ */
+void sendDiagnosticsData()
+{
+    Logger.info(LOG_TAG_SYSTEM, "Sending diagnostics data...");
+
+    // For now, we'll use dummy values for battery and solar voltage
+    // In a real implementation, these would come from ADC readings
+    float batteryVoltage = 3.8f; // Dummy value, replace with actual ADC reading
+    float solarVoltage = 5.2f;   // Dummy value, replace with actual ADC reading
+
+    // Get signal quality from modem
+    int signalQuality = modemManager.getSignalQuality();
+
+    // Send diagnostics data
+    if (httpClient.sendDiagnostics(batteryVoltage, solarVoltage, signalQuality))
+    {
+        Logger.info(LOG_TAG_SYSTEM, "Diagnostics data sent successfully");
+    }
+    else
+    {
+        Logger.error(LOG_TAG_SYSTEM, "Failed to send diagnostics data");
+    }
 }
