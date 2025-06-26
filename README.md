@@ -13,8 +13,8 @@ Aiolos is a modern, scalable platform for collecting, storing, and serving real-
 ### Key Features
 - **Live wind & weather data** for water sports and research
 - **Custom hardware**: [Aiolos meteostation](https://github.com/Resonect-Technology/Aiolos-HW)
-- **Modular backend**: CoAP proxy (IoT bridge) + AdonisJS REST API
-- **OpenAPI/Swagger docs**: Auto-generated for both proxy and API
+- **Modern backend**: AdonisJS REST API
+- **OpenAPI/Swagger docs**: Auto-generated for the API
 - **Monorepo**: Managed with [pnpm](https://pnpm.io/) and [Turborepo](https://turbo.build/)
 
 ---
@@ -28,9 +28,10 @@ Aiolos is a modern, scalable platform for collecting, storing, and serving real-
 ```
 /
 ├── apps/
-│   ├── coap-proxy/      # CoAP-to-HTTP proxy service (Node.js)
 │   ├── adonis-api/      # RESTful backend API (AdonisJS v6)
 │   └── react-frontend/  # User interface for live data (React, Vite)
+├── firmware/            # ESP32/SIM7000G code for weather stations
+├── hardware/            # 3D models and hardware specs
 ├── package.json
 ├── pnpm-workspace.yaml
 ├── turbo.json
@@ -43,14 +44,10 @@ Aiolos is a modern, scalable platform for collecting, storing, and serving real-
 
 ## Apps
 
-### CoAP Proxy Service ([docs](apps/coap-proxy/README.md))
-- Receives CoAP messages from IoT sensors
-- File-based routing, structured logging, OpenAPI docs
-- Bridges sensors to the HTTP API (Adonis)
-
 ### Adonis API Service ([docs](apps/adonis-api/README.md))
 - Stores and exposes sensor data (wind, temperature)
-- RESTful, IoT-friendly routes: `/sensors/:sensor_id/readings`
+- RESTful, IoT-friendly routes: `/station/:station_id/readings`
+- Direct HTTP endpoint for weather stations to submit data
 - Auto-generated OpenAPI docs with [adonis-autoswagger](https://github.com/ad-on-is/adonis-autoswagger)
 
 ### React Frontend ([docs](apps/react-frontend/README.md))
@@ -61,8 +58,8 @@ Aiolos is a modern, scalable platform for collecting, storing, and serving real-
 
 ### Firmware ([docs](firmware/README.md))
 - Embedded code for the Aiolos meteostation hardware
-- Written for Arduino-compatible microcontrollers
-- Handles sensor readings, power management, and CoAP communication
+- Written for Arduino-compatible microcontrollers (ESP32 + SIM7000G)
+- Handles sensor readings, power management, and HTTP communication
 - Includes configuration and usage guides for hardware setup
 
 ---
@@ -79,7 +76,7 @@ See each app's README for how to run, configure, and test the services.
 ---
 
 ## Contributing & Extending
-- Add new sensors or data types by extending the proxy and API routes/models
+- Add new sensors or data types by extending the API routes/models
 - Use JSDoc comments for OpenAPI docs
 - See code comments and each app's README for details
 
