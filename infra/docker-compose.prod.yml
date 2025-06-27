@@ -13,10 +13,7 @@ services:
     platform: linux/arm64
     volumes:
       - frontend-dist:/dist
-    # This container exits immediately after creation as it's just a data container
-    deploy:
-      restart_policy:
-        condition: none
+    restart: unless-stopped
 
   caddy:
     image: caddy:2-alpine

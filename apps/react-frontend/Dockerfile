@@ -26,10 +26,14 @@ COPY apps/react-frontend ./apps/react-frontend
 WORKDIR /app/apps/react-frontend
 RUN pnpm run build
 
-# Final stage with just the static files for Caddy to serve
-FROM scratch
+# Final stage with minimal Alpine for static files
+FROM alpine:latest
+
+# Install a simple static file server if needed
+RUN apk add --no-cache busybox-extras
 
 # Copy the built files from the build stage
 COPY --from=build /app/apps/react-frontend/dist /dist
 
-# No CMD needed as this is just a data container for static files
+# Command that will keep the container running for volume mounting
+CMD ["tail", "-f", "/dev/null"]
