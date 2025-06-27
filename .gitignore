@@ -14,8 +14,6 @@ yarn-error.log*
 # Environment Variables
 # ---------------------
 .env
-.env.*
-!.env.example # It's a common practice to commit an example env file
 
 # Build & Output Artifacts
 # ------------------------
