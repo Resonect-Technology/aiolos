@@ -14,16 +14,18 @@ RUN pnpm install --no-frozen-lockfile --prod
 # Build stage
 FROM base AS build
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN pnpm run build
+# Install all dependencies including dev dependencies for build
+RUN pnpm install --no-frozen-lockfile
+# Now we can run the build that uses turbo
+RUN cd apps/adonis-api && pnpm run build
 
 # Production image
 FROM base
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=build /app/build ./build
-COPY package.json .
+COPY --from=build /app/apps/adonis-api/build ./build
+COPY apps/adonis-api/package.json ./package.json
 EXPOSE 8080
 CMD ["node", "./build/server.js"]
