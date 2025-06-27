@@ -21,11 +21,16 @@ jobs:
 
       - uses: aws-actions/amazon-ecr-login@v2
 
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64
+
       - uses: docker/build-push-action@v5
         with:
           context: .
           file: ./apps/adonis-api/Dockerfile
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: |
             590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:latest
             590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:${{ github.sha }}
@@ -47,11 +52,16 @@ jobs:
 
       - uses: aws-actions/amazon-ecr-login@v2
 
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64
+
       - uses: docker/build-push-action@v5
         with:
           context: .
           file: ./apps/react-frontend/Dockerfile
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: |
             590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:latest
             590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:${{ github.sha }}
@@ -66,6 +76,16 @@ jobs:
       AWS_REGION: ${{ secrets.RESONECT_AWS_PROD_REGION }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Prepare EC2 instance
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.AIOLOS_PROD_EC2_HOST }}
+          username: ${{ secrets.AIOLOS_PROD_EC2_USER }}
+          key: ${{ secrets.RESONECT_AWS_PROD_SSH_KEY }}
+          script: |
+            # Create directory if it doesn't exist
+            mkdir -p ~/aiolos
 
       - name: Copy configuration files to EC2
         uses: appleboy/scp-action@v0.1.7
@@ -90,6 +110,12 @@ jobs:
             export AWS_REGION=$AWS_REGION
             aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin 590183887485.dkr.ecr.eu-central-1.amazonaws.com
             cd ~/aiolos
+            
+            # Get CPU architecture
+            ARCH=$(uname -m)
+            echo "Running on architecture: $ARCH"
+            
+            # Pull and start services
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
