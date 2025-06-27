@@ -3,83 +3,54 @@ import transmit from '@adonisjs/transmit/services/main'
 
 export default class StationDiagnosticsController {
     /**
-     * Receives diagnostics data from a station and broadcasts it via Transmit SSE.
-     * POST /stations/:station_id/diagnostics
-     * Body: { 
-     *   battery_voltage: number, 
-     *   solar_voltage: number, 
-     *   signal_quality: number,
-     *   temperature?: number,
-     *   errors?: string,
-     *   timestamp?: string 
-     * }
+     * Store new diagnostics data for a station
      */
     async store({ params, request, response }: HttpContext) {
-        const { station_id } = params
-        const {
-            battery_voltage,
-            solar_voltage,
-            signal_quality,
-            temperature,
-            errors,
-            timestamp
-        } = request.only([
-            'battery_voltage',
-            'solar_voltage',
-            'signal_quality',
-            'temperature',
-            'errors',
-            'timestamp',
-        ])
+        const stationId = params.station_id
+        const data = request.body()
 
-        // Validate required fields
-        if (
-            typeof battery_voltage !== 'number' ||
-            typeof solar_voltage !== 'number' ||
-            typeof signal_quality !== 'number'
-        ) {
-            return response.badRequest({ error: 'Invalid diagnostics data' })
+        try {
+            // Validate required fields
+            const { battery_voltage, solar_voltage, signal_quality } = data
+            if (
+                typeof battery_voltage !== 'number' ||
+                typeof solar_voltage !== 'number' ||
+                typeof signal_quality !== 'number'
+            ) {
+                return response.badRequest({ error: 'Invalid diagnostics data' })
+            }
+
+            // Prepare diagnostics data with timestamp
+            const diagnosticsData = {
+                ...data,
+                timestamp: data.timestamp || new Date().toISOString(),
+            }
+
+            // Broadcast the diagnostics data via Transmit
+            await transmit.broadcast(`station/diagnostics/${stationId}`, diagnosticsData)
+
+            // Log diagnostics in development
+            if (process.env.NODE_ENV === 'development') {
+                console.log(`Diagnostics for station ${stationId}:`, diagnosticsData)
+            }
+
+            return { ok: true }
+        } catch (error) {
+            console.error('Error processing diagnostics data:', error)
+            return response.status(500).json({ error: 'Failed to process diagnostics data' })
         }
-
-        // Prepare diagnostics data
-        const diagnosticsData: Record<string, any> = {
-            battery_voltage,
-            solar_voltage,
-            signal_quality,
-            timestamp: timestamp || new Date().toISOString(),
-        }
-
-        // Add optional fields if present
-        if (temperature !== undefined) {
-            diagnosticsData.temperature = temperature
-        }
-
-        if (errors !== undefined) {
-            diagnosticsData.errors = errors
-        }
-
-        // Broadcast the diagnostics data
-        await transmit.broadcast(`station/diagnostics/${station_id}`, diagnosticsData)
-
-        // Log diagnostics to console in development
-        if (process.env.NODE_ENV === 'development') {
-            console.log(`Diagnostics for station ${station_id}:`, diagnosticsData)
-        }
-
-        return { ok: true }
     }
 
     /**
-     * Returns the latest diagnostics for a station
-     * GET /stations/:station_id/diagnostics
+     * Get the latest diagnostics for a station
      */
     async show({ params }: HttpContext) {
-        const { station_id } = params
+        const stationId = params.station_id
 
-        // In a real implementation, you would fetch the data from a database
-        // For now, we'll return a placeholder
+        // In a real implementation, you would fetch data from a database
+        // For now, return a placeholder response
         return {
-            station_id,
+            station_id: stationId,
             message: 'Latest diagnostics would be returned here',
             note: 'This endpoint is a placeholder. Implement database storage to see actual data.'
         }

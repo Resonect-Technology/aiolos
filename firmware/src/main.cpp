@@ -30,7 +30,7 @@ void periodicRestart();
 bool isSleepTime();
 void enterDeepSleepUntil(int hour, int minute);
 void testModemConnectivity();
-void sendDiagnosticsData();
+bool sendDiagnosticsData();
 
 /**
  * @brief Initial setup function
@@ -84,17 +84,6 @@ void setup()
     Logger.debug(LOG_TAG_SYSTEM, "Re-enabling watchdog after modem initialization");
     setupWatchdog();
 
-    // Initialize HTTP client
-    Logger.info(LOG_TAG_SYSTEM, "Initializing HTTP client...");
-    if (!httpClient.init())
-    {
-        Logger.error(LOG_TAG_SYSTEM, "Failed to initialize HTTP client. Continuing without HTTP...");
-    }
-    else
-    {
-        Logger.info(LOG_TAG_SYSTEM, "HTTP client initialized successfully");
-    }
-
     // Run modem connectivity test
     testModemConnectivity();
 
@@ -116,6 +105,17 @@ void setup()
         Logger.info(LOG_TAG_SYSTEM, "It's sleep time. Entering deep sleep...");
         enterDeepSleepUntil(SLEEP_END_HOUR, 0);
         return;
+    }
+
+    // Initialize HTTP client
+    if (!httpClient.init(modemManager))
+    {
+        Logger.error(LOG_TAG_SYSTEM, "Failed to initialize HTTP client. Continuing without HTTP...");
+    }
+    else
+    {
+        // Send initial diagnostics data
+        sendDiagnosticsData();
     }
 
     // Initialize sensors here
@@ -165,13 +165,6 @@ void loop()
         }
     }
 
-    // Send diagnostics data periodically
-    if (currentMillis - lastDiagnosticsUpdate >= DIAG_INTERVAL)
-    {
-        lastDiagnosticsUpdate = currentMillis;
-        sendDiagnosticsData();
-    }
-
     // Check network connectivity
     if (!modemManager.isNetworkConnected() || !modemManager.isGprsConnected())
     {
@@ -202,8 +195,12 @@ void loop()
         setupWatchdog();
     }
 
-    // Read and process sensor data here
-    // TODO: Add sensor reading code
+    // Send diagnostics data periodically
+    if (currentMillis - lastDiagnosticsUpdate >= DIAG_INTERVAL)
+    {
+        lastDiagnosticsUpdate = currentMillis;
+        sendDiagnosticsData();
+    }
 
     // Small delay to prevent excessive looping
     delay(100);
@@ -365,25 +362,84 @@ void testModemConnectivity()
 }
 
 /**
- * @brief Send diagnostics data to the backend
+ * @brief Send diagnostics data to the server
  *
- * Collects system diagnostics (battery voltage, signal quality, etc.)
- * and sends them to the backend server.
+ * Collects current system diagnostics and sends them to the server.
+ * @return true if successful
+ * @return false if failed
  */
-void sendDiagnosticsData()
+bool sendDiagnosticsData()
 {
-    Logger.info(LOG_TAG_SYSTEM, "Sending diagnostics data...");
+    Logger.info(LOG_TAG_SYSTEM, "Collecting and sending diagnostics data...");
 
-    // For now, we'll use dummy values for battery and solar voltage
-    // In a real implementation, these would come from ADC readings
-    float batteryVoltage = 3.8f; // Dummy value, replace with actual ADC reading
-    float solarVoltage = 5.2f;   // Dummy value, replace with actual ADC reading
-
-    // Get signal quality from modem
+    // Get signal quality
     int signalQuality = modemManager.getSignalQuality();
 
-    // Send diagnostics data
-    if (httpClient.sendDiagnostics(batteryVoltage, solarVoltage, signalQuality))
+    // Read battery voltage from ADC_BATTERY_PIN (GPIO35)
+    // ESP32 ADC has 12-bit resolution (0-4095)
+    // Note: According to LilyGo docs, battery voltage cannot be read when connected to USB
+
+    // Configure ADC
+    analogSetWidth(12);                                 // Set ADC resolution to 12 bits
+    analogSetPinAttenuation(ADC_BATTERY_PIN, ADC_11db); // Set attenuation for higher voltage range
+
+    // Read multiple samples for better accuracy
+    const int numSamples = 10;
+    int batteryRawTotal = 0;
+    int solarRawTotal = 0;
+
+    for (int i = 0; i < numSamples; i++)
+    {
+        batteryRawTotal += analogRead(ADC_BATTERY_PIN);
+        delay(5);
+    }
+
+    int batteryRaw = batteryRawTotal / numSamples;
+
+    // Calculate battery voltage (3.5V - 4.2V range according to docs)
+    // ESP32 ADC is non-linear, especially at extremes
+    // Calibration factor may need adjustment for your specific board
+    float batteryCalibration = 1.73; // This factor needs calibration with a multimeter
+    float batteryVoltage = (float)batteryRaw * 3.3 / 4095.0 * batteryCalibration;
+
+    // Limit to expected range based on documentation
+    batteryVoltage = constrain(batteryVoltage, 3.0, 4.5);
+
+    // Read solar panel voltage from ADC_SOLAR_PIN (GPIO36)
+    analogSetPinAttenuation(ADC_SOLAR_PIN, ADC_11db);
+
+    for (int i = 0; i < numSamples; i++)
+    {
+        solarRawTotal += analogRead(ADC_SOLAR_PIN);
+        delay(5);
+    }
+
+    int solarRaw = solarRawTotal / numSamples;
+
+    // Calculate solar voltage (4.4V to 6V range according to docs)
+    float solarCalibration = 2.0; // This factor needs calibration with a multimeter
+    float solarVoltage = (float)solarRaw * 3.3 / 4095.0 * solarCalibration;
+
+    // Limit to expected range based on documentation
+    solarVoltage = constrain(solarVoltage, 0.0, 6.5);
+
+    // Log the raw and converted values
+    Logger.debug(LOG_TAG_SYSTEM, "Battery ADC: %d, Voltage: %.2fV", batteryRaw, batteryVoltage);
+    Logger.debug(LOG_TAG_SYSTEM, "Solar ADC: %d, Voltage: %.2fV", solarRaw, solarVoltage);
+
+    // Check if likely running on USB power
+    if (batteryVoltage < 3.4 || batteryRaw < 100)
+    {
+        Logger.warn(LOG_TAG_SYSTEM, "Battery voltage reading may be incorrect - possibly running on USB power");
+    }
+
+    // Get system uptime in seconds
+    unsigned long uptime = millis() / 1000;
+
+    // Send data to server
+    bool success = httpClient.sendDiagnostics(DEVICE_ID, batteryVoltage, solarVoltage, signalQuality, uptime);
+
+    if (success)
     {
         Logger.info(LOG_TAG_SYSTEM, "Diagnostics data sent successfully");
     }
@@ -391,4 +447,6 @@ void sendDiagnosticsData()
     {
         Logger.error(LOG_TAG_SYSTEM, "Failed to send diagnostics data");
     }
+
+    return success;
 }
