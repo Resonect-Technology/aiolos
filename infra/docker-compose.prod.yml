@@ -2,7 +2,7 @@ services:
   backend:
     image: 590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:latest
     env_file:
-      - ../apps/adonis-api/.env
+      - .env
     restart: unless-stopped
     expose:
       - 8080

@@ -74,7 +74,16 @@ jobs:
           username: ${{ secrets.AIOLOS_PROD_EC2_USER }}
           key: ${{ secrets.RESONECT_AWS_PROD_SSH_KEY }}
           source: ./infra/docker-compose.prod.yml
-          target: ~/aiolos/
+          target: ~/aiolos/docker-compose.prod.yml
+          
+      - name: Copy Caddyfile to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.AIOLOS_PROD_EC2_HOST }}
+          username: ${{ secrets.AIOLOS_PROD_EC2_USER }}
+          key: ${{ secrets.RESONECT_AWS_PROD_SSH_KEY }}
+          source: ./infra/Caddyfile
+          target: ~/aiolos/Caddyfile
 
       - name: Deploy with docker-compose over SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -84,6 +93,26 @@ jobs:
           key: ${{ secrets.RESONECT_AWS_PROD_SSH_KEY }}
           envs: AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_REGION
           script: |
+            # Ensure Docker is installed
+            if ! command -v docker &> /dev/null; then
+              echo "Docker not found, installing..."
+              sudo apt-get update
+              sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common
+              curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+              sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+              sudo apt-get update
+              sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+              sudo usermod -aG docker $USER
+            fi
+            
+            # Ensure Docker Compose is installed
+            if ! command -v docker-compose &> /dev/null; then
+              echo "Docker Compose not found, installing..."
+              sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.6/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+              sudo chmod +x /usr/local/bin/docker-compose
+              sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+            fi
+            
             export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
             export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
             export AWS_REGION=$AWS_REGION
