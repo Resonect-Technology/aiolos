@@ -118,6 +118,17 @@ jobs:
             # Pull and start services
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            
+            # Wait a bit for containers to stabilize
+            sleep 10
+            
+            # Check container status
+            echo "Checking container status:"
+            docker compose -f docker-compose.prod.yml ps
+            
+            # Check backend logs to diagnose any issues
+            echo "Backend container logs:"
+            docker compose -f docker-compose.prod.yml logs backend --tail 50
 
       - name: Run Adonis migrations
         uses: appleboy/ssh-action@v1.0.3
@@ -127,6 +138,27 @@ jobs:
           key: ${{ secrets.RESONECT_AWS_PROD_SSH_KEY }}
           script: |
             cd ~/aiolos
-            # Wait a moment for the backend to be ready
-            sleep 5
-            docker compose -f docker-compose.prod.yml exec backend node ace migration:run --force
+            
+            # Check if backend container is running properly
+            for i in {1..12}; do
+              if docker compose -f docker-compose.prod.yml ps backend | grep -q "Up"; then
+                echo "Backend is up, running migrations..."
+                
+                # Try to run migrations
+                if docker compose -f docker-compose.prod.yml exec backend node ace migration:run --force; then
+                  echo "Migrations completed successfully"
+                  exit 0
+                else
+                  echo "Migration attempt failed, will retry..."
+                fi
+              else
+                echo "Backend container is not ready yet, waiting..."
+              fi
+              
+              # Wait before next check
+              sleep 10
+            done
+            
+            echo "Backend container did not stabilize after 2 minutes, showing logs:"
+            docker compose -f docker-compose.prod.yml logs backend --tail 100
+            exit 1

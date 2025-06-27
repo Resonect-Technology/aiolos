@@ -28,7 +28,15 @@ RUN pnpm install --no-frozen-lockfile --prod
 FROM base
 ENV NODE_ENV=production
 WORKDIR /app
+
+# Install system utilities for healthcheck
+RUN apt-get update && apt-get install -y wget && rm -rf /var/lib/apt/lists/*
+
 COPY --from=production-deps /app/node_modules ./node_modules
 COPY --from=build /app/apps/adonis-api/build ./
+
+# Add healthcheck
+HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=3 CMD wget --no-verbose --tries=1 --spider http://localhost:8080/healthcheck || exit 1
+
 EXPOSE 8080
 CMD ["node", "./bin/server.js"]

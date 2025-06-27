@@ -27,6 +27,16 @@ router.get('/', async () => {
 })
 
 /**
+ * Health check route for Docker healthcheck
+ */
+router.get('/healthcheck', async () => {
+  return {
+    status: 'ok',
+    timestamp: new Date().toISOString()
+  }
+})
+
+/**
  * Documentation routes
  */
 router.get('/swagger', async () => {
