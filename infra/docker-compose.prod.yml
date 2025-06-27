@@ -9,9 +9,12 @@ services:
 
   frontend:
     image: 590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:latest
-    command: ["sleep", "infinity"]
     volumes:
-      - frontend-dist:/app/dist
+      - frontend-dist:/dist
+    # This container exits immediately after creation as it's just a data container
+    deploy:
+      restart_policy:
+        condition: none
 
   caddy:
     image: caddy:2
