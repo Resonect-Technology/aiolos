@@ -7,7 +7,8 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 # Install dependencies (prod only)
 FROM base AS deps
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
+COPY apps/adonis-api/package.json ./package.json
+COPY pnpm-lock.yaml ./pnpm-lock.yaml
 RUN pnpm install --frozen-lockfile --prod
 
 # Build stage
