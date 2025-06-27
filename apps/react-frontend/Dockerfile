@@ -3,7 +3,7 @@ FROM node:22-slim AS build
 WORKDIR /app
 COPY apps/react-frontend/package.json ./package.json
 COPY pnpm-lock.yaml ./pnpm-lock.yaml
-RUN corepack enable && corepack prepare pnpm@latest --activate && pnpm install --frozen-lockfile
+RUN corepack enable && corepack prepare pnpm@latest --activate && pnpm install --no-frozen-lockfile
 COPY apps/react-frontend/. .
 RUN pnpm run build
 

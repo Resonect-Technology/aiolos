@@ -9,7 +9,7 @@ FROM base AS deps
 WORKDIR /app
 COPY apps/adonis-api/package.json ./package.json
 COPY pnpm-lock.yaml ./pnpm-lock.yaml
-RUN pnpm install --frozen-lockfile --prod
+RUN pnpm install --no-frozen-lockfile --prod
 
 # Build stage
 FROM base AS build
