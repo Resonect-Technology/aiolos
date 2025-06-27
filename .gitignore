@@ -14,8 +14,6 @@ yarn-error.log*
 # Environment Variables
 # ---------------------
 .env
-.env.*
-!.env.example # It's a common practice to commit an example env file
 
 # Build & Output Artifacts
 # ------------------------
@@ -65,3 +63,35 @@ Thumbs.db
 # ---------------------
 *.swp
 *.swo
+
+
+# Platformio
+.pio
+.vscode/.browse.c_cpp.db*
+.vscode/c_cpp_properties.json
+.vscode/launch.json
+.vscode/ipch
+
+# Terraform
+# Ignore Terraform variable files with secrets
+terraform.tfvars
+
+# Local .terraform directories
+.terraform/
+
+# Terraform state files
+*.tfstate
+*.tfstate.*
+
+# Crash log files
+crash.log
+
+# Exclude override files as they are usually for local config
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Exclude CLI configuration files
+.terraformrc
+terraform.rc

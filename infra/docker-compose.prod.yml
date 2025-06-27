@@ -1,0 +1,33 @@
+services:
+  backend:
+    image: 590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:latest
+    env_file:
+      - ../apps/adonis-api/.env
+    restart: unless-stopped
+    expose:
+      - 8080
+
+  frontend:
+    image: 590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:latest
+    command: ["sleep", "infinity"]
+    volumes:
+      - frontend-dist:/app/dist
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - frontend-dist:/srv
+      - caddy_data:/data
+    depends_on:
+      - backend
+    environment:
+      - AIOLOS_BACKEND_HOST=backend:8080
+
+volumes:
+  frontend-dist:
+  caddy_data:

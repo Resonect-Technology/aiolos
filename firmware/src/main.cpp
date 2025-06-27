@@ -14,11 +14,14 @@
 #include "config/Config.h"
 #include "core/Logger.h"
 #include "core/ModemManager.h"
+#include "core/HttpClient.h"
+#include "core/DiagnosticsManager.h"
 #include <Ticker.h>
 
 // Global variables
 Ticker periodicRestartTicker;
 unsigned long lastTimeUpdate = 0;
+unsigned long lastDiagnosticsUpdate = 0;
 int currentHour = 0, currentMinute = 0, currentSecond = 0;
 
 // Function prototypes
@@ -104,9 +107,22 @@ void setup()
         return;
     }
 
-    // TODO: Initialize CoAP client
+    // Initialize HTTP client
+    if (!httpClient.init(modemManager))
+    {
+        Logger.error(LOG_TAG_SYSTEM, "Failed to initialize HTTP client. Continuing without HTTP...");
+    }
+    else
+    {
+        // Initialize diagnostics manager with interval from config
+        diagnosticsManager.init(modemManager, httpClient, DIAG_INTERVAL);
 
-    // TODO: Initialize sensors
+        // Send initial diagnostics data
+        diagnosticsManager.sendDiagnostics();
+    }
+
+    // Initialize sensors here
+    // TODO: Add sensor initialization code
 
     // Schedule periodic restart
     periodicRestartTicker.attach(RESTART_INTERVAL, periodicRestart);
@@ -182,9 +198,12 @@ void loop()
         setupWatchdog();
     }
 
-    // TODO: Process CoAP messages
-
-    // TODO: Read and send sensor data
+    // Send diagnostics data periodically
+    if (currentMillis - lastDiagnosticsUpdate >= diagnosticsManager.getInterval())
+    {
+        lastDiagnosticsUpdate = currentMillis;
+        diagnosticsManager.sendDiagnostics();
+    }
 
     // Small delay to prevent excessive looping
     delay(100);

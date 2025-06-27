@@ -1,0 +1,12 @@
+node_modules
+build
+.env
+*.log
+tmp/
+tests/
+.vscode/
+.git/
+Dockerfile
+docker-compose.yml
+*.md
+coverage/
