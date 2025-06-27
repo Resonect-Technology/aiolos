@@ -6,8 +6,6 @@ on:
 jobs:
   build-and-push-backend:
     runs-on: [resonect-server]
-    container:
-      image: ubuntu:22.04
     env:
       ENVIRONMENT: production
     steps:
@@ -34,8 +32,6 @@ jobs:
 
   build-and-push-frontend:
     runs-on: [resonect-server]
-    container:
-      image: ubuntu:22.04
     env:
       ENVIRONMENT: production
     steps:
@@ -63,8 +59,6 @@ jobs:
   deploy:
     needs: [build-and-push-backend, build-and-push-frontend]
     runs-on: [resonect-server]
-    container:
-      image: ubuntu:22.04
     env:
       ENVIRONMENT: production
     steps:
