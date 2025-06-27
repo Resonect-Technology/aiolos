@@ -15,6 +15,7 @@
 #include "core/Logger.h"
 #include "core/ModemManager.h"
 #include "core/HttpClient.h"
+#include "core/DiagnosticsManager.h"
 #include <Ticker.h>
 
 // Global variables
@@ -30,7 +31,6 @@ void periodicRestart();
 bool isSleepTime();
 void enterDeepSleepUntil(int hour, int minute);
 void testModemConnectivity();
-bool sendDiagnosticsData();
 
 /**
  * @brief Initial setup function
@@ -114,8 +114,11 @@ void setup()
     }
     else
     {
+        // Initialize diagnostics manager with interval from config
+        diagnosticsManager.init(modemManager, httpClient, DIAG_INTERVAL);
+
         // Send initial diagnostics data
-        sendDiagnosticsData();
+        diagnosticsManager.sendDiagnostics();
     }
 
     // Initialize sensors here
@@ -196,10 +199,10 @@ void loop()
     }
 
     // Send diagnostics data periodically
-    if (currentMillis - lastDiagnosticsUpdate >= DIAG_INTERVAL)
+    if (currentMillis - lastDiagnosticsUpdate >= diagnosticsManager.getInterval())
     {
         lastDiagnosticsUpdate = currentMillis;
-        sendDiagnosticsData();
+        diagnosticsManager.sendDiagnostics();
     }
 
     // Small delay to prevent excessive looping
@@ -359,94 +362,4 @@ void testModemConnectivity()
     // Re-enable watchdog after connectivity test
     Logger.debug(LOG_TAG_SYSTEM, "Re-enabling watchdog after connectivity test");
     setupWatchdog();
-}
-
-/**
- * @brief Send diagnostics data to the server
- *
- * Collects current system diagnostics and sends them to the server.
- * @return true if successful
- * @return false if failed
- */
-bool sendDiagnosticsData()
-{
-    Logger.info(LOG_TAG_SYSTEM, "Collecting and sending diagnostics data...");
-
-    // Get signal quality
-    int signalQuality = modemManager.getSignalQuality();
-
-    // Read battery voltage from ADC_BATTERY_PIN (GPIO35)
-    // ESP32 ADC has 12-bit resolution (0-4095)
-    // Note: According to LilyGo docs, battery voltage cannot be read when connected to USB
-
-    // Configure ADC
-    analogSetWidth(12);                                 // Set ADC resolution to 12 bits
-    analogSetPinAttenuation(ADC_BATTERY_PIN, ADC_11db); // Set attenuation for higher voltage range
-
-    // Read multiple samples for better accuracy
-    const int numSamples = 10;
-    int batteryRawTotal = 0;
-    int solarRawTotal = 0;
-
-    for (int i = 0; i < numSamples; i++)
-    {
-        batteryRawTotal += analogRead(ADC_BATTERY_PIN);
-        delay(5);
-    }
-
-    int batteryRaw = batteryRawTotal / numSamples;
-
-    // Calculate battery voltage (3.5V - 4.2V range according to docs)
-    // ESP32 ADC is non-linear, especially at extremes
-    // Calibration factor may need adjustment for your specific board
-    float batteryCalibration = 1.73; // This factor needs calibration with a multimeter
-    float batteryVoltage = (float)batteryRaw * 3.3 / 4095.0 * batteryCalibration;
-
-    // Limit to expected range based on documentation
-    batteryVoltage = constrain(batteryVoltage, 3.0, 4.5);
-
-    // Read solar panel voltage from ADC_SOLAR_PIN (GPIO36)
-    analogSetPinAttenuation(ADC_SOLAR_PIN, ADC_11db);
-
-    for (int i = 0; i < numSamples; i++)
-    {
-        solarRawTotal += analogRead(ADC_SOLAR_PIN);
-        delay(5);
-    }
-
-    int solarRaw = solarRawTotal / numSamples;
-
-    // Calculate solar voltage (4.4V to 6V range according to docs)
-    float solarCalibration = 2.0; // This factor needs calibration with a multimeter
-    float solarVoltage = (float)solarRaw * 3.3 / 4095.0 * solarCalibration;
-
-    // Limit to expected range based on documentation
-    solarVoltage = constrain(solarVoltage, 0.0, 6.5);
-
-    // Log the raw and converted values
-    Logger.debug(LOG_TAG_SYSTEM, "Battery ADC: %d, Voltage: %.2fV", batteryRaw, batteryVoltage);
-    Logger.debug(LOG_TAG_SYSTEM, "Solar ADC: %d, Voltage: %.2fV", solarRaw, solarVoltage);
-
-    // Check if likely running on USB power
-    if (batteryVoltage < 3.4 || batteryRaw < 100)
-    {
-        Logger.warn(LOG_TAG_SYSTEM, "Battery voltage reading may be incorrect - possibly running on USB power");
-    }
-
-    // Get system uptime in seconds
-    unsigned long uptime = millis() / 1000;
-
-    // Send data to server
-    bool success = httpClient.sendDiagnostics(DEVICE_ID, batteryVoltage, solarVoltage, signalQuality, uptime);
-
-    if (success)
-    {
-        Logger.info(LOG_TAG_SYSTEM, "Diagnostics data sent successfully");
-    }
-    else
-    {
-        Logger.error(LOG_TAG_SYSTEM, "Failed to send diagnostics data");
-    }
-
-    return success;
 }
