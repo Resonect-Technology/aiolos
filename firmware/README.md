@@ -115,14 +115,38 @@ The Aiolos Weather Station includes a comprehensive wind measurement system that
 - Sampling rate configurable via `WIND_INTERVAL` in Config.h
 - Dedicated `WindSensor` class separates wind measurement logic from main application
 - Interrupt-driven anemometer readings for accurate pulse counting
-- Voltage-based direction mapping with 16-point lookup table
+- Direct ADC value mapping for wind direction based on calibrated thresholds
 - Comprehensive logging of wind measurements
 
 ### Hardware Connections
 
-- Wind vane connects to `WIND_VANE_PIN` (ADC pin)
-- Anemometer connects to `ANEMOMETER_PIN` (interrupt-capable pin)
-- Both sensors can operate at 3.3V for compatibility with ESP32
+- Wind vane connects to `WIND_VANE_PIN` (GPIO2, ADC2_CH2)
+- Anemometer connects to `ANEMOMETER_PIN` (GPIO14, interrupt-capable pin)
+- Both sensors operate at 3.3V for compatibility with ESP32
+
+### Current Implementation Status
+
+As of June 27, 2025, the wind measurement system has been updated with the following improvements:
+
+#### Completed:
+- ✅ Aligned pin assignments with the original working implementation (GPIO2 for wind vane, GPIO14 for anemometer)
+- ✅ Implemented direct ADC value mapping for wind direction using calibrated thresholds from proven code
+- ✅ Added wind direction adjustment (subtracting 90° with proper wrap-around) for correct compass alignment
+- ✅ Configured ADC with proper resolution (12-bit) and attenuation for accurate readings
+- ✅ Fixed ADC_ATTEN_DB_11 deprecation warning by using ADC_ATTEN_DB_12
+- ✅ Added robust wind speed calculation based on pulse counting and time measurement
+- ✅ Implemented debounce protection for anemometer readings
+- ✅ Added optional calibration mode for testing and diagnostics
+- ✅ Enhanced debug logging for troubleshooting
+
+#### Next Steps:
+- Continue testing to verify wind direction accuracy across all 16 positions
+- Fine-tune ADC thresholds if needed based on field testing
+- Consider adding smoothing/averaging for more stable readings in variable conditions
+- Integrate with HTTP API for data transmission to backend
+- Implement power optimization to reduce consumption during measurements
+
+The current implementation combines the reliability of the proven direction calculation from the original code with the more modular and maintainable structure of the new code.
 
 ## Diagnostics System
 
