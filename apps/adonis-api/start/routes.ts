@@ -65,28 +65,6 @@ router.group(() => {
   }).prefix('/live').as('live')
 
 }).prefix('/stations/:station_id').as('stations')
-=======
-// Station readings routes (new format, replacing /sensors/:sensor_id/readings)
-router.get('/stations/:station_id/readings', [SensorReadingsController, 'index'])
-router.get('/stations/:station_id/readings/:id', [SensorReadingsController, 'show'])
-router.post('/stations/:station_id/readings', [SensorReadingsController, 'store'])
-
-// Live wind data ingestion endpoint for stations
-router.post('/stations/:station_id/live/wind', [StationLiveController, 'wind'])
-// Mock live wind data endpoint for development
-router.post('/stations/:station_id/live/wind/mock', [StationLiveController, 'mockWind'])
-// Start/stop 1s interval mock wind data endpoints for development
-router.post('/stations/:station_id/live/wind/mock/start', [StationLiveController, 'startMockWind'])
-router.post('/stations/:station_id/live/wind/mock/stop', [StationLiveController, 'stopMockWind'])
-
-router.get('/swagger', async () => {
-  return AutoSwagger.default.docs(router.toJSON(), swagger)
-})
-
-router.get('/docs', async () => {
-  return AutoSwagger.default.ui('/swagger', swagger)
-})
-
 
 // Let Transmit register its own routes
 transmit.registerRoutes()

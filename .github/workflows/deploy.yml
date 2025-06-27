@@ -80,7 +80,7 @@ jobs:
           username: ${{ secrets.AIOLOS_PROD_EC2_USER }}
           key: ${{ secrets.RESONECT_AWS_PROD_SSH_KEY }}
           script: |
-            aws ecr get-login-password --region ${{ env.RESONECT_AWS_PROD_REGION }} | docker login --username AWS --password-stdin 590183887485.dkr.ecr.eu-central-1.amazonaws.com
+            aws ecr get-login-password --region ${{ secrets.RESONECT_AWS_PROD_REGION }} | docker login --username AWS --password-stdin 590183887485.dkr.ecr.eu-central-1.amazonaws.com
             cd ~/aiolos
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
