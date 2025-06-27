@@ -1,0 +1,36 @@
+services:
+  backend:
+    build:
+      context: ../apps/adonis-api
+    image: aiolos-backend:latest
+    env_file:
+      - ../apps/adonis-api/.env
+    restart: unless-stopped
+    expose:
+      - 8080
+
+  frontend:
+    build:
+      context: ../apps/react-frontend
+      target: build
+    image: aiolos-frontend:latest
+    command: ["sleep", "infinity"]
+    volumes:
+      - frontend-dist:/app/dist
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - frontend-dist:/srv
+    depends_on:
+      - backend
+    environment:
+      - AIOLOS_BACKEND_HOST=backend:8080
+
+volumes:
+  frontend-dist:

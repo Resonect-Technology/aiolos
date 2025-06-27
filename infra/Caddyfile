@@ -1,0 +1,22 @@
+# Caddyfile for Aiolos frontend and backend
+aiolos.resonect.cz {
+    # Serve static frontend files from /srv (Docker volume)
+    root * /srv
+    file_server
+
+    # Static file caching for assets
+    @assets {
+        path /assets/*
+    }
+    header @assets Cache-Control "public, max-age=31536000, immutable"
+
+    # Reverse proxy API/backend requests
+    @api {
+        path /api/*
+        path /__transmit/*
+    }
+    reverse_proxy @api backend:8080
+
+    # Optional: gzip compression
+    encode gzip
+}

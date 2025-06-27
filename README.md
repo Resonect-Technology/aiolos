@@ -16,6 +16,7 @@ Aiolos is a modern, scalable platform for collecting, storing, and serving real-
 - **Modern backend**: AdonisJS REST API
 - **OpenAPI/Swagger docs**: Auto-generated for the API
 - **Monorepo**: Managed with [pnpm](https://pnpm.io/) and [Turborepo](https://turbo.build/)
+- **Production infra as code**: [See infra/README.md for AWS/Terraform/Docker Compose setup](infra/README.md)
 
 ---
 
