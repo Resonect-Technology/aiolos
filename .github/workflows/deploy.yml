@@ -61,6 +61,9 @@ jobs:
     runs-on: [resonect-server]
     env:
       ENVIRONMENT: production
+      AWS_ACCESS_KEY_ID: ${{ secrets.RESONECT_AWS_PROD_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.RESONECT_AWS_PROD_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.RESONECT_AWS_PROD_REGION }}
     steps:
       - uses: actions/checkout@v4
 
@@ -79,8 +82,12 @@ jobs:
           host: ${{ secrets.AIOLOS_PROD_EC2_HOST }}
           username: ${{ secrets.AIOLOS_PROD_EC2_USER }}
           key: ${{ secrets.RESONECT_AWS_PROD_SSH_KEY }}
+          envs: AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_REGION
           script: |
-            aws ecr get-login-password --region ${{ secrets.RESONECT_AWS_PROD_REGION }} | docker login --username AWS --password-stdin 590183887485.dkr.ecr.eu-central-1.amazonaws.com
+            export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+            export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+            export AWS_REGION=$AWS_REGION
+            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin 590183887485.dkr.ecr.eu-central-1.amazonaws.com
             cd ~/aiolos
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
