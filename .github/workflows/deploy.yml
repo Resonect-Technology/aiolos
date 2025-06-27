@@ -49,7 +49,7 @@ jobs:
 
       - uses: docker/build-push-action@v5
         with:
-          context: ./apps/react-frontend
+          context: .
           file: ./apps/react-frontend/Dockerfile
           push: true
           tags: |
