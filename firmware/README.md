@@ -89,6 +89,41 @@ The firmware communicates with the backend using simple HTTP POST requests:
 - Support for sending diagnostic data, wind readings, and temperature values
 - Automatic retries on connection failures
 
+## Wind Measurement System
+
+The Aiolos Weather Station includes a comprehensive wind measurement system that accurately measures both wind direction and wind speed:
+
+### Wind Direction Sensor (Wind Vane)
+
+- **Operating Principle**: Uses a resistor network with a rotating magnet to create voltage variations based on wind direction
+- **Resolution**: 16 distinct directions (22.5° increments) covering full 360° range
+- **Hardware Interface**: Analog input connected to ESP32 ADC (pin GPIO2)
+- **Voltage Range**: 0V to 3.3V corresponding to different wind directions
+- **Reading Method**: ADC reading converted to voltage, then matched against calibrated lookup table
+- **Calibration**: Precise resistance-to-voltage-to-direction lookup table for accurate readings
+
+### Wind Speed Sensor (Anemometer)
+
+- **Operating Principle**: Reed switch sends pulses as the anemometer cups rotate
+- **Hardware Interface**: Digital input with interrupt for pulse counting (pin GPIO14)
+- **Calibration**: 1Hz (one rotation per second) = 0.447 m/s wind speed
+- **Debounce Protection**: 10ms software debounce to prevent false readings
+- **Measurement Period**: Wind speed averaged over configurable interval (default 1 minute)
+
+### Implementation Details
+
+- Sampling rate configurable via `WIND_INTERVAL` in Config.h
+- Dedicated `WindSensor` class separates wind measurement logic from main application
+- Interrupt-driven anemometer readings for accurate pulse counting
+- Voltage-based direction mapping with 16-point lookup table
+- Comprehensive logging of wind measurements
+
+### Hardware Connections
+
+- Wind vane connects to `WIND_VANE_PIN` (ADC pin)
+- Anemometer connects to `ANEMOMETER_PIN` (interrupt-capable pin)
+- Both sensors can operate at 3.3V for compatibility with ESP32
+
 ## Diagnostics System
 
 The Aiolos Weather Station includes a comprehensive diagnostics system that monitors the health and status of the device:

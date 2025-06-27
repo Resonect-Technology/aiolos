@@ -16,12 +16,14 @@
 #include "core/ModemManager.h"
 #include "core/HttpClient.h"
 #include "core/DiagnosticsManager.h"
+#include "sensors/WindSensor.h"
 #include <Ticker.h>
 
 // Global variables
 Ticker periodicRestartTicker;
 unsigned long lastTimeUpdate = 0;
 unsigned long lastDiagnosticsUpdate = 0;
+unsigned long lastWindUpdate = 0;
 int currentHour = 0, currentMinute = 0, currentSecond = 0;
 
 // Function prototypes
@@ -121,8 +123,18 @@ void setup()
         diagnosticsManager.sendDiagnostics();
     }
 
-    // Initialize sensors here
-    // TODO: Add sensor initialization code
+    // Initialize wind sensor
+    if (windSensor.init(ANEMOMETER_PIN, WIND_VANE_PIN))
+    {
+        Logger.info(LOG_TAG_SYSTEM, "Wind sensor initialized successfully");
+
+        // Just print a single wind reading at initialization
+        windSensor.printWindReading();
+    }
+    else
+    {
+        Logger.error(LOG_TAG_SYSTEM, "Failed to initialize wind sensor");
+    }
 
     // Schedule periodic restart
     periodicRestartTicker.attach(RESTART_INTERVAL, periodicRestart);
@@ -203,6 +215,15 @@ void loop()
     {
         lastDiagnosticsUpdate = currentMillis;
         diagnosticsManager.sendDiagnostics();
+    }
+
+    // Measure and print wind data periodically
+    if (currentMillis - lastWindUpdate >= WIND_INTERVAL)
+    {
+        lastWindUpdate = currentMillis;
+
+        // Read and print wind data
+        windSensor.printWindReading(WIND_INTERVAL);
     }
 
     // Small delay to prevent excessive looping

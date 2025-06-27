@@ -11,7 +11,7 @@
 
 // Debug and logging
 #define DEBUG_ENABLED true
-#define LOG_LEVEL 3 // 0=NONE, 1=ERROR, 2=WARN, 3=INFO, 4=DEBUG, 5=VERBOSE
+#define LOG_LEVEL 4 // 0=NONE, 1=ERROR, 2=WARN, 3=INFO, 4=DEBUG, 5=VERBOSE
 
 // Board pins
 #define PIN_DTR 25
@@ -19,8 +19,8 @@
 #define PIN_RX 26
 #define PWR_PIN 4
 #define LED_PIN 12
-#define ANEMOMETER_PIN 14  // Interrupt pin for anemometer
-#define WIND_VANE_PIN 2    // ADC pin for wind vane
+#define ANEMOMETER_PIN 25  // Interrupt pin for anemometer
+#define WIND_VANE_PIN 34   // ADC pin for wind vane (changed from 35 to avoid conflict)
 #define TEMP_BUS_INT 13    // OneWire bus for internal temperature sensor
 #define TEMP_BUS_EXT 15    // OneWire bus for external temperature sensor
 #define ADC_BATTERY_PIN 35 // ADC pin for battery voltage
@@ -46,7 +46,7 @@
 
 // Sensor timing
 #define TEMP_INTERVAL 300000        // Temperature reading interval (ms) - 5 minutes
-#define WIND_INTERVAL 60000         // Wind reading interval (ms) - 1 minute
+#define WIND_INTERVAL 1000          // Wind reading interval (ms) - 1 minute
 #define DIAG_INTERVAL 300000        // Diagnostics interval (ms) - 5 minutes
 #define TIME_UPDATE_INTERVAL 300000 // Time sync interval (ms) - 5 minutes
 
