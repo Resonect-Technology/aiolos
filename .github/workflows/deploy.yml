@@ -19,7 +19,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.RESONECT_AWS_PROD_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.RESONECT_AWS_PROD_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.RESONECT_AWS_PROD_REGION }}
+          aws-region: ${{ secrets.RESONECT_AWS_PROD_REGION }}
 
       - uses: aws-actions/amazon-ecr-login@v2
 
@@ -47,7 +47,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.RESONECT_AWS_PROD_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.RESONECT_AWS_PROD_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.RESONECT_AWS_PROD_REGION }}
+          aws-region: ${{ secrets.RESONECT_AWS_PROD_REGION }}
 
       - uses: aws-actions/amazon-ecr-login@v2
 
