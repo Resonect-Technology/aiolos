@@ -23,7 +23,7 @@ jobs:
 
       - uses: docker/build-push-action@v5
         with:
-          context: ./apps/adonis-api
+          context: .
           file: ./apps/adonis-api/Dockerfile
           push: true
           tags: |
