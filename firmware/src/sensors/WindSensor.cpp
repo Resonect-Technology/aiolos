@@ -5,7 +5,8 @@
 
 #include "WindSensor.h"
 #include "../core/Logger.h"
-#include <Arduino.h> // Make sure this is included
+#include <Arduino.h>     // Make sure this is included
+#include <esp_adc_cal.h> // Added for ADC calibration as in the old code
 
 #define LOG_TAG_WIND "WIND"
 
@@ -39,12 +40,29 @@ bool WindSensor::init(uint8_t anemometerPin, uint8_t windVanePin)
     // Configure wind vane pin as analog input
     pinMode(_windVanePin, INPUT);
 
-    // ESP32 specific - configure ADC for better readings
+    // ESP32 specific - configure ADC for better readings, exactly as in the old code
+    analogReadResolution(12);                        // Set ADC resolution to 12 bits (0-4095)
     analogSetPinAttenuation(_windVanePin, ADC_11db); // For 3.3V input range
 
     // Configure anemometer pin with pull-up and interrupt
     pinMode(_anemometerPin, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(_anemometerPin), handleAnemometerInterrupt, FALLING);
+
+    // Optional: setup ADC calibration as in the old code
+    esp_adc_cal_characteristics_t adc_chars;
+    esp_adc_cal_value_t val_type = esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_12, ADC_WIDTH_BIT_12, 1100, &adc_chars);
+    if (val_type == ESP_ADC_CAL_VAL_EFUSE_VREF)
+    {
+        Logger.info(LOG_TAG_WIND, "eFuse Vref: %u mV", adc_chars.vref);
+    }
+    else if (val_type == ESP_ADC_CAL_VAL_EFUSE_TP)
+    {
+        Logger.info(LOG_TAG_WIND, "Two Point --> coeff_a: %u mV coeff_b: %u mV", adc_chars.coeff_a, adc_chars.coeff_b);
+    }
+    else
+    {
+        Logger.info(LOG_TAG_WIND, "Default Vref: 1100 mV");
+    }
 
     Logger.info(LOG_TAG_WIND, "Wind sensor initialized");
     Logger.info(LOG_TAG_WIND, "Anemometer pin: %d, Wind vane pin: %d", _anemometerPin, _windVanePin);
@@ -59,11 +77,12 @@ float WindSensor::getWindDirection()
 
     // Use direct ADC value mapping from the old working code
     float direction;
-    
+
     // Log the raw ADC value for debugging
     Logger.debug(LOG_TAG_WIND, "Wind vane raw ADC value: %d", adcValue);
-    
+
     // Map ADC value to wind direction based on calibrated ranges
+    // Using exact same ranges from the old code
     if (adcValue < 150)
         direction = 202.5;
     else if (adcValue < 300)
@@ -96,7 +115,13 @@ float WindSensor::getWindDirection()
         direction = 0;
     else
         direction = 0; // Unknown
-    
+
+    // Apply the same adjustment as in the old code:
+    // Adjust direction to have 0 degrees as North
+    direction -= 90;
+    if (direction < 0)
+        direction += 360;
+
     // For debugging
     Logger.debug(LOG_TAG_WIND, "Wind direction: %.1f°", direction);
 
@@ -156,7 +181,7 @@ float WindSensor::getWindSpeed(unsigned long samplePeriodMs)
 void WindSensor::printWindReading(unsigned long samplePeriodMs)
 {
     float windSpeed = getWindSpeed(samplePeriodMs);
-    
+
     // Get raw ADC value for debugging
     int adcValue = analogRead(_windVanePin);
     float windDirection = getWindDirection();
