@@ -13,6 +13,7 @@ Aiolos is a modern, scalable platform for collecting, storing, and serving real-
 ### Key Features
 - **Live wind & weather data** for water sports and research
 - **Custom hardware**: [Aiolos meteostation](https://github.com/Resonect-Technology/Aiolos-HW)
+
 - **Modern backend**: AdonisJS REST API
 - **OpenAPI/Swagger docs**: Auto-generated for the API
 - **Monorepo**: Managed with [pnpm](https://pnpm.io/) and [Turborepo](https://turbo.build/)

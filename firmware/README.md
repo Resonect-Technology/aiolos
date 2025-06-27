@@ -42,6 +42,7 @@ The Aiolos Weather Station uses a LilyGO T-SIM7000G module (ESP32 + SIM7000G cel
 - **Error Resilience**: System continues operation even if modem/SIM errors occur
 - **Network Connection**: Automatic connection to cellular network and GPRS with retry mechanisms
 - **HTTP Communication**: Direct HTTP POST requests to the Adonis backend API
+
 - **Power Management**: Sleep mode support for power conservation with proper wake-up sequence
 - **SIM Detection**: Multiple methods to detect SIM card presence (CPIN, CCID, TinyGSM)
 
