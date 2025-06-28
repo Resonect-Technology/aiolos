@@ -119,17 +119,6 @@ jobs:
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
             
-            # Wait a bit for containers to stabilize
-            sleep 10
-            
-            # Check container status
-            echo "Checking container status:"
-            docker compose -f docker-compose.prod.yml ps
-            
-            # Check backend logs to diagnose any issues
-            echo "Backend container logs:"
-            docker compose -f docker-compose.prod.yml logs backend --tail 50
-
       - name: Run Adonis migrations
         uses: appleboy/ssh-action@v1.0.3
         with:
