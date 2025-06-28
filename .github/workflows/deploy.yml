@@ -2,23 +2,9 @@ name: Build and Deploy Aiolos
 
 on:
   workflow_dispatch:
-    inputs:
-      run_backend_build:
-        description: 'Build and push backend image'
-        type: boolean
-        default: true
-      run_frontend_build:
-        description: 'Build and push frontend image'
-        type: boolean
-        default: true
-      run_deploy:
-        description: 'Deploy to EC2'
-        type: boolean
-        default: true
 
 jobs:
   build-and-push-backend:
-    if: ${{ github.event.inputs.run_backend_build == 'true' }}
     runs-on: [resonect-server]
     env:
       ENVIRONMENT: production
@@ -38,6 +24,15 @@ jobs:
       - uses: docker/setup-qemu-action@v3
         with:
           platforms: linux/amd64,linux/arm64
+          
+      # Add Docker layer caching
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-backend-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-backend-
 
       - uses: docker/build-push-action@v5
         with:
@@ -48,9 +43,16 @@ jobs:
           tags: |
             590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:latest
             590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:${{ github.sha }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          
+      # Move cache to prevent growing forever
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
   build-and-push-frontend:
-    if: ${{ github.event.inputs.run_frontend_build == 'true' }}
     runs-on: [resonect-server]
     env:
       ENVIRONMENT: production
@@ -70,6 +72,15 @@ jobs:
       - uses: docker/setup-qemu-action@v3
         with:
           platforms: linux/amd64,linux/arm64
+          
+      # Add Docker layer caching
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache-frontend
+          key: ${{ runner.os }}-buildx-frontend-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-frontend-
 
       - uses: docker/build-push-action@v5
         with:
@@ -80,19 +91,22 @@ jobs:
           tags: |
             590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:latest
             590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:${{ github.sha }}
+          cache-from: type=local,src=/tmp/.buildx-cache-frontend
+          cache-to: type=local,dest=/tmp/.buildx-cache-frontend-new,mode=max
+          
+      # Move cache to prevent growing forever
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache-frontend
+          mv /tmp/.buildx-cache-frontend-new /tmp/.buildx-cache-frontend
 
   wait-for-builds:
     runs-on: [resonect-server]
     needs: [build-and-push-backend, build-and-push-frontend]
-    if: |
-      always() &&
-      (needs.build-and-push-backend.result == 'success' || needs.build-and-push-backend.result == 'skipped') &&
-      (needs.build-and-push-frontend.result == 'success' || needs.build-and-push-frontend.result == 'skipped')
     steps:
-      - run: echo "All builds completed or skipped successfully"
+      - run: echo "All builds completed successfully"
 
   deploy:
-    if: ${{ github.event.inputs.run_deploy == 'true' }}
     needs: [wait-for-builds]
     runs-on: [resonect-server]
     env:
