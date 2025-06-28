@@ -100,6 +100,7 @@ export function WindDashboard({ stationId }: WindDashboardProps) {
 
     // Initialize Transmit instance if it doesn't exist
     if (!transmitInstanceRef.current) {
+      console.log('Creating new Transmit instance');
       transmitInstanceRef.current = new Transmit({
         baseUrl: window.location.origin,
       });

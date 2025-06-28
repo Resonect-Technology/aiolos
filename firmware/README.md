@@ -89,6 +89,65 @@ The firmware communicates with the backend using simple HTTP POST requests:
 - Support for sending diagnostic data, wind readings, and temperature values
 - Automatic retries on connection failures
 
+## Wind Measurement System
+
+The Aiolos Weather Station includes a comprehensive wind measurement system that accurately measures both wind direction and wind speed:
+
+### Wind Direction Sensor (Wind Vane)
+
+- **Operating Principle**: Uses a resistor network with a rotating magnet to create voltage variations based on wind direction
+- **Resolution**: 16 distinct directions (22.5° increments) covering full 360° range
+- **Hardware Interface**: Analog input connected to ESP32 ADC (pin GPIO2)
+- **Voltage Range**: 0V to 3.3V corresponding to different wind directions
+- **Reading Method**: ADC reading converted to voltage, then matched against calibrated lookup table
+- **Calibration**: Precise resistance-to-voltage-to-direction lookup table for accurate readings
+
+### Wind Speed Sensor (Anemometer)
+
+- **Operating Principle**: Reed switch sends pulses as the anemometer cups rotate
+- **Hardware Interface**: Digital input with interrupt for pulse counting (pin GPIO14)
+- **Calibration**: 1Hz (one rotation per second) = 0.447 m/s wind speed
+- **Debounce Protection**: 10ms software debounce to prevent false readings
+- **Measurement Period**: Wind speed averaged over configurable interval (default 1 minute)
+
+### Implementation Details
+
+- Sampling rate configurable via `WIND_INTERVAL` in Config.h
+- Dedicated `WindSensor` class separates wind measurement logic from main application
+- Interrupt-driven anemometer readings for accurate pulse counting
+- Direct ADC value mapping for wind direction based on calibrated thresholds
+- Comprehensive logging of wind measurements
+
+### Hardware Connections
+
+- Wind vane connects to `WIND_VANE_PIN` (GPIO2, ADC2_CH2)
+- Anemometer connects to `ANEMOMETER_PIN` (GPIO14, interrupt-capable pin)
+- Both sensors operate at 3.3V for compatibility with ESP32
+
+### Current Implementation Status
+
+As of June 27, 2025, the wind measurement system has been updated with the following improvements:
+
+#### Completed:
+- ✅ Aligned pin assignments with the original working implementation (GPIO2 for wind vane, GPIO14 for anemometer)
+- ✅ Implemented direct ADC value mapping for wind direction using calibrated thresholds from proven code
+- ✅ Added wind direction adjustment (subtracting 90° with proper wrap-around) for correct compass alignment
+- ✅ Configured ADC with proper resolution (12-bit) and attenuation for accurate readings
+- ✅ Fixed ADC_ATTEN_DB_11 deprecation warning by using ADC_ATTEN_DB_12
+- ✅ Added robust wind speed calculation based on pulse counting and time measurement
+- ✅ Implemented debounce protection for anemometer readings
+- ✅ Added optional calibration mode for testing and diagnostics
+- ✅ Enhanced debug logging for troubleshooting
+
+#### Next Steps:
+- Continue testing to verify wind direction accuracy across all 16 positions
+- Fine-tune ADC thresholds if needed based on field testing
+- Consider adding smoothing/averaging for more stable readings in variable conditions
+- Integrate with HTTP API for data transmission to backend
+- Implement power optimization to reduce consumption during measurements
+
+The current implementation combines the reliability of the proven direction calculation from the original code with the more modular and maintainable structure of the new code.
+
 ## Diagnostics System
 
 The Aiolos Weather Station includes a comprehensive diagnostics system that monitors the health and status of the device:

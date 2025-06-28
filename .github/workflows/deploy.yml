@@ -2,9 +2,23 @@ name: Build and Deploy Aiolos
 
 on:
   workflow_dispatch:
+    inputs:
+      run_backend_build:
+        description: 'Build and push backend image'
+        type: boolean
+        default: true
+      run_frontend_build:
+        description: 'Build and push frontend image'
+        type: boolean
+        default: true
+      run_deploy:
+        description: 'Deploy to EC2'
+        type: boolean
+        default: true
 
 jobs:
   build-and-push-backend:
+    if: ${{ github.event.inputs.run_backend_build == 'true' }}
     runs-on: [resonect-server]
     env:
       ENVIRONMENT: production
@@ -36,6 +50,7 @@ jobs:
             590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:${{ github.sha }}
 
   build-and-push-frontend:
+    if: ${{ github.event.inputs.run_frontend_build == 'true' }}
     runs-on: [resonect-server]
     env:
       ENVIRONMENT: production
@@ -66,8 +81,19 @@ jobs:
             590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:latest
             590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:${{ github.sha }}
 
-  deploy:
+  wait-for-builds:
+    runs-on: [resonect-server]
     needs: [build-and-push-backend, build-and-push-frontend]
+    if: |
+      always() &&
+      (needs.build-and-push-backend.result == 'success' || needs.build-and-push-backend.result == 'skipped') &&
+      (needs.build-and-push-frontend.result == 'success' || needs.build-and-push-frontend.result == 'skipped')
+    steps:
+      - run: echo "All builds completed or skipped successfully"
+
+  deploy:
+    if: ${{ github.event.inputs.run_deploy == 'true' }}
+    needs: [wait-for-builds]
     runs-on: [resonect-server]
     env:
       ENVIRONMENT: production
@@ -130,35 +156,3 @@ jobs:
             echo "Backend container logs:"
             docker compose -f docker-compose.prod.yml logs backend --tail 50
 
-      - name: Run Adonis migrations
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.AIOLOS_PROD_EC2_HOST }}
-          username: ${{ secrets.AIOLOS_PROD_EC2_USER }}
-          key: ${{ secrets.RESONECT_AWS_PROD_SSH_KEY }}
-          script: |
-            cd ~/aiolos
-            
-            # Check if backend container is running properly
-            for i in {1..12}; do
-              if docker compose -f docker-compose.prod.yml ps backend | grep -q "Up"; then
-                echo "Backend is up, running migrations..."
-                
-                # Try to run migrations
-                if docker compose -f docker-compose.prod.yml exec backend node ace migration:run --force; then
-                  echo "Migrations completed successfully"
-                  exit 0
-                else
-                  echo "Migration attempt failed, will retry..."
-                fi
-              else
-                echo "Backend container is not ready yet, waiting..."
-              fi
-              
-              # Wait before next check
-              sleep 10
-            done
-            
-            echo "Backend container did not stabilize after 2 minutes, showing logs:"
-            docker compose -f docker-compose.prod.yml logs backend --tail 100
-            exit 1

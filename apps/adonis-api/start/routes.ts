@@ -48,33 +48,39 @@ router.get('/docs', async () => {
 }).as('docs.ui')
 
 /**
- * Station API routes
+ * API Routes - All routes under /api prefix
  */
 router.group(() => {
-  // Apply .as() to name routes for reverse routing
-  // Station readings routes (new format, replacing /sensors/:sensor_id/readings)
-  router.get('/readings', [SensorReadingsController, 'index']).as('readings.index')
-  router.get('/readings/:id', [SensorReadingsController, 'show']).as('readings.show')
-  router.post('/readings', [SensorReadingsController, 'store']).as('readings.store')
-
-  // Station diagnostics endpoints
-  router.post('/diagnostics', [StationDiagnosticsController, 'store']).as('diagnostics.store')
-  router.get('/diagnostics', [StationDiagnosticsController, 'show']).as('diagnostics.show')
-
-  // Live data routes group
+  /**
+   * Station API routes
+   */
   router.group(() => {
-    // Live wind data ingestion endpoint for stations
-    router.post('/wind', [StationLiveController, 'wind']).as('wind')
+    // Apply .as() to name routes for reverse routing
+    // Station readings routes (new format, replacing /sensors/:sensor_id/readings)
+    router.get('/readings', [SensorReadingsController, 'index']).as('readings.index')
+    router.get('/readings/:id', [SensorReadingsController, 'show']).as('readings.show')
+    router.post('/readings', [SensorReadingsController, 'store']).as('readings.store')
 
-    // Mock data routes for development
+    // Station diagnostics endpoints
+    router.post('/diagnostics', [StationDiagnosticsController, 'store']).as('diagnostics.store')
+    router.get('/diagnostics', [StationDiagnosticsController, 'show']).as('diagnostics.show')
+
+    // Live data routes group
     router.group(() => {
-      router.post('/mock', [StationLiveController, 'mockWind']).as('mock')
-      router.post('/mock/start', [StationLiveController, 'startMockWind']).as('start')
-      router.post('/mock/stop', [StationLiveController, 'stopMockWind']).as('stop')
-    }).prefix('/wind').as('wind')
-  }).prefix('/live').as('live')
+      // Live wind data ingestion endpoint for stations
+      router.post('/wind', [StationLiveController, 'wind']).as('wind')
 
-}).prefix('/stations/:station_id').as('stations')
+      // Mock data routes for development
+      router.group(() => {
+        router.post('/mock', [StationLiveController, 'mockWind']).as('mock')
+        router.post('/mock/start', [StationLiveController, 'startMockWind']).as('start')
+        router.post('/mock/stop', [StationLiveController, 'stopMockWind']).as('stop')
+      }).prefix('/wind').as('wind')
+    }).prefix('/live').as('live')
 
-// Let Transmit register its own routes
+  }).prefix('/stations/:station_id').as('stations')
+
+}).prefix('/api').as('api')
+
+// Let Transmit register its routes
 transmit.registerRoutes()

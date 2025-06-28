@@ -1,5 +1,5 @@
 # Caddyfile for Aiolos frontend and backend
-aiolos.resonect.cz {
+(common_config) {
     # Serve static frontend files from /srv (Docker volume)
     root * /srv
     file_server
@@ -13,10 +13,28 @@ aiolos.resonect.cz {
     # Reverse proxy API/backend requests
     @api {
         path /api/*
-        path /__transmit/*
     }
     reverse_proxy @api backend:8080
 
-    # Optional: gzip compression
-    encode gzip
+    # Reverse proxy Transmit routes without /api prefix for compatibility
+    @transmit {
+        path /__transmit/*
+    }
+    reverse_proxy @transmit backend:8080
+
+    # Optional: gzip compression - exclude SSE connections
+    @not_sse {
+        not header_regexp Accept-Type text/event-stream
+    }
+    encode @not_sse gzip
+}
+
+# Serve on domain name
+aiolos.resonect.cz {
+    import common_config
+}
+
+# Serve on plain IP address
+:80 {
+    import common_config
 }

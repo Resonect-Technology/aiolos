@@ -160,8 +160,27 @@ resource "aws_instance" "adonis_api" {
 
   user_data = file("${path.module}/user_data.sh")
 
+  root_block_device {
+    volume_size = 30
+    volume_type = "gp3"
+    encrypted   = true
+    tags = {
+      Name    = "adonis-api-root-volume"
+      Project = "aiolos"
+    }
+  }
+
   tags = {
     Name    = "adonis-api"
+    Project = "aiolos"
+  }
+}
+
+resource "aws_eip" "adonis_api" {
+  instance   = aws_instance.adonis_api.id
+  depends_on = [aws_internet_gateway.aiolos]
+  tags = {
+    Name    = "adonis-api-eip"
     Project = "aiolos"
   }
 }

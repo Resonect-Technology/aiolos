@@ -16,13 +16,19 @@
 #include "core/ModemManager.h"
 #include "core/HttpClient.h"
 #include "core/DiagnosticsManager.h"
+#include "sensors/WindSensor.h"
 #include <Ticker.h>
 
 // Global variables
 Ticker periodicRestartTicker;
 unsigned long lastTimeUpdate = 0;
 unsigned long lastDiagnosticsUpdate = 0;
+unsigned long lastWindUpdate = 0;
 int currentHour = 0, currentMinute = 0, currentSecond = 0;
+
+// Optional: Set to true to run wind vane calibration on startup
+const bool CALIBRATION_MODE = false;
+const unsigned long CALIBRATION_DURATION = 30000; // 30 seconds
 
 // Function prototypes
 void setupWatchdog();
@@ -121,8 +127,29 @@ void setup()
         diagnosticsManager.sendDiagnostics();
     }
 
-    // Initialize sensors here
-    // TODO: Add sensor initialization code
+    // Initialize wind sensor
+    if (windSensor.init(ANEMOMETER_PIN, WIND_VANE_PIN))
+    {
+        Logger.info(LOG_TAG_SYSTEM, "Wind sensor initialized successfully");
+
+        // Run calibration if enabled
+        if (CALIBRATION_MODE)
+        {
+            Logger.info(LOG_TAG_SYSTEM, "Starting wind vane calibration mode");
+            // Temporarily disable watchdog during calibration
+            esp_task_wdt_deinit();
+            windSensor.calibrateWindVane(CALIBRATION_DURATION);
+            // Re-enable watchdog after calibration
+            setupWatchdog();
+        }
+
+        // Just print a single wind reading at initialization
+        windSensor.printWindReading();
+    }
+    else
+    {
+        Logger.error(LOG_TAG_SYSTEM, "Failed to initialize wind sensor");
+    }
 
     // Schedule periodic restart
     periodicRestartTicker.attach(RESTART_INTERVAL, periodicRestart);
@@ -203,6 +230,15 @@ void loop()
     {
         lastDiagnosticsUpdate = currentMillis;
         diagnosticsManager.sendDiagnostics();
+    }
+
+    // Measure and print wind data periodically
+    if (currentMillis - lastWindUpdate >= WIND_INTERVAL)
+    {
+        lastWindUpdate = currentMillis;
+
+        // Read and print wind data
+        windSensor.printWindReading(WIND_INTERVAL);
     }
 
     // Small delay to prevent excessive looping
