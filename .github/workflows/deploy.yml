@@ -26,6 +26,11 @@ jobs:
           platforms: linux/amd64,linux/arm64
           
       # Add Docker layer caching
+      - name: Setup Docker cache directories
+        run: |
+          mkdir -p /tmp/.buildx-cache
+          chmod -R 777 /tmp/.buildx-cache
+
       - name: Cache Docker layers
         uses: actions/cache@v3
         with:
@@ -50,7 +55,7 @@ jobs:
       - name: Move cache
         run: |
           rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache || true
 
   build-and-push-frontend:
     runs-on: [resonect-server]
@@ -74,6 +79,11 @@ jobs:
           platforms: linux/amd64,linux/arm64
           
       # Add Docker layer caching
+      - name: Setup Docker cache directories
+        run: |
+          mkdir -p /tmp/.buildx-cache-frontend
+          chmod -R 777 /tmp/.buildx-cache-frontend
+
       - name: Cache Docker layers
         uses: actions/cache@v3
         with:
@@ -98,7 +108,7 @@ jobs:
       - name: Move cache
         run: |
           rm -rf /tmp/.buildx-cache-frontend
-          mv /tmp/.buildx-cache-frontend-new /tmp/.buildx-cache-frontend
+          mv /tmp/.buildx-cache-frontend-new /tmp/.buildx-cache-frontend || true
 
   deploy:
     needs: [build-and-push-backend, build-and-push-frontend]
