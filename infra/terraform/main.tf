@@ -165,3 +165,12 @@ resource "aws_instance" "adonis_api" {
     Project = "aiolos"
   }
 }
+
+resource "aws_eip" "adonis_api" {
+  instance   = aws_instance.adonis_api.id
+  depends_on = [aws_internet_gateway.aiolos]
+  tags = {
+    Name    = "adonis-api-eip"
+    Project = "aiolos"
+  }
+}
