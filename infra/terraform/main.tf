@@ -184,3 +184,45 @@ resource "aws_eip" "adonis_api" {
     Project = "aiolos"
   }
 }
+
+resource "aws_ecr_lifecycle_policy" "aiolos_backend_policy" {
+  repository = aws_ecr_repository.aiolos.name
+
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1,
+        description  = "Keep only 3 most recent images",
+        selection = {
+          tagStatus   = "any",
+          countType   = "imageCountMoreThan",
+          countNumber = 3
+        },
+        action = {
+          type = "expire"
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_ecr_lifecycle_policy" "aiolos_frontend_policy" {
+  repository = aws_ecr_repository.aiolos_frontend.name
+
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1,
+        description  = "Keep only 3 most recent images",
+        selection = {
+          tagStatus   = "any",
+          countType   = "imageCountMoreThan",
+          countNumber = 3
+        },
+        action = {
+          type = "expire"
+        }
+      }
+    ]
+  })
+}
