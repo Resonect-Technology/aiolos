@@ -100,14 +100,8 @@ jobs:
           rm -rf /tmp/.buildx-cache-frontend
           mv /tmp/.buildx-cache-frontend-new /tmp/.buildx-cache-frontend
 
-  wait-for-builds:
-    runs-on: [resonect-server]
-    needs: [build-and-push-backend, build-and-push-frontend]
-    steps:
-      - run: echo "All builds completed successfully"
-
   deploy:
-    needs: [wait-for-builds]
+    needs: [build-and-push-backend, build-and-push-frontend]
     runs-on: [resonect-server]
     env:
       ENVIRONMENT: production
