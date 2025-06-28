@@ -5,8 +5,6 @@ import { defineConfig } from '@adonisjs/transmit'
  * using PascalCase controllers: EventStreamController, SubscribeController, UnsubscribeController
  */
 export default defineConfig({
-    // Minimal config with required transport property using type casting to bypass type checking
-    transport: {
-        driver: 'sse' as any,
-    },
+    pingInterval: '30s',
+    transport: null,
 })
