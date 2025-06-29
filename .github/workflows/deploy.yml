@@ -11,24 +11,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Set up cache for Docker layers
+        uses: actions/cache@v4
         with:
-          driver-opts: |
-            image=moby/buildkit:latest
+          path: /tmp/.buildx-cache-backend
+          key: ${{ runner.os }}-buildx-backend-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-backend-
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.RESONECT_AWS_PROD_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.RESONECT_AWS_PROD_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.RESONECT_AWS_PROD_REGION }}
 
-      - uses: aws-actions/amazon-ecr-login@v2
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - uses: docker/setup-qemu-action@v3
+      - name: Set up QEMU for multi-platform builds
+        uses: docker/setup-qemu-action@v3
         with:
           platforms: linux/amd64,linux/arm64
 
-      - uses: docker/build-push-action@v5
+      - name: Build and push backend Docker image
+        uses: docker/build-push-action@v5
         with:
           context: .
           file: ./apps/adonis-api/Dockerfile
@@ -37,8 +47,13 @@ jobs:
           tags: |
             590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:latest
             590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=local,src=/tmp/.buildx-cache-backend
+          cache-to: type=local,dest=/tmp/.buildx-cache-backend-new,mode=max
+
+      - name: Move cache to prevent indefinite growth
+        run: |
+          rm -rf /tmp/.buildx-cache-backend
+          mv /tmp/.buildx-cache-backend-new /tmp/.buildx-cache-backend
 
   build-and-push-frontend:
     runs-on: [resonect-server]
@@ -47,24 +62,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Set up cache for Docker layers
+        uses: actions/cache@v4
         with:
-          driver-opts: |
-            image=moby/buildkit:latest
+          path: /tmp/.buildx-cache-frontend
+          key: ${{ runner.os }}-buildx-frontend-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-frontend-
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.RESONECT_AWS_PROD_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.RESONECT_AWS_PROD_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.RESONECT_AWS_PROD_REGION }}
 
-      - uses: aws-actions/amazon-ecr-login@v2
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - uses: docker/setup-qemu-action@v3
+      - name: Set up QEMU for multi-platform builds
+        uses: docker/setup-qemu-action@v3
         with:
           platforms: linux/amd64,linux/arm64
 
-      - uses: docker/build-push-action@v5
+      - name: Build and push frontend Docker image
+        uses: docker/build-push-action@v5
         with:
           context: .
           file: ./apps/react-frontend/Dockerfile
@@ -73,8 +98,13 @@ jobs:
           tags: |
             590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:latest
             590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=local,src=/tmp/.buildx-cache-frontend
+          cache-to: type=local,dest=/tmp/.buildx-cache-frontend-new,mode=max
+      
+      - name: Move cache to prevent indefinite growth
+        run: |
+          rm -rf /tmp/.buildx-cache-frontend
+          mv /tmp/.buildx-cache-frontend-new /tmp/.buildx-cache-frontend
 
   deploy:
     needs: [build-and-push-backend, build-and-push-frontend]
@@ -118,7 +148,11 @@ jobs:
             export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
             export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
             export AWS_REGION=$AWS_REGION
+            
+            # Login to ECR
+            echo "Logging in to Amazon ECR..."
             aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin 590183887485.dkr.ecr.eu-central-1.amazonaws.com
+            
             cd ~/aiolos
             
             # Get CPU architecture
@@ -126,11 +160,15 @@ jobs:
             echo "Running on architecture: $ARCH"
             
             # Pull and start services
+            echo "Pulling latest container images..."
             docker compose -f docker-compose.prod.yml pull
+            
+            echo "Starting services..."
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
             
             # Wait a bit for containers to stabilize
-            sleep 10
+            echo "Waiting for containers to stabilize..."
+            sleep 15
             
             # Check container status
             echo "Checking container status:"
