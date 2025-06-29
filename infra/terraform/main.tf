@@ -26,9 +26,12 @@ data "aws_subnet" "public" {
     name   = "map-public-ip-on-launch"
     values = ["true"]
   }
-  # Use the first public subnet found
-  # If there are multiple, you may need to add additional filters
-  # like availability zone or specific tags
+  filter {
+    name   = "availability-zone"
+    values = ["eu-central-1a"] # Specify a single AZ
+  }
+  # If there are still multiple subnets in the same AZ, you can add a tag filter
+  # or use a specific subnet ID instead
 }
 
 data "aws_route_table" "public" {
