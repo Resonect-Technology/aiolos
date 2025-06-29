@@ -38,10 +38,10 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:latest
-            590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:${{ github.sha }}
-          cache-from: type=registry,ref=590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:buildcache
-          cache-to: type=registry,ref=590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:buildcache,mode=max
+            ${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:latest
+            ${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:${{ github.sha }}
+          cache-from: type=registry,ref=${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:buildcache
+          cache-to: type=registry,ref=${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:buildcache,mode=max
 
   build-and-push-frontend:
     name: Build and Push Frontend
@@ -77,10 +77,10 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:latest
-            590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:${{ github.sha }}
-          cache-from: type=registry,ref=590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:buildcache
-          cache-to: type=registry,ref=590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:buildcache,mode=max
+            ${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:latest
+            ${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:${{ github.sha }}
+          cache-from: type=registry,ref=${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:buildcache
+          cache-to: type=registry,ref=${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:buildcache,mode=max
 
   deploy:
     name: Deploy to Production
@@ -128,7 +128,7 @@ jobs:
             
             # Login to ECR
             echo "Logging in to Amazon ECR..."
-            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin 590183887485.dkr.ecr.eu-central-1.amazonaws.com
+            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin ${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com
             
             cd ~/aiolos
             

@@ -37,9 +37,60 @@ apps/adonis-api/ace-manifest.json
 apps/adonis-api/*.sqlite
 apps/adonis-api/*.sqlite3
 
+# Dependencies and AdonisJS build
+node_modules
+build
+tmp
+
+# Secrets
+.env
+.env.local
+.env.production.local
+.env.development.local
+
+# Frontend assets compiled code
+public/assets
+
+# Build tools specific
+npm-debug.log
+yarn-error.log
+
+# Editors specific
+.fleet
+.idea
+.vscode
+
+# Platform specific
+.DS_Store
+
+
 # Vite (apps/react-frontend)
 apps/react-frontend/.vite/
 # Note: apps/react-frontend/dist/ is covered by the general 'dist/' pattern above.
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
 # CoAP Proxy (apps/coap-proxy)
 # Add any specific build outputs or temp files for coap-proxy if they exist
