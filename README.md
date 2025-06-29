@@ -83,3 +83,11 @@ See each app's README for how to run, configure, and test the services.
 - See code comments and each app's README for details
 
 ---
+
+## License
+
+This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). See the [LICENSE](LICENSE) file for details.
+
+[![AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+
+---
