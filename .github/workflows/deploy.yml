@@ -5,6 +5,7 @@ on:
 
 jobs:
   build-and-push-backend:
+    name: Build and Push Backend
     runs-on: [resonect-server]
     env:
       ENVIRONMENT: production
@@ -43,6 +44,7 @@ jobs:
           cache-to: type=registry,ref=590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:buildcache,mode=max
 
   build-and-push-frontend:
+    name: Build and Push Frontend
     runs-on: [resonect-server]
     env:
       ENVIRONMENT: production
@@ -81,6 +83,7 @@ jobs:
           cache-to: type=registry,ref=590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:buildcache,mode=max
 
   deploy:
+    name: Deploy to Production
     needs: [build-and-push-backend, build-and-push-frontend]
     runs-on: [resonect-server]
     env:
