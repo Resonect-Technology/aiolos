@@ -192,9 +192,35 @@ resource "aws_ecr_lifecycle_policy" "aiolos_backend_policy" {
     rules = [
       {
         rulePriority = 1,
-        description  = "Keep only 3 most recent images",
+        description  = "Keep buildcache tag",
         selection = {
-          tagStatus   = "any",
+          tagStatus     = "tagged",
+          tagPrefixList = ["buildcache"],
+          countType     = "imageCountMoreThan",
+          countNumber   = 1
+        },
+        action = {
+          type = "expire"
+        }
+      },
+      {
+        rulePriority = 2,
+        description  = "Keep only 3 most recent non-buildcache images",
+        selection = {
+          tagStatus     = "tagged",
+          tagPrefixList = ["latest", "sha"],
+          countType     = "imageCountMoreThan",
+          countNumber   = 3
+        },
+        action = {
+          type = "expire"
+        }
+      },
+      {
+        rulePriority = 3,
+        description  = "Keep only 3 most recent untagged images",
+        selection = {
+          tagStatus   = "untagged",
           countType   = "imageCountMoreThan",
           countNumber = 3
         },
@@ -213,9 +239,35 @@ resource "aws_ecr_lifecycle_policy" "aiolos_frontend_policy" {
     rules = [
       {
         rulePriority = 1,
-        description  = "Keep only 3 most recent images",
+        description  = "Keep buildcache tag",
         selection = {
-          tagStatus   = "any",
+          tagStatus     = "tagged",
+          tagPrefixList = ["buildcache"],
+          countType     = "imageCountMoreThan",
+          countNumber   = 1
+        },
+        action = {
+          type = "expire"
+        }
+      },
+      {
+        rulePriority = 2,
+        description  = "Keep only 3 most recent non-buildcache images",
+        selection = {
+          tagStatus     = "tagged",
+          tagPrefixList = ["latest", "sha"],
+          countType     = "imageCountMoreThan",
+          countNumber   = 3
+        },
+        action = {
+          type = "expire"
+        }
+      },
+      {
+        rulePriority = 3,
+        description  = "Keep only 3 most recent untagged images",
+        selection = {
+          tagStatus   = "untagged",
           countType   = "imageCountMoreThan",
           countNumber = 3
         },
