@@ -91,14 +91,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Connect to Tailscale
-        uses: tailscale/github-action@v3
-        with:
-          oauth-client-id: ${{ secrets.RESONECT_TAILSCALE_OAUTH_ID }}
-          oauth-secret: ${{ secrets.RESONECT_TAILSCALE_OAUTH_SECRET }}
-          tags: tag:resonect-prod,tag:resonect-dev
-          args: --reset
-
       - name: Prepare EC2 instance
         uses: appleboy/ssh-action@v1.0.3
         with:
