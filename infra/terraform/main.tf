@@ -60,13 +60,13 @@ resource "aws_route_table_association" "aiolos" {
 
 data "aws_availability_zones" "available" {}
 
-resource "aws_security_group" "adonis_api" {
-  name        = "adonis-api-sg"
+resource "aws_security_group" "aiolos_api" {
+  name        = "aiolos-api-sg"
   description = "Allow HTTP, HTTPS, and SSH"
   vpc_id      = aws_vpc.aiolos.id
 
   tags = {
-    Name    = "adonis-api-sg"
+    Name    = "aiolos-api-sg"
     Project = "aiolos"
   }
 
@@ -150,11 +150,11 @@ resource "aws_iam_instance_profile" "ec2_ecr_pull" {
   role = aws_iam_role.ec2_ecr_pull.name
 }
 
-resource "aws_instance" "adonis_api" {
+resource "aws_instance" "aiolos_api" {
   ami                    = "ami-0bb2f7cbe0aa41ffa"
   instance_type          = var.instance_type
   subnet_id              = aws_subnet.aiolos.id
-  vpc_security_group_ids = [aws_security_group.adonis_api.id]
+  vpc_security_group_ids = [aws_security_group.aiolos_api.id]
   key_name               = var.key_name
   iam_instance_profile   = aws_iam_instance_profile.ec2_ecr_pull.name
 
@@ -165,22 +165,22 @@ resource "aws_instance" "adonis_api" {
     volume_type = "gp3"
     encrypted   = true
     tags = {
-      Name    = "adonis-api-root-volume"
+      Name    = "aiolos-api-root-volume"
       Project = "aiolos"
     }
   }
 
   tags = {
-    Name    = "adonis-api"
+    Name    = "aiolos-api"
     Project = "aiolos"
   }
 }
 
-resource "aws_eip" "adonis_api" {
-  instance   = aws_instance.adonis_api.id
+resource "aws_eip" "aiolos_api" {
+  instance   = aws_instance.aiolos_api.id
   depends_on = [aws_internet_gateway.aiolos]
   tags = {
-    Name    = "adonis-api-eip"
+    Name    = "aiolos-api-eip"
     Project = "aiolos"
   }
 }

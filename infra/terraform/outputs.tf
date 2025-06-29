@@ -1,11 +1,11 @@
 output "instance_public_ip" {
-  description = "Public IP of the Adonis API EC2 instance"
-  value       = aws_instance.adonis_api.public_ip
+  description = "The public IP address of the aiolos_api EC2 instance"
+  value       = aws_instance.aiolos_api.public_ip
 }
 
 output "instance_id" {
-  description = "ID of the Adonis API EC2 instance"
-  value       = aws_instance.adonis_api.id
+  description = "The instance ID of the aiolos_api EC2 instance"
+  value       = aws_instance.aiolos_api.id
 }
 
 output "ecr_repository_url" {

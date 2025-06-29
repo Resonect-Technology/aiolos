@@ -7,6 +7,9 @@ This directory contains Terraform code for deploying all Aiolos-specific AWS res
 - Provisions a security group for HTTP, HTTPS, and SSH
 - Launches a t4g.nano EC2 instance (default) with Docker and your AdonisJS app
 - Tags all resources with `Project = "aiolos"`
+- **Automatically installs Docker (official guide) and AWS CLI v2 (official guide) on every new EC2 instance via `user_data.sh`**
+  - The script runs only on first boot of a new instance (not on reboot)
+  - Docker and AWS CLI v2 are installed for both x86_64 and ARM (aarch64) architectures
 
 ## Usage
 1. Copy `terraform.tfvars.example` to `terraform.tfvars` and fill in your real values (including any secrets like key_name).
@@ -54,6 +57,7 @@ This directory contains Terraform code for deploying all Aiolos-specific AWS res
 - All resources are tagged for easy identification.
 - For production, ensure your SSH key exists in the AWS region.
 - AWS SSO with the `resonect-prod` profile is recommended for authentication and access control.
+- **The `user_data.sh` script is run automatically on every new EC2 instance. It installs Docker and AWS CLI v2 using the official guides.**
 
 ---
 
