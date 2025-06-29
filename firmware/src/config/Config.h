@@ -58,3 +58,7 @@
 // Device identification
 #define DEVICE_ID "Aiolos-Vasiliki"
 #define FIRMWARE_VERSION "2.0.0"
+
+// Server settings
+#define SERVER_HOST "3.79.164.51"
+#define SERVER_PORT 80

@@ -10,6 +10,7 @@
 
 #include <Arduino.h>
 #include "ModemManager.h"
+#include "../config/Config.h"
 
 class HttpClient
 {
@@ -39,8 +40,8 @@ public:
 private:
     ModemManager *_modemManager = nullptr;
     TinyGsmClient *_client = nullptr;
-    const char *_serverHost = "aiolos.resonect.cz"; // Server hostname
-    int _serverPort = 80;                           // Server port
+    const char *_serverHost = SERVER_HOST; // Server hostname from Config.h
+    int _serverPort = SERVER_PORT;         // Server port from Config.h
 };
 
 extern HttpClient httpClient;
