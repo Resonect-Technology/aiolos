@@ -1,12 +1,15 @@
 # Aiolos Project Terraform
 
-This directory contains Terraform code for deploying all Aiolos-specific AWS resources (VPC, subnet, EC2, security groups, etc.).
+This directory contains Terraform code for deploying all Aiolos-specific AWS resources within the main Resonect infrastructure VPC.
 
 ## What this module does
-- Creates a dedicated VPC, public subnet, internet gateway, and route table for Aiolos
-- Provisions a security group for HTTP, HTTPS, and SSH
+- Uses the existing Resonect main VPC (10.1.0.0/16) and public subnet infrastructure
+- Provisions a security group for HTTP, HTTPS, and SSH (SSH access limited to within the VPC)
 - Launches a t4g.nano EC2 instance (default) with Docker and your AdonisJS app
 - Tags all resources with `Project = "aiolos"`
+- **Automatically installs Docker (official guide) and AWS CLI v2 (official guide) on every new EC2 instance via `user_data.sh`**
+  - The script runs only on first boot of a new instance (not on reboot)
+  - Docker and AWS CLI v2 are installed for both x86_64 and ARM (aarch64) architectures
 
 ## Usage
 1. Copy `terraform.tfvars.example` to `terraform.tfvars` and fill in your real values (including any secrets like key_name).
@@ -34,7 +37,19 @@ This directory contains Terraform code for deploying all Aiolos-specific AWS res
    docker build -t 590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:latest ../apps/react-frontend
    docker push 590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:latest
    ```
-6. SSH into your EC2 instance and use Docker Compose for deployment:
+6. Access your EC2 instance via the bastion host:
+   ```bash
+   # First, connect to the bastion host
+   ssh -i /path/to/your-key.pem ubuntu@BASTION_PUBLIC_IP
+   
+   # Then, from the bastion, connect to your Aiolos instance
+   ssh -i /path/to/your-key.pem ubuntu@AIOLOS_PRIVATE_IP
+   
+   # Alternatively, if using Tailscale on the bastion host:
+   # Access directly via Tailscale network
+   ```
+
+7. On the EC2 instance, use Docker Compose for deployment:
    ```bash
    # On the EC2 instance
    cd /path/to/infra
@@ -50,10 +65,14 @@ This directory contains Terraform code for deploying all Aiolos-specific AWS res
 - Public IP and instance ID of the deployed EC2 instance
 
 ## Notes
-- No need to provide VPC or subnet IDs; this module creates and manages its own network resources.
+- This module leverages the existing Resonect infrastructure VPC (10.1.0.0/16) defined in the Resonect Infra repo.
+- The EC2 instance is placed in the same VPC as the bastion host for simplified access and management.
+- SSH access is restricted to connections from within the VPC (use the bastion host as a jump server).
+- For security, direct SSH from the internet is disabled - always access through the bastion host.
 - All resources are tagged for easy identification.
 - For production, ensure your SSH key exists in the AWS region.
 - AWS SSO with the `resonect-prod` profile is recommended for authentication and access control.
+- **The `user_data.sh` script is run automatically on every new EC2 instance. It installs Docker and AWS CLI v2 using the official guides.**
 
 ---
 

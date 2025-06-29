@@ -12,61 +12,52 @@ provider "aws" {
   region = "eu-central-1"
 }
 
-resource "aws_vpc" "aiolos" {
-  cidr_block = "10.0.0.0/16"
-  tags = {
-    Name    = "aiolos-vpc"
-    Project = "aiolos"
+# Use existing VPC and subnet resources
+data "aws_vpc" "existing" {
+  filter {
+    name   = "cidr-block"
+    values = ["10.1.0.0/16"] # Bastion VPC CIDR
   }
 }
 
-resource "aws_internet_gateway" "aiolos" {
-  vpc_id = aws_vpc.aiolos.id
-  tags = {
-    Name    = "aiolos-igw"
-    Project = "aiolos"
+data "aws_subnet" "public" {
+  vpc_id = data.aws_vpc.existing.id
+  filter {
+    name   = "map-public-ip-on-launch"
+    values = ["true"]
+  }
+  filter {
+    name   = "availability-zone"
+    values = ["eu-central-1a"] # Specify a single AZ
+  }
+  # If there are still multiple subnets in the same AZ, you can add a tag filter
+  # or use a specific subnet ID instead
+}
+
+data "aws_route_table" "public" {
+  vpc_id = data.aws_vpc.existing.id
+  filter {
+    name   = "association.subnet-id"
+    values = [data.aws_subnet.public.id]
   }
 }
 
-resource "aws_subnet" "aiolos" {
-  vpc_id                  = aws_vpc.aiolos.id
-  cidr_block              = "10.0.1.0/24"
-  map_public_ip_on_launch = true
-  availability_zone       = data.aws_availability_zones.available.names[0]
-  tags = {
-    Name    = "aiolos-subnet"
-    Project = "aiolos"
+data "aws_internet_gateway" "existing" {
+  filter {
+    name   = "attachment.vpc-id"
+    values = [data.aws_vpc.existing.id]
   }
-}
-
-resource "aws_route_table" "aiolos" {
-  vpc_id = aws_vpc.aiolos.id
-  tags = {
-    Name    = "aiolos-rt"
-    Project = "aiolos"
-  }
-}
-
-resource "aws_route" "internet_access" {
-  route_table_id         = aws_route_table.aiolos.id
-  destination_cidr_block = "0.0.0.0/0"
-  gateway_id             = aws_internet_gateway.aiolos.id
-}
-
-resource "aws_route_table_association" "aiolos" {
-  subnet_id      = aws_subnet.aiolos.id
-  route_table_id = aws_route_table.aiolos.id
 }
 
 data "aws_availability_zones" "available" {}
 
-resource "aws_security_group" "adonis_api" {
-  name        = "adonis-api-sg"
+resource "aws_security_group" "aiolos_api" {
+  name        = "aiolos-api-sg"
   description = "Allow HTTP, HTTPS, and SSH"
-  vpc_id      = aws_vpc.aiolos.id
+  vpc_id      = data.aws_vpc.existing.id
 
   tags = {
-    Name    = "adonis-api-sg"
+    Name    = "aiolos-api-sg"
     Project = "aiolos"
   }
 
@@ -87,11 +78,19 @@ resource "aws_security_group" "adonis_api" {
   }
 
   ingress {
-    description = "SSH"
+    description = "SSH only from inside the VPC"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [data.aws_vpc.existing.cidr_block] # Use the VPC CIDR dynamically
+  }
+
+  ingress {
+    description = "ICMP (ping) from inside the VPC"
+    from_port   = -1
+    to_port     = -1
+    protocol    = "icmp"
+    cidr_blocks = [data.aws_vpc.existing.cidr_block] # Use the VPC CIDR dynamically
   }
 
   egress {
@@ -150,11 +149,11 @@ resource "aws_iam_instance_profile" "ec2_ecr_pull" {
   role = aws_iam_role.ec2_ecr_pull.name
 }
 
-resource "aws_instance" "adonis_api" {
+resource "aws_instance" "aiolos_api" {
   ami                    = "ami-0bb2f7cbe0aa41ffa"
   instance_type          = var.instance_type
-  subnet_id              = aws_subnet.aiolos.id
-  vpc_security_group_ids = [aws_security_group.adonis_api.id]
+  subnet_id              = data.aws_subnet.public.id
+  vpc_security_group_ids = [aws_security_group.aiolos_api.id]
   key_name               = var.key_name
   iam_instance_profile   = aws_iam_instance_profile.ec2_ecr_pull.name
 
@@ -165,22 +164,117 @@ resource "aws_instance" "adonis_api" {
     volume_type = "gp3"
     encrypted   = true
     tags = {
-      Name    = "adonis-api-root-volume"
+      Name    = "aiolos-api-root-volume"
       Project = "aiolos"
     }
   }
 
   tags = {
-    Name    = "adonis-api"
+    Name    = "aiolos-api"
     Project = "aiolos"
   }
 }
 
-resource "aws_eip" "adonis_api" {
-  instance   = aws_instance.adonis_api.id
-  depends_on = [aws_internet_gateway.aiolos]
+resource "aws_eip" "aiolos_api" {
+  instance   = aws_instance.aiolos_api.id
+  depends_on = [data.aws_internet_gateway.existing]
   tags = {
-    Name    = "adonis-api-eip"
+    Name    = "aiolos-api-eip"
     Project = "aiolos"
   }
 }
+
+resource "aws_ecr_lifecycle_policy" "aiolos_backend_policy" {
+  repository = aws_ecr_repository.aiolos.name
+
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1,
+        description  = "Keep only the most recent buildcache tag",
+        selection = {
+          tagStatus     = "tagged",
+          tagPrefixList = ["buildcache"],
+          countType     = "imageCountMoreThan",
+          countNumber   = 1
+        },
+        action = {
+          type = "expire"
+        }
+      },
+      {
+        rulePriority = 2,
+        description  = "Keep only 3 most recent non-buildcache images",
+        selection = {
+          tagStatus     = "tagged",
+          tagPrefixList = ["latest", "sha"],
+          countType     = "imageCountMoreThan",
+          countNumber   = 3
+        },
+        action = {
+          type = "expire"
+        }
+      },
+      {
+        rulePriority = 3,
+        description  = "Keep only 3 most recent untagged images",
+        selection = {
+          tagStatus   = "untagged",
+          countType   = "imageCountMoreThan",
+          countNumber = 3
+        },
+        action = {
+          type = "expire"
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_ecr_lifecycle_policy" "aiolos_frontend_policy" {
+  repository = aws_ecr_repository.aiolos_frontend.name
+
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1,
+        description  = "Keep only the most recent buildcache tag",
+        selection = {
+          tagStatus     = "tagged",
+          tagPrefixList = ["buildcache"],
+          countType     = "imageCountMoreThan",
+          countNumber   = 1
+        },
+        action = {
+          type = "expire"
+        }
+      },
+      {
+        rulePriority = 2,
+        description  = "Keep only 3 most recent non-buildcache images",
+        selection = {
+          tagStatus     = "tagged",
+          tagPrefixList = ["latest", "sha"],
+          countType     = "imageCountMoreThan",
+          countNumber   = 3
+        },
+        action = {
+          type = "expire"
+        }
+      },
+      {
+        rulePriority = 3,
+        description  = "Keep only 3 most recent untagged images",
+        selection = {
+          tagStatus   = "untagged",
+          countType   = "imageCountMoreThan",
+          countNumber = 3
+        },
+        action = {
+          type = "expire"
+        }
+      }
+    ]
+  })
+}
+
