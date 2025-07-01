@@ -16,13 +16,12 @@ export default defineConfig({
     proxy: {
       // Proxy API requests to the Adonis backend
       '/api': {
-        target: 'http://localhost:3333',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '')
+        target: 'http://localhost:8080',
+        changeOrigin: true
       },
       // Proxy SSE requests to the Adonis backend
       '/__transmit': {
-        target: 'http://localhost:3333',
+        target: 'http://localhost:8080',
         changeOrigin: true,
         ws: false,
         configure: (proxy, _options) => {

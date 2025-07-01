@@ -7,6 +7,7 @@ import { UnitSelector } from './UnitSelector';
 import { WindSpeedDisplay } from './WindSpeedDisplay';
 import { ControlPanel } from './ControlPanel';
 import { ConnectionStatus } from './ConnectionStatus';
+import { DiagnosticsPanel } from './DiagnosticsPanel';
 import './WindDirectionCompass.css';
 
 interface WindData {
@@ -206,7 +207,7 @@ export function WindDashboard({ stationId }: WindDashboardProps) {
         </div>
 
         {/* Control Panel */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-2xl transition-shadow duration-300">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-2xl transition-shadow duration-300 mb-10">
           <ControlPanel 
             windData={windData}
             formatTimestamp={formatTimestamp}
@@ -215,6 +216,11 @@ export function WindDashboard({ stationId }: WindDashboardProps) {
             sendSingleMockData={sendSingleMockData}
             clearWindHistory={clearWindHistory}
           />
+        </div>
+
+        {/* Diagnostics Panel */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-2xl transition-shadow duration-300">
+          <DiagnosticsPanel stationId={stationId} />
         </div>
       </div>
     </div>
