@@ -184,41 +184,64 @@ Wait for network registration with watchdog-friendly approach:
 
 ```cpp
 // Temporarily disable watchdog during network connection
-esp_task_wdt_deinit();
+_setWatchdog(true);
 
-// Wait for network with timeout (in milliseconds)
-Logger.info(LOG_TAG_MODEM, "Waiting for network...");
-bool networkConnected = false;
+// Wait for network with timeout
+Logger.info(LOG_TAG_MODEM, "Connecting to network...");
 
-// Use multiple shorter attempts instead of one long wait
-for (int attempt = 0; attempt < 3; attempt++) {
-    // Each attempt waits for up to 30 seconds
-    if (modem.waitForNetwork(30000L)) {
-        networkConnected = true;
-        break;
-    }
-    Logger.warn(LOG_TAG_MODEM, "Network connection attempt %d failed", attempt+1);
-    delay(1000);
+// Check if already connected
+if (_modem.isNetworkConnected()) {
+    Logger.info(LOG_TAG_MODEM, "Already connected to network");
+    return true;
 }
 
-// Re-enable watchdog after network operations
-setupWatchdog();
-
-// Check if network is connected and get network info
-if (networkConnected && modem.isNetworkConnected()) {
-    Logger.info(LOG_TAG_MODEM, "Network connected");
-    
-    // Get network information
-    String operatorName = modem.getOperator();
-    int signalQuality = modem.getSignalQuality();
-    Logger.info(LOG_TAG_MODEM, "Operator: %s, Signal: %d", 
-                operatorName.c_str(), signalQuality);
-                
-    return true;
-} else {
-    Logger.error(LOG_TAG_MODEM, "Network connection failed");
+// Skip if SIM card wasn't detected during initialization
+if (!_initialized) {
+    Logger.warn(LOG_TAG_MODEM, "Modem not properly initialized, skipping network connection");
     return false;
 }
+
+// Double-check SIM status before attempting network connection
+SimStatus simStatus = getSimStatus();
+if (simStatus != SIM_READY) {
+    Logger.warn(LOG_TAG_MODEM, "SIM card not ready, skipping network connection");
+    return false;
+}
+
+// Simple retry pattern
+for (int attempt = 0; attempt < maxRetries; attempt++) {
+    Logger.debug(LOG_TAG_MODEM, "Network connection attempt %d/%d", attempt + 1, maxRetries);
+
+    // Direct approach as in LilyGO examples
+    Logger.debug(LOG_TAG_MODEM, "Waiting for network registration...");
+    if (_modem.waitForNetwork(60000L)) {
+        delay(1000);
+        if (_modem.isNetworkConnected()) {
+            // Get network operator info for logging
+            String operatorName = _modem.getOperator();
+            Logger.info(LOG_TAG_MODEM, "Network connected to: %s", operatorName.c_str());
+
+            // Log signal quality
+            int csq = _modem.getSignalQuality();
+            Logger.info(LOG_TAG_MODEM, "Signal quality: %d", csq);
+
+            // Re-enable watchdog
+            _setWatchdog(false);
+            return true;
+        }
+    }
+
+    // Re-enable watchdog
+    _setWatchdog(false);
+
+    Logger.warn(LOG_TAG_MODEM, "Network connection failed, retrying...");
+
+    // Progressive backoff
+    int delayTime = 5000 + (attempt * 1000);
+    delay(delayTime);
+}
+Logger.error(LOG_TAG_MODEM, "Failed to connect to network after %d attempts", maxRetries);
+return false;
 ```
 
 ## GPRS Connection
@@ -228,38 +251,51 @@ if (networkConnected && modem.isNetworkConnected()) {
 After network registration, connect to GPRS:
 
 ```cpp
-// Connect to GPRS with APN "simbase" (no username/password)
-Logger.info(LOG_TAG_MODEM, "Connecting to GPRS with APN: %s", APN);
+// Connect to GPRS with APN settings
+Logger.info(LOG_TAG_MODEM, "Connecting to GPRS...");
 
-// Temporarily disable watchdog during GPRS connection
-esp_task_wdt_deinit();
-
-// Try to connect with retry logic
-bool gprsConnected = false;
-for (int attempt = 0; attempt < 3; attempt++) {
-    if (modem.gprsConnect(APN, GPRS_USER, GPRS_PASS)) {
-        gprsConnected = true;
-        break;
-    }
-    Logger.warn(LOG_TAG_MODEM, "GPRS connection attempt %d failed", attempt+1);
-    delay(1000);
+// Check if already connected
+if (_modem.isGprsConnected()) {
+    Logger.info(LOG_TAG_MODEM, "Already connected to GPRS");
+    IPAddress ip = _modem.localIP();
+    Logger.info(LOG_TAG_MODEM, "IP: %s", ip.toString().c_str());
+    return true;
 }
 
-// Re-enable watchdog after GPRS operations
-setupWatchdog();
+// Make sure we're connected to the network first
+if (!_modem.isNetworkConnected()) {
+    Logger.warn(LOG_TAG_MODEM, "Network not connected, attempting to connect first");
+    if (!connectNetwork(1)) {
+        Logger.error(LOG_TAG_MODEM, "Failed to connect to network, cannot establish GPRS");
+        return false;
+    }
+}
 
-// Check if GPRS is connected
-if (gprsConnected && modem.isGprsConnected()) {
-    Logger.info(LOG_TAG_MODEM, "GPRS connected");
-    
-    // Get IP address
-    IPAddress localIP = modem.localIP();
-    Logger.info(LOG_TAG_MODEM, "Local IP: %s", localIP.toString().c_str());
-    
-    return true;
-} else {
-    Logger.error(LOG_TAG_MODEM, "GPRS connection failed");
-    return false;
+// Simple connection pattern with retries
+for (int attempt = 0; attempt < maxRetries; attempt++) {
+    Logger.debug(LOG_TAG_MODEM, "GPRS connection attempt %d/%d", attempt + 1, maxRetries);
+
+    // Disable watchdog during GPRS connection
+    _setWatchdog(true);
+
+    // Direct GPRS connection
+    if (_modem.gprsConnect(APN, GPRS_USER, GPRS_PASS)) {
+        delay(1000);
+        if (_modem.isGprsConnected()) {
+            IPAddress ip = _modem.localIP();
+            Logger.info(LOG_TAG_MODEM, "GPRS connected with IP: %s", ip.toString().c_str());
+            
+            // Re-enable watchdog
+            _setWatchdog(false);
+            return true;
+        }
+    }
+
+    // Re-enable watchdog
+    _setWatchdog(false);
+
+    Logger.warn(LOG_TAG_MODEM, "GPRS connection failed, retrying...");
+    delay(5000);
 }
 ```
 
@@ -269,12 +305,9 @@ When GPRS connection is no longer needed:
 
 ```cpp
 // Disconnect from GPRS
-modem.gprsDisconnect();
-if (!modem.isGprsConnected()) {
-    Serial.println("GPRS disconnected");
-} else {
-    Serial.println("GPRS disconnect failed");
-}
+// NOTE: The current ModemManager implementation doesn't include a separate 
+// gprsDisconnect method, as GPRS connections are managed through 
+// the connectGprs method and disconnected during power off/sleep operations
 ```
 
 ## Power Management
@@ -289,14 +322,24 @@ pinMode(PIN_DTR, OUTPUT);
 digitalWrite(PIN_DTR, HIGH);  // HIGH = sleep mode enabled
 
 // Method 2: Using AT commands
-bool sleepEnabled = modem.sleepEnable(true);
-if (sleepEnabled) {
-    Logger.info(LOG_TAG_MODEM, "Modem entered sleep mode");
-} else {
-    Logger.warn(LOG_TAG_MODEM, "Failed to enter sleep mode");
+if (!_modem.sleepEnable(true)) {
+    Logger.error(LOG_TAG_MODEM, "Failed to put modem to sleep via AT command");
+    return false;
 }
 
+// Wait for sleep mode to take effect
+delay(2000);
+
+// Verify the modem is actually in sleep mode by checking responsiveness
+if (isResponsive()) {
+    Logger.warn(LOG_TAG_MODEM, "Modem still responsive after sleep command");
+    return false;
+}
+
+Logger.info(LOG_TAG_MODEM, "Modem successfully entered sleep mode");
+
 // For ESP32 deep sleep integration, preserve pin state
+// Use this when entering deep sleep
 gpio_hold_en((gpio_num_t)PIN_DTR);
 gpio_deep_sleep_hold_en();
 ```
@@ -307,27 +350,64 @@ Wake up the modem from sleep mode:
 
 ```cpp
 // If waking from ESP32 deep sleep, release GPIO hold
-if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER) {
+if (fromDeepSleep) {
+    // Disable GPIO hold if waking from deep sleep
     gpio_hold_dis((gpio_num_t)PIN_DTR);
-    gpio_deep_sleep_hold_dis();
+    gpio_deep_sleep_hold_dis(); // Disable the hold feature completely
+
+    // Re-initialize serial after deep sleep
+    SerialAT.end();
+    delay(100);
+    SerialAT.begin(UART_BAUD, SERIAL_8N1, PIN_RX, PIN_TX);
+    delay(300);
 }
 
 // Method 1: Using DTR pin (recommended)
 pinMode(PIN_DTR, OUTPUT);
 digitalWrite(PIN_DTR, LOW);  // LOW = normal operation
-delay(1500);
+delay(1000);  // Give the modem time to register the DTR change
 
-// Method 2: Using AT commands
-modem.sleepEnable(false);
+// Clear any pending serial data
+while (SerialAT.available()) {
+    SerialAT.read();
+}
 
-// Give the modem time to fully wake up
+// Try to wake up the modem with progressively more aggressive methods
+// First try a simple AT command
+_modem.sendAT();
+if (_modem.waitResponse(3000) == 1) {
+    Logger.info(LOG_TAG_MODEM, "Modem responded immediately to AT");
+    return true;
+}
+
+// Then try disabling sleep mode via AT command
+_modem.sleepEnable(false);
 delay(2000);
 
-// Verify modem is responsive after wake-up
-bool modemResponsive = modem.testAT(5000);
-if (!modemResponsive) {
-    Logger.warn(LOG_TAG_MODEM, "Modem not responsive after wake-up");
-    // Consider power cycle if needed
+// Check responsiveness with multiple attempts
+for (int i = 0; i < 5; i++) {
+    _modem.sendAT();
+    if (_modem.waitResponse(2000) == 1) {
+        Logger.info(LOG_TAG_MODEM, "Modem woke up after sleep disable on attempt %d", i + 1);
+        return true;
+    }
+    delay(1000);
+}
+
+// If still not responsive, try more aggressive wake-up with power pin toggle
+digitalWrite(PWR_PIN, HIGH);
+delay(100); // Just a short pulse to nudge the modem
+digitalWrite(PWR_PIN, LOW);
+delay(3000);
+
+// Final check for responsiveness
+for (int i = 0; i < 5; i++) {
+    _modem.sendAT();
+    if (_modem.waitResponse(2000) == 1) {
+        Logger.info(LOG_TAG_MODEM, "Modem woke up after power toggle on attempt %d", i + 1);
+        return true;
+    }
+    delay(1000);
 }
 ```
 
@@ -336,16 +416,45 @@ if (!modemResponsive) {
 Power off the modem completely:
 
 ```cpp
-// Send power down command
-modem.sendAT("+CPOWD=1");
-if (modem.waitResponse(10000L) != 1) {
-    Serial.println("Power down command failed");
+// Make sure modem is responsive before attempting software power down
+bool isResponsive = _modem.testAT(1000);
+
+if (isResponsive) {
+    // First try software power down command as recommended in LilyGO examples
+    Logger.debug(LOG_TAG_MODEM, "Attempting software power down");
+    _modem.sendAT("+CPOWD=1");
+
+    // Timeout of 10 seconds for power down command (based on LilyGO examples)
+    if (_modem.waitResponse(10000) != 1) {
+        Logger.warn(LOG_TAG_MODEM, "Software power down command failed");
+        // Fall back to hardware power down
+    } else {
+        Logger.info(LOG_TAG_MODEM, "Software power down successful");
+        // Wait for modem to shut down completely
+        delay(5000);
+        return true;
+    }
+} else {
+    Logger.debug(LOG_TAG_MODEM, "Modem not responsive, skipping software power down");
 }
 
-// Use hardware power down as backup
+// If modem is not responsive or software power down failed, use hardware power down
+Logger.info(LOG_TAG_MODEM, "Using hardware power down method");
+
+// Make sure PWR_PIN is LOW first
+digitalWrite(PWR_PIN, LOW);
+delay(1000);
+
+// Apply power pulse
 digitalWrite(PWR_PIN, HIGH);
 delay(1500);    // Datasheet Toff time = 1.2s
 digitalWrite(PWR_PIN, LOW);
+
+// Wait for modem to shut down completely
+delay(5000);
+
+Logger.info(LOG_TAG_MODEM, "Hardware power down completed");
+return true;
 
 // Wait for modem to shut down
 delay(5000);
