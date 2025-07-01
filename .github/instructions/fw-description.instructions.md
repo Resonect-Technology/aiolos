@@ -131,6 +131,27 @@ All previous references to CoAP, UDP, or MQTT (including any CoAP proxy) have be
 
 ## Software Architecture
 
+### Configuration Management
+
+The firmware uses a two-layer configuration approach:
+1. **Core Configuration**: Non-sensitive settings in `Config.h`
+2. **Secrets Management**: Sensitive values in `secrets.ini`
+
+The `secrets.ini` file contains sensitive configuration values such as:
+- APN credentials
+- OTA update credentials
+- Server URLs and API keys
+- Other sensitive parameters
+
+**IMPORTANT**: Always keep `secrets.ini` and `secrets.ini.example` in sync. When adding or modifying any secret value in `secrets.ini`, make sure to update the example file with the same structure but with placeholder values. This ensures that new developers can quickly set up their environment without missing any required secret values.
+
+Example workflow:
+1. When adding a new secret (e.g., `NEW_API_KEY`), add it to both files
+2. In `secrets.ini`: Add the actual value
+3. In `secrets.ini.example`: Add a placeholder with clear instructions
+
+This approach maintains security while providing clear documentation of what secret values are needed.
+
 ### Project Structure
 
 ```
@@ -148,6 +169,25 @@ All previous references to CoAP, UDP, or MQTT (including any CoAP proxy) have be
     WindSensor.h/cpp            // Anemometer and vane
   main.cpp                      // Main application logic
 ```
+
+### Environment Configuration
+
+The project uses PlatformIO's build system to handle sensitive configuration values through environment variables:
+
+1. **Configuration Files**:
+   - `firmware/secrets.ini` - Contains sensitive configuration values (not committed to version control)
+   - `firmware/secrets.ini.example` - Template file showing the structure (committed to version control)
+
+2. **Important Note on Synchronization**:
+   - **Always keep the structure of both files in sync**. When adding new configuration variables to `secrets.ini`, 
+     make sure to update `secrets.ini.example` with the same variable (with a default or placeholder value).
+   - This ensures that new team members or deployments can easily create a complete `secrets.ini` file from the example.
+   - The variable names and sections must match exactly between the two files.
+
+3. **Usage**:
+   - Values from `secrets.ini` are passed to the build via `platformio.ini`
+   - `Config.h` uses preprocessor directives to incorporate these values
+   - This approach keeps sensitive information out of source control while maintaining configurability
 
 ### Core Modules
 
