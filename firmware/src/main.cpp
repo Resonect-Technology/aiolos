@@ -24,7 +24,17 @@ Ticker periodicRestartTicker;
 unsigned long lastTimeUpdate = 0;
 unsigned long lastDiagnosticsUpdate = 0;
 unsigned long lastWindUpdate = 0;
+unsigned long lastConfigUpdate = 0;
 int currentHour = 0, currentMinute = 0, currentSecond = 0;
+
+// Dynamic interval settings (can be updated via remote config)
+unsigned long dynamicTempInterval = TEMP_INTERVAL;
+unsigned long dynamicWindInterval = WIND_INTERVAL;
+unsigned long dynamicDiagInterval = DIAG_INTERVAL;
+unsigned long dynamicTimeInterval = TIME_UPDATE_INTERVAL;
+unsigned long dynamicRestartInterval = RESTART_INTERVAL;
+int dynamicSleepStartHour = SLEEP_START_HOUR;
+int dynamicSleepEndHour = SLEEP_END_HOUR;
 
 // Optional: Set to true to run wind vane calibration on startup
 const bool CALIBRATION_MODE = false;
@@ -109,7 +119,7 @@ void setup()
     if (isSleepTime())
     {
         Logger.info(LOG_TAG_SYSTEM, "It's sleep time. Entering deep sleep...");
-        enterDeepSleepUntil(SLEEP_END_HOUR, 0);
+        enterDeepSleepUntil(dynamicSleepEndHour, 0);
         return;
     }
 
@@ -121,10 +131,73 @@ void setup()
     else
     {
         // Initialize diagnostics manager with interval from config
-        diagnosticsManager.init(modemManager, httpClient, DIAG_INTERVAL);
+        diagnosticsManager.init(modemManager, httpClient, dynamicDiagInterval);
 
         // Send initial diagnostics data
         diagnosticsManager.sendDiagnostics();
+
+        // Initialize configuration update time
+        lastConfigUpdate = millis();
+
+        // Fetch initial configuration
+        Logger.info(LOG_TAG_SYSTEM, "Fetching initial remote configuration...");
+        unsigned long tempInterval, windInterval, diagInterval, timeInterval, restartInterval;
+        int sleepStartHour, sleepEndHour;
+
+        if (httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
+                                          &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour))
+        {
+            // Apply configuration if values are valid (non-zero)
+            if (tempInterval > 0)
+            {
+                dynamicTempInterval = tempInterval;
+                Logger.info(LOG_TAG_SYSTEM, "Set temperature interval to %lu ms", dynamicTempInterval);
+            }
+
+            if (windInterval > 0)
+            {
+                dynamicWindInterval = windInterval;
+                Logger.info(LOG_TAG_SYSTEM, "Set wind interval to %lu ms", dynamicWindInterval);
+            }
+
+            if (diagInterval > 0)
+            {
+                dynamicDiagInterval = diagInterval;
+                diagnosticsManager.setInterval(dynamicDiagInterval);
+                Logger.info(LOG_TAG_SYSTEM, "Set diagnostics interval to %lu ms", dynamicDiagInterval);
+            }
+
+            if (timeInterval > 0)
+            {
+                dynamicTimeInterval = timeInterval;
+                Logger.info(LOG_TAG_SYSTEM, "Set time update interval to %lu ms", dynamicTimeInterval);
+            }
+
+            if (restartInterval > 0)
+            {
+                dynamicRestartInterval = restartInterval;
+                // Update the restart ticker with the new interval
+                periodicRestartTicker.detach();
+                periodicRestartTicker.attach(dynamicRestartInterval, periodicRestart);
+                Logger.info(LOG_TAG_SYSTEM, "Set restart interval to %lu seconds", dynamicRestartInterval);
+            }
+
+            if (sleepStartHour >= 0 && sleepStartHour < 24)
+            {
+                dynamicSleepStartHour = sleepStartHour;
+                Logger.info(LOG_TAG_SYSTEM, "Set sleep start hour to %d", dynamicSleepStartHour);
+            }
+
+            if (sleepEndHour >= 0 && sleepEndHour < 24)
+            {
+                dynamicSleepEndHour = sleepEndHour;
+                Logger.info(LOG_TAG_SYSTEM, "Set sleep end hour to %d", dynamicSleepEndHour);
+            }
+        }
+        else
+        {
+            Logger.warn(LOG_TAG_SYSTEM, "Failed to fetch initial remote configuration. Using default values.");
+        }
     }
 
     // Initialize wind sensor
@@ -152,7 +225,7 @@ void setup()
     }
 
     // Schedule periodic restart
-    periodicRestartTicker.attach(RESTART_INTERVAL, periodicRestart);
+    periodicRestartTicker.attach(dynamicRestartInterval, periodicRestart);
 
     Logger.info(LOG_TAG_SYSTEM, "Setup complete");
 }
@@ -171,7 +244,7 @@ void loop()
     unsigned long currentMillis = millis();
 
     // Update time from network periodically
-    if (currentMillis - lastTimeUpdate >= TIME_UPDATE_INTERVAL)
+    if (currentMillis - lastTimeUpdate >= dynamicTimeInterval)
     {
         lastTimeUpdate = currentMillis;
 
@@ -190,7 +263,7 @@ void loop()
         if (isSleepTime())
         {
             Logger.info(LOG_TAG_SYSTEM, "It's sleep time. Entering deep sleep...");
-            enterDeepSleepUntil(SLEEP_END_HOUR, 0);
+            enterDeepSleepUntil(dynamicSleepEndHour, 0);
             return;
         }
     }
@@ -226,19 +299,84 @@ void loop()
     }
 
     // Send diagnostics data periodically
-    if (currentMillis - lastDiagnosticsUpdate >= diagnosticsManager.getInterval())
+    if (currentMillis - lastDiagnosticsUpdate >= dynamicDiagInterval)
     {
         lastDiagnosticsUpdate = currentMillis;
         diagnosticsManager.sendDiagnostics();
     }
 
+    // Fetch remote configuration periodically
+    if (currentMillis - lastConfigUpdate >= CONFIG_UPDATE_INTERVAL)
+    {
+        lastConfigUpdate = currentMillis;
+
+        Logger.info(LOG_TAG_SYSTEM, "Fetching remote configuration...");
+        unsigned long tempInterval, windInterval, diagInterval, timeInterval, restartInterval;
+        int sleepStartHour, sleepEndHour;
+
+        if (httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
+                                          &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour))
+        {
+            // Apply configuration if values are valid (non-zero)
+            if (tempInterval > 0)
+            {
+                dynamicTempInterval = tempInterval;
+                Logger.info(LOG_TAG_SYSTEM, "Updated temperature interval to %lu ms", dynamicTempInterval);
+            }
+
+            if (windInterval > 0)
+            {
+                dynamicWindInterval = windInterval;
+                Logger.info(LOG_TAG_SYSTEM, "Updated wind interval to %lu ms", dynamicWindInterval);
+            }
+
+            if (diagInterval > 0)
+            {
+                dynamicDiagInterval = diagInterval;
+                diagnosticsManager.setInterval(dynamicDiagInterval);
+                Logger.info(LOG_TAG_SYSTEM, "Updated diagnostics interval to %lu ms", dynamicDiagInterval);
+            }
+
+            if (timeInterval > 0)
+            {
+                dynamicTimeInterval = timeInterval;
+                Logger.info(LOG_TAG_SYSTEM, "Updated time update interval to %lu ms", dynamicTimeInterval);
+            }
+
+            if (restartInterval > 0)
+            {
+                dynamicRestartInterval = restartInterval;
+                // Update the restart ticker with the new interval
+                periodicRestartTicker.detach();
+                periodicRestartTicker.attach(dynamicRestartInterval, periodicRestart);
+                Logger.info(LOG_TAG_SYSTEM, "Updated restart interval to %lu seconds", dynamicRestartInterval);
+            }
+
+            if (sleepStartHour >= 0 && sleepStartHour < 24)
+            {
+                dynamicSleepStartHour = sleepStartHour;
+                Logger.info(LOG_TAG_SYSTEM, "Updated sleep start hour to %d", dynamicSleepStartHour);
+            }
+
+            if (sleepEndHour >= 0 && sleepEndHour < 24)
+            {
+                dynamicSleepEndHour = sleepEndHour;
+                Logger.info(LOG_TAG_SYSTEM, "Updated sleep end hour to %d", dynamicSleepEndHour);
+            }
+        }
+        else
+        {
+            Logger.warn(LOG_TAG_SYSTEM, "Failed to fetch remote configuration. Using default values.");
+        }
+    }
+
     // Measure and print wind data periodically
-    if (currentMillis - lastWindUpdate >= WIND_INTERVAL)
+    if (currentMillis - lastWindUpdate >= dynamicWindInterval)
     {
         lastWindUpdate = currentMillis;
 
         // Read and print wind data
-        windSensor.printWindReading(WIND_INTERVAL);
+        windSensor.printWindReading(dynamicWindInterval);
     }
 
     // Small delay to prevent excessive looping
@@ -287,7 +425,7 @@ void periodicRestart()
  */
 bool isSleepTime()
 {
-    return (currentHour >= SLEEP_START_HOUR || currentHour < SLEEP_END_HOUR);
+    return (currentHour >= dynamicSleepStartHour || currentHour < dynamicSleepEndHour);
 }
 
 /**

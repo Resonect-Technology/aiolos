@@ -30,7 +30,7 @@
 #ifdef CONFIG_APN
 #define APN CONFIG_APN
 #else
-#define APN "simbase"
+#define APN "apn"
 #endif
 
 #ifdef CONFIG_GPRS_USER
@@ -63,13 +63,13 @@
 #ifdef CONFIG_OTA_SSID
 #define OTA_SSID CONFIG_OTA_SSID
 #else
-#define OTA_SSID "Aiolos-Weather-OTA"
+#define OTA_SSID "Aiolos-Ota"
 #endif
 
 #ifdef CONFIG_OTA_PASSWORD
 #define OTA_PASSWORD CONFIG_OTA_PASSWORD
 #else
-#define OTA_PASSWORD "weather-update"
+#define OTA_PASSWORD "password"
 #endif
 
 // Power management
@@ -87,13 +87,18 @@
 #define SLEEP_END_HOUR 9 // Hour to wake from sleep (24h format)
 #endif
 
+#ifdef CONFIG_RESTART_INTERVAL
+#define RESTART_INTERVAL CONFIG_RESTART_INTERVAL
+#else
 #define RESTART_INTERVAL 21600 // Seconds between automatic restarts (6 hours)
+#endif
 
 // Sensor timing
-#define TEMP_INTERVAL 300000        // Temperature reading interval (ms) - 5 minutes
-#define WIND_INTERVAL 1000          // Wind reading interval (ms) - 1 second
-#define DIAG_INTERVAL 300000        // Diagnostics interval (ms) - 5 minutes (300000 = 5 minutes)
-#define TIME_UPDATE_INTERVAL 300000 // Time sync interval (ms) - 5 minutes
+#define TEMP_INTERVAL 300000          // Temperature reading interval (ms) - 5 minutes
+#define WIND_INTERVAL 1000            // Wind reading interval (ms) - 1 second
+#define DIAG_INTERVAL 300000          // Diagnostics interval (ms) - 5 minutes (300000 = 5 minutes)
+#define TIME_UPDATE_INTERVAL 3600000  // Time sync interval (ms) - 1 hour (3600000 = 1 hour)
+#define CONFIG_UPDATE_INTERVAL 300000 // Remote configuration update interval (ms) - 5 minutes
 
 // Watchdog settings
 #define WDT_TIMEOUT 30000 // Watchdog timeout in ms (30 seconds)
@@ -104,7 +109,7 @@
 #ifdef CONFIG_DEVICE_ID
 #define DEVICE_ID CONFIG_DEVICE_ID
 #else
-#define DEVICE_ID "Aiolos-Vasiliki"
+#define DEVICE_ID "Aiolos"
 #endif
 #define FIRMWARE_VERSION "2.0.0"
 
@@ -112,7 +117,7 @@
 #ifdef CONFIG_SERVER_HOST
 #define SERVER_HOST CONFIG_SERVER_HOST
 #else
-#define SERVER_HOST "3.79.164.51"
+#define SERVER_HOST "1.1.1.1"
 #endif
 
 #ifdef CONFIG_SERVER_PORT

@@ -38,6 +38,25 @@ public:
      */
     bool sendDiagnostics(const char *stationId, float batteryVoltage, float solarVoltage, float internalTemp, int signalQuality, unsigned long uptime);
 
+    /**
+     * @brief Fetch configuration from the server
+     *
+     * @param stationId Station identifier
+     * @param tempInterval Pointer to store retrieved temperature interval
+     * @param windInterval Pointer to store retrieved wind interval
+     * @param diagInterval Pointer to store retrieved diagnostics interval
+     * @param timeInterval Pointer to store retrieved time sync interval
+     * @param restartInterval Pointer to store retrieved restart interval
+     * @param sleepStartHour Pointer to store retrieved sleep start hour
+     * @param sleepEndHour Pointer to store retrieved sleep end hour
+     * @return true if successful
+     * @return false if failed
+     */
+    bool fetchConfiguration(const char *stationId, unsigned long *tempInterval, unsigned long *windInterval,
+                            unsigned long *diagInterval, unsigned long *timeInterval = nullptr,
+                            unsigned long *restartInterval = nullptr, int *sleepStartHour = nullptr,
+                            int *sleepEndHour = nullptr);
+
 private:
     ModemManager *_modemManager = nullptr;
     TinyGsmClient *_client = nullptr;
