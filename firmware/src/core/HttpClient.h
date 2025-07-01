@@ -30,12 +30,13 @@ public:
      * @param stationId Station identifier
      * @param batteryVoltage Battery voltage in volts
      * @param solarVoltage Solar panel voltage in volts
+     * @param internalTemp Internal temperature in Celsius
      * @param signalQuality Signal quality in dBm
      * @param uptime System uptime in seconds
      * @return true if successful
      * @return false if failed
      */
-    bool sendDiagnostics(const char *stationId, float batteryVoltage, float solarVoltage, int signalQuality, unsigned long uptime);
+    bool sendDiagnostics(const char *stationId, float batteryVoltage, float solarVoltage, float internalTemp, int signalQuality, unsigned long uptime);
 
 private:
     ModemManager *_modemManager = nullptr;

@@ -92,7 +92,7 @@
 // Sensor timing
 #define TEMP_INTERVAL 300000        // Temperature reading interval (ms) - 5 minutes
 #define WIND_INTERVAL 1000          // Wind reading interval (ms) - 1 second
-#define DIAG_INTERVAL 300000        // Diagnostics interval (ms) - 5 minutes
+#define DIAG_INTERVAL 300000        // Diagnostics interval (ms) - 5 minutes (300000 = 5 minutes)
 #define TIME_UPDATE_INTERVAL 300000 // Time sync interval (ms) - 5 minutes
 
 // Watchdog settings

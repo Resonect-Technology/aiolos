@@ -32,7 +32,7 @@ bool HttpClient::init(ModemManager &modemManager)
 /**
  * @brief Send diagnostics data to the server
  */
-bool HttpClient::sendDiagnostics(const char *stationId, float batteryVoltage, float solarVoltage, int signalQuality, unsigned long uptime)
+bool HttpClient::sendDiagnostics(const char *stationId, float batteryVoltage, float solarVoltage, float internalTemp, int signalQuality, unsigned long uptime)
 {
     if (!_modemManager || !_client)
     {
@@ -49,10 +49,10 @@ bool HttpClient::sendDiagnostics(const char *stationId, float batteryVoltage, fl
     Logger.info(LOG_TAG_HTTP, "Sending diagnostics data for station %s", stationId);
 
     // Create JSON payload with diagnostic data
-    char jsonBuffer[256];
+    char jsonBuffer[320];
     snprintf(jsonBuffer, sizeof(jsonBuffer),
-             "{\"battery_voltage\":%.2f,\"solar_voltage\":%.2f,\"signal_quality\":%d,\"uptime\":%lu}",
-             batteryVoltage, solarVoltage, signalQuality, uptime);
+             "{\"battery_voltage\":%.2f,\"solar_voltage\":%.2f,\"internal_temperature\":%.2f,\"signal_quality\":%d,\"uptime\":%lu}",
+             batteryVoltage, solarVoltage, internalTemp, signalQuality, uptime);
 
     // Calculate content length
     size_t contentLength = strlen(jsonBuffer);
