@@ -1,12 +1,12 @@
 ---
 mode: agent
-description: Guide for implementing new data points across firmware and backend
+description: Guide for implementing new data points in the Aiolos Weather Station firmware
 tools: ["semantic_search", "file_search", "read_file", "insert_edit_into_file", "replace_string_in_file"]
 ---
-# New Data Point Implementation Guide
+# Firmware Data Point Implementation Guide
 
 ## Goal
-Create a complete implementation for a new data point to be transmitted from the Aiolos Weather Station firmware to the backend server, including proper handling on both sides.
+Create a complete implementation for a new data point to be collected and transmitted from the Aiolos Weather Station firmware to the backend server.
 
 ## Requirements
 
@@ -20,24 +20,15 @@ Create a complete implementation for a new data point to be transmitted from the
 - Document configuration parameters in `Config.h`
 - Implement proper validation before transmission
 
-### Backend Side (AdonisJS API)
-- Create or update the appropriate model in `apps/adonis-api/app/models/`
-- Update database schema/migrations if needed
-- Implement the controller endpoint in `apps/adonis-api/app/controllers/`
-- Add data validation for the incoming data point
-- Update the API documentation/OpenAPI spec
-- Implement proper error handling
-- Add the new data point to the live data stream if applicable
-
-### Integration
-- Ensure consistent data types and naming between firmware and backend
-- Verify payload size is appropriate for cellular transmission
-- Test the complete flow from sensor to database to frontend
-- Document the new data point in appropriate documentation files
+### Transmission Format
+- Ensure the data point follows the established naming conventions
+- Format the data appropriately for JSON transmission
+- Add the new field to the appropriate JSON payload section
+- Verify the data type is appropriate and efficient for transmission
 
 ## Constraints
 - Follow existing code patterns and style
-- Optimize for low power consumption on the firmware side
-- Ensure backward compatibility with existing data
+- Optimize for low power consumption
 - Keep HTTP payloads compact and efficient
 - Follow the modular architecture as described in the firmware documentation
+- Ensure proper error handling if sensor readings fail
