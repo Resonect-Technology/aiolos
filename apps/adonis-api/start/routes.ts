@@ -16,6 +16,7 @@ import transmit from '@adonisjs/transmit/services/main'
 const SensorReadingsController = () => import('#app/SensorReadingsController')
 const StationLiveController = () => import('#app/controllers/StationLiveController')
 const StationDiagnosticsController = () => import('#app/controllers/StationDiagnosticsController')
+const StationConfigsController = () => import('#app/controllers/station_configs_controller')
 
 /**
  * Home route
@@ -64,6 +65,10 @@ router.group(() => {
     // Station diagnostics endpoints
     router.post('/diagnostics', [StationDiagnosticsController, 'store']).as('diagnostics.store')
     router.get('/diagnostics', [StationDiagnosticsController, 'show']).as('diagnostics.show')
+
+    // Station configuration endpoints
+    router.get('/config', [StationConfigsController, 'show']).as('config.show')
+    router.post('/config', [StationConfigsController, 'store']).as('config.store')
 
     // Live data routes group
     router.group(() => {

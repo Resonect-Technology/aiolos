@@ -51,6 +51,7 @@ Aiolos is a modern, scalable platform for collecting, storing, and serving real-
 - RESTful, IoT-friendly routes: `/station/:station_id/readings`
 - Direct HTTP endpoint for weather stations to submit data
 - Auto-generated OpenAPI docs with [adonis-autoswagger](https://github.com/ad-on-is/adonis-autoswagger)
+- Insomnia API collection for system administration ([docs](docs/api/README.md))
 
 ### React Frontend ([docs](apps/react-frontend/README.md))
 - User interface built with React, Vite, and TypeScript.
