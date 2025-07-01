@@ -1,3 +1,7 @@
+---
+applyTo: '**'
+---
+
 # Aiolos Weather Station Firmware - HTTP Version
 
 ## Project Overview
@@ -22,7 +26,7 @@ The project represents a complete redesign of an older MQTT-based weather statio
   - Compact formatting to minimize payload size
   - Implemented using ArduinoJson library
 
-- **Connectivity**: 2G/NB-IoT cellular via SIM7000G modem
+- **Connectivity**: 2G cellular via SIM7000G modem
   - TinyGSM library for modem control
   - Automatic network reconnection with backoff strategy
   - Explicit power management of cellular module
