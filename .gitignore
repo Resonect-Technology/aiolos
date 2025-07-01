@@ -8,6 +8,11 @@ node_modules/
 logs/
 *.log
 npm-debug.log*
+
+# PlatformIO Secrets
+# -----------------
+firmware/secrets.ini
+!firmware/secrets.ini.example
 yarn-debug.log*
 yarn-error.log*
 
