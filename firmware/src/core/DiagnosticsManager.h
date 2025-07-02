@@ -14,6 +14,7 @@
 #include "ModemManager.h"
 #include "HttpClient.h"
 #include "Logger.h"
+#include "../utils/BatteryUtils.h"
 
 class DiagnosticsManager
 {

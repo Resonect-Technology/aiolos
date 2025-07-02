@@ -54,6 +54,12 @@
 #define OTA_HOUR 10 // Hour of day (24h format) to enable OTA mode
 #endif
 
+#ifdef CONFIG_OTA_MINUTE
+#define OTA_MINUTE CONFIG_OTA_MINUTE
+#else
+#define OTA_MINUTE 0 // Minute to enable OTA mode
+#endif
+
 #ifdef CONFIG_OTA_DURATION
 #define OTA_DURATION CONFIG_OTA_DURATION
 #else
@@ -71,6 +77,16 @@
 #else
 #define OTA_PASSWORD "password"
 #endif
+
+#ifdef CONFIG_OTA_MIN_BATTERY_VOLTAGE
+#define OTA_MIN_BATTERY_VOLTAGE CONFIG_OTA_MIN_BATTERY_VOLTAGE
+#else
+#define OTA_MIN_BATTERY_VOLTAGE 3.6 // Minimum battery voltage for OTA updates
+#endif
+
+// Remote OTA activation
+#define REMOTE_OTA_DURATION 15           // Minutes to keep WiFi active for remote-triggered OTA
+#define REMOTE_OTA_FLAG_KEY "remote_ota" // Key for remote OTA flag in configuration
 
 // Power management
 #define LOW_BATTERY_THRESHOLD 3.4 // Volts
