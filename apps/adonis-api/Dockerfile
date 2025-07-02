@@ -1,42 +1,45 @@
-FROM node:22-slim AS base
+FROM node:22-slim
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
-# All deps stage
-FROM base AS deps
+# Set the working directory to the AdonisJS project root
 WORKDIR /app
+
+# Install system dependencies required to build native modules like better-sqlite3
+RUN apt-get update && \
+    apt-get install -y python3 make g++ sqlite3 libsqlite3-dev --no-install-recommends && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy package files for dependency installation
 COPY apps/adonis-api/package.json ./package.json
-COPY pnpm-lock.yaml ./pnpm-lock.yaml
-RUN pnpm install --no-frozen-lockfile
 
-# Build stage
-FROM base AS build
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-RUN cd apps/adonis-api && node ace build --ignore-ts-errors || (pnpm install -g ts-node-maintained && node ace build --ignore-ts-errors)
+# Install dependencies
+RUN npm install
 
-# Production only deps stage
-FROM base AS production-deps
-WORKDIR /app
-COPY apps/adonis-api/package.json ./package.json
-COPY pnpm-lock.yaml ./pnpm-lock.yaml
-RUN pnpm install --no-frozen-lockfile --prod
+# Copy the entire AdonisJS project structure
+COPY apps/adonis-api/ ./
 
-# Production stage
-FROM base
+# Build the AdonisJS application
+RUN node ace build --ignore-ts-errors
+
+# Set Node.js environment to production
 ENV NODE_ENV=production
-WORKDIR /app
+ENV HOST=0.0.0.0
+ENV PORT=8080
 
-# Install system utilities for healthcheck
-RUN apt-get update && apt-get install -y wget && rm -rf /var/lib/apt/lists/*
+# Create the tmp directories (both at app root and in build output)
+RUN mkdir -p tmp build/tmp
 
-COPY --from=production-deps /app/node_modules ./node_modules
-COPY --from=build /app/apps/adonis-api/build ./
-
-# Add healthcheck
-HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=3 CMD wget --no-verbose --tries=1 --spider http://localhost:8080/healthcheck || exit 1
-
+# Expose the application port
 EXPOSE 8080
-CMD ["node", "./bin/server.js"]
+
+# Healthcheck to verify the server is running
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/healthcheck || exit 1
+
+# Copy and setup entrypoint script
+COPY apps/adonis-api/entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
+
+# Set the entrypoint
+ENTRYPOINT ["./entrypoint.sh"]
+
+CMD []

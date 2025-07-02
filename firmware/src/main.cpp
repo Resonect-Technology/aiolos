@@ -16,8 +16,10 @@
 #include "core/ModemManager.h"
 #include "core/HttpClient.h"
 #include "core/DiagnosticsManager.h"
+#include "core/OtaManager.h"
 #include "sensors/WindSensor.h"
 #include <Ticker.h>
+#include <WiFi.h>
 
 // Global variables
 Ticker periodicRestartTicker;
@@ -26,6 +28,8 @@ unsigned long lastDiagnosticsUpdate = 0;
 unsigned long lastWindUpdate = 0;
 unsigned long lastConfigUpdate = 0;
 int currentHour = 0, currentMinute = 0, currentSecond = 0;
+bool otaActive = false;
+unsigned long lastOtaCheck = 0;
 
 // Dynamic interval settings (can be updated via remote config)
 unsigned long dynamicTempInterval = TEMP_INTERVAL;
@@ -35,6 +39,9 @@ unsigned long dynamicTimeInterval = TIME_UPDATE_INTERVAL;
 unsigned long dynamicRestartInterval = RESTART_INTERVAL;
 int dynamicSleepStartHour = SLEEP_START_HOUR;
 int dynamicSleepEndHour = SLEEP_END_HOUR;
+int dynamicOtaHour = OTA_HOUR;
+int dynamicOtaMinute = OTA_MINUTE;
+int dynamicOtaDuration = OTA_DURATION;
 
 // Optional: Set to true to run wind vane calibration on startup
 const bool CALIBRATION_MODE = false;
@@ -47,6 +54,8 @@ void periodicRestart();
 bool isSleepTime();
 void enterDeepSleepUntil(int hour, int minute);
 void testModemConnectivity();
+bool checkAndInitOta();
+bool checkAndInitRemoteOta(); // New function to check for remote OTA activation
 
 /**
  * @brief Initial setup function
@@ -142,10 +151,11 @@ void setup()
         // Fetch initial configuration
         Logger.info(LOG_TAG_SYSTEM, "Fetching initial remote configuration...");
         unsigned long tempInterval, windInterval, diagInterval, timeInterval, restartInterval;
-        int sleepStartHour, sleepEndHour;
+        int sleepStartHour, sleepEndHour, otaHour, otaMinute, otaDuration;
 
         if (httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
-                                          &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour))
+                                          &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
+                                          &otaHour, &otaMinute, &otaDuration))
         {
             // Apply configuration if values are valid (non-zero)
             if (tempInterval > 0)
@@ -193,10 +203,50 @@ void setup()
                 dynamicSleepEndHour = sleepEndHour;
                 Logger.info(LOG_TAG_SYSTEM, "Set sleep end hour to %d", dynamicSleepEndHour);
             }
+
+            if (otaHour >= 0 && otaHour < 24)
+            {
+                dynamicOtaHour = otaHour;
+                Logger.info(LOG_TAG_SYSTEM, "Set OTA hour to %d", dynamicOtaHour);
+            }
+
+            if (otaMinute >= 0 && otaMinute < 60)
+            {
+                dynamicOtaMinute = otaMinute;
+                Logger.info(LOG_TAG_SYSTEM, "Set OTA minute to %d", dynamicOtaMinute);
+            }
+
+            if (otaDuration > 0)
+            {
+                dynamicOtaDuration = otaDuration;
+                Logger.info(LOG_TAG_SYSTEM, "Set OTA duration to %d minutes", dynamicOtaDuration);
+            }
         }
         else
         {
             Logger.warn(LOG_TAG_SYSTEM, "Failed to fetch initial remote configuration. Using default values.");
+        }
+
+        // Check for remote OTA flag after initial config
+        if (!otaActive)
+        {
+            bool remoteOtaRequested = false;
+            if (httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
+                                              &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
+                                              &otaHour, &otaMinute, &otaDuration, &remoteOtaRequested))
+            {
+                if (remoteOtaRequested)
+                {
+                    Logger.info(LOG_TAG_SYSTEM, "Remote OTA flag detected during initial configuration");
+                    checkAndInitRemoteOta();
+
+                    // Clear the flag after activation attempt
+                    remoteOtaRequested = false;
+                    httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
+                                                  &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
+                                                  &otaHour, &otaMinute, &otaDuration, &remoteOtaRequested);
+                }
+            }
         }
     }
 
@@ -227,6 +277,9 @@ void setup()
     // Schedule periodic restart
     periodicRestartTicker.attach(dynamicRestartInterval, periodicRestart);
 
+    // Check if it's OTA time
+    checkAndInitOta();
+
     Logger.info(LOG_TAG_SYSTEM, "Setup complete");
 }
 
@@ -242,6 +295,30 @@ void loop()
 
     // Get current time
     unsigned long currentMillis = millis();
+
+    // Handle OTA if active
+    if (otaActive)
+    {
+        if (!otaManager.handle())
+        {
+            // OTA has timed out or ended
+            otaActive = false;
+            Logger.info(LOG_TAG_SYSTEM, "OTA mode ended");
+        }
+        else
+        {
+            // If OTA is active, only handle OTA and skip other operations
+            delay(100);
+            return;
+        }
+    }
+
+    // Check for OTA window periodically (every minute)
+    if (currentMillis - lastOtaCheck >= 60000)
+    {
+        lastOtaCheck = currentMillis;
+        checkAndInitOta();
+    }
 
     // Update time from network periodically
     if (currentMillis - lastTimeUpdate >= dynamicTimeInterval)
@@ -312,10 +389,12 @@ void loop()
 
         Logger.info(LOG_TAG_SYSTEM, "Fetching remote configuration...");
         unsigned long tempInterval, windInterval, diagInterval, timeInterval, restartInterval;
-        int sleepStartHour, sleepEndHour;
+        int sleepStartHour, sleepEndHour, otaHour, otaMinute, otaDuration;
+        bool remoteOtaRequested = false;
 
         if (httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
-                                          &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour))
+                                          &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
+                                          &otaHour, &otaMinute, &otaDuration))
         {
             // Apply configuration if values are valid (non-zero)
             if (tempInterval > 0)
@@ -363,10 +442,50 @@ void loop()
                 dynamicSleepEndHour = sleepEndHour;
                 Logger.info(LOG_TAG_SYSTEM, "Updated sleep end hour to %d", dynamicSleepEndHour);
             }
+
+            if (otaHour >= 0 && otaHour < 24)
+            {
+                dynamicOtaHour = otaHour;
+                Logger.info(LOG_TAG_SYSTEM, "Updated OTA hour to %d", dynamicOtaHour);
+            }
+
+            if (otaMinute >= 0 && otaMinute < 60)
+            {
+                dynamicOtaMinute = otaMinute;
+                Logger.info(LOG_TAG_SYSTEM, "Updated OTA minute to %d", dynamicOtaMinute);
+            }
+
+            if (otaDuration > 0)
+            {
+                dynamicOtaDuration = otaDuration;
+                Logger.info(LOG_TAG_SYSTEM, "Updated OTA duration to %d minutes", dynamicOtaDuration);
+            }
         }
         else
         {
             Logger.warn(LOG_TAG_SYSTEM, "Failed to fetch remote configuration. Using default values.");
+        }
+
+        // Check for remote OTA flag after config update
+        if (!otaActive)
+        {
+            bool remoteOtaRequested = false;
+            if (httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
+                                              &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
+                                              &otaHour, &otaMinute, &otaDuration, &remoteOtaRequested))
+            {
+                if (remoteOtaRequested)
+                {
+                    Logger.info(LOG_TAG_SYSTEM, "Remote OTA flag detected during configuration check");
+                    checkAndInitRemoteOta();
+
+                    // Clear the flag after activation attempt
+                    remoteOtaRequested = false;
+                    httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
+                                                  &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
+                                                  &otaHour, &otaMinute, &otaDuration, &remoteOtaRequested);
+                }
+            }
         }
     }
 
@@ -453,6 +572,13 @@ void enterDeepSleepUntil(int hour, int minute)
     // Disable watchdog timer
     esp_task_wdt_deinit();
 
+    // End OTA mode if active
+    if (otaActive)
+    {
+        otaManager.end();
+        otaActive = false;
+    }
+
     // Put modem into sleep mode with GPIO hold enabled
     if (modemManager.enterSleepMode(true))
     {
@@ -536,4 +662,103 @@ void testModemConnectivity()
     // Re-enable watchdog after connectivity test
     Logger.debug(LOG_TAG_SYSTEM, "Re-enabling watchdog after connectivity test");
     setupWatchdog();
+}
+
+/**
+ * @brief Check if it's time for scheduled OTA update and initialize OTA mode if needed
+ *
+ * This function checks if the current time matches the configured OTA window and
+ * activates OTA mode if it does. This only handles scheduled OTA, not remote OTA.
+ *
+ * @return true if OTA is active
+ * @return false if it's not OTA time or initialization failed
+ */
+bool checkAndInitOta()
+{
+    // If OTA is already active, just return true
+    if (otaActive)
+    {
+        return true;
+    }
+
+    // Check if it's time for OTA
+    if (OtaManager::isOtaWindowActive(currentHour, currentMinute, dynamicOtaHour, dynamicOtaMinute, dynamicOtaDuration))
+    {
+        Logger.info(LOG_TAG_SYSTEM, "OTA window active. Starting OTA mode...");
+
+        // Temporarily disable watchdog during OTA initialization
+        Logger.debug(LOG_TAG_SYSTEM, "Temporarily disabling watchdog for OTA initialization");
+        esp_task_wdt_deinit();
+
+        // Initialize OTA manager
+        if (otaManager.init(OTA_SSID, OTA_PASSWORD, OTA_PASSWORD, dynamicOtaDuration * 60 * 1000))
+        {
+            otaActive = true;
+            Logger.info(LOG_TAG_SYSTEM, "OTA mode initialized successfully");
+
+            // Re-enable watchdog after OTA initialization
+            Logger.debug(LOG_TAG_SYSTEM, "Re-enabling watchdog after OTA initialization");
+            setupWatchdog();
+
+            return true;
+        }
+        else
+        {
+            Logger.error(LOG_TAG_SYSTEM, "Failed to initialize OTA mode");
+
+            // Re-enable watchdog after failed OTA initialization
+            Logger.debug(LOG_TAG_SYSTEM, "Re-enabling watchdog after failed OTA initialization");
+            setupWatchdog();
+
+            return false;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * @brief Check for remote OTA activation and initialize OTA mode if needed
+ *
+ * This function activates OTA mode for remote updates.
+ *
+ * @return true if remote OTA is activated
+ * @return false if remote OTA is not activated or initialization failed
+ */
+bool checkAndInitRemoteOta()
+{
+    // If OTA is already active, just return true
+    if (otaActive)
+    {
+        return true;
+    }
+
+    Logger.info(LOG_TAG_SYSTEM, "Activating Remote OTA mode...");
+
+    // Temporarily disable watchdog during OTA initialization
+    Logger.debug(LOG_TAG_SYSTEM, "Temporarily disabling watchdog for OTA initialization");
+    esp_task_wdt_deinit();
+
+    // Initialize OTA manager with remote OTA duration
+    if (otaManager.init(OTA_SSID, OTA_PASSWORD, OTA_PASSWORD, REMOTE_OTA_DURATION * 60 * 1000))
+    {
+        otaActive = true;
+        Logger.info(LOG_TAG_SYSTEM, "Remote OTA mode initialized successfully");
+
+        // Re-enable watchdog after OTA initialization
+        Logger.debug(LOG_TAG_SYSTEM, "Re-enabling watchdog after OTA initialization");
+        setupWatchdog();
+
+        return true;
+    }
+    else
+    {
+        Logger.error(LOG_TAG_SYSTEM, "Failed to initialize remote OTA mode");
+
+        // Re-enable watchdog after failed OTA initialization
+        Logger.debug(LOG_TAG_SYSTEM, "Re-enabling watchdog after failed OTA initialization");
+        setupWatchdog();
+
+        return false;
+    }
 }

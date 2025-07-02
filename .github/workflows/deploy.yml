@@ -28,7 +28,7 @@ jobs:
       - name: Set up QEMU for multi-platform builds
         uses: docker/setup-qemu-action@v3
         with:
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/arm64
 
       - name: Build and push backend Docker image
         uses: docker/build-push-action@v5
@@ -36,7 +36,7 @@ jobs:
           context: .
           file: ./apps/adonis-api/Dockerfile
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/arm64
           tags: |
             ${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:latest
             ${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:${{ github.sha }}
@@ -67,7 +67,7 @@ jobs:
       - name: Set up QEMU for multi-platform builds
         uses: docker/setup-qemu-action@v3
         with:
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/arm64
 
       - name: Build and push frontend Docker image
         uses: docker/build-push-action@v5
@@ -75,7 +75,7 @@ jobs:
           context: .
           file: ./apps/react-frontend/Dockerfile
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/arm64
           tags: |
             ${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:latest
             ${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:${{ github.sha }}
@@ -143,12 +143,22 @@ jobs:
             echo "Starting services..."
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
             
-            # Wait a bit for containers to stabilize
-            echo "Waiting for containers to stabilize..."
-            sleep 15
-            
-            # Check container status
-            echo "Checking container status:"
+            # Wait for the backend container to become healthy
+            echo "Waiting for backend container to be healthy..."
+            # This loop will wait for the container to be in a 'healthy' state.
+            # It will timeout after 2 minutes (12 * 10 seconds).
+            for i in $(seq 1 12); do
+              STATUS=$(docker inspect --format '{{.State.Health.Status}}' aiolos-backend)
+              if [ "$STATUS" = "healthy" ]; then
+                echo "Backend is healthy!"
+                break
+              fi
+              echo "Backend status is '$STATUS'. Waiting..."
+              sleep 10
+            done
+
+            # Final check on container status
+            echo "Final container status:"
             docker compose -f docker-compose.prod.yml ps
             
             # Check backend logs to diagnose any issues

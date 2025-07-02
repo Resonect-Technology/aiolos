@@ -29,6 +29,18 @@ export default class StationConfig extends BaseModel {
   @column()
   declare sleep_end_hour: number
 
+  @column()
+  declare ota_hour: number
+
+  @column()
+  declare ota_minute: number
+
+  @column()
+  declare ota_duration: number
+
+  @column()
+  declare remote_ota: boolean
+
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
 

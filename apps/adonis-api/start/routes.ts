@@ -76,7 +76,7 @@ router.group(() => {
     router.post('/diagnostics', [StationDiagnosticsController, 'store']).as('diagnostics.store')
     router.get('/diagnostics', [StationDiagnosticsController, 'show']).as('diagnostics.show')
 
-    // Station configuration endpoints
+    // Station configuration endpoints (includes all config and flags)
     router.get('/config', [StationConfigsController, 'show']).as('config.show')
     router.post('/config', [StationConfigsController, 'store']).as('config.store')
 

@@ -4,5 +4,8 @@
     },
     "arduino.path": "/usr/share/arduino",
     "arduino.enableUSBDetection": true,
-    "arduino.logLevel": "info"
+    "arduino.logLevel": "info",
+    "github-actions.workflows.pinned.workflows": [
+        ".github/workflows/deploy.yml"
+    ]
 }

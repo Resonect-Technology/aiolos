@@ -136,7 +136,8 @@ bool HttpClient::sendDiagnostics(const char *stationId, float batteryVoltage, fl
  */
 bool HttpClient::fetchConfiguration(const char *stationId, unsigned long *tempInterval, unsigned long *windInterval,
                                     unsigned long *diagInterval, unsigned long *timeInterval,
-                                    unsigned long *restartInterval, int *sleepStartHour, int *sleepEndHour)
+                                    unsigned long *restartInterval, int *sleepStartHour, int *sleepEndHour,
+                                    int *otaHour, int *otaMinute, int *otaDuration, bool *remoteOta)
 {
     if (!_modemManager || !_client)
     {
@@ -345,6 +346,80 @@ bool HttpClient::fetchConfiguration(const char *stationId, unsigned long *tempIn
             }
         }
 
+        // Parse ota_hour if pointer is provided
+        if (otaHour && responseBody.indexOf("ota_hour") >= 0)
+        {
+            int startPos = responseBody.indexOf("ota_hour") + 10; // Length of "ota_hour" + 2 for ": "
+            int endPos = responseBody.indexOf(",", startPos);
+            if (endPos < 0)
+                endPos = responseBody.indexOf("}", startPos);
+            if (endPos > startPos)
+            {
+                String valueStr = responseBody.substring(startPos, endPos);
+                valueStr.trim();
+                *otaHour = valueStr.toInt();
+                Logger.info(LOG_TAG_HTTP, "Parsed ota_hour: %d", *otaHour);
+            }
+        }
+
+        // Parse ota_minute if pointer is provided
+        if (otaMinute && responseBody.indexOf("ota_minute") >= 0)
+        {
+            int startPos = responseBody.indexOf("ota_minute") + 12; // Length of "ota_minute" + 2 for ": "
+            int endPos = responseBody.indexOf(",", startPos);
+            if (endPos < 0)
+                endPos = responseBody.indexOf("}", startPos);
+            if (endPos > startPos)
+            {
+                String valueStr = responseBody.substring(startPos, endPos);
+                valueStr.trim();
+                *otaMinute = valueStr.toInt();
+                Logger.info(LOG_TAG_HTTP, "Parsed ota_minute: %d", *otaMinute);
+            }
+        }
+
+        // Parse ota_duration if pointer is provided
+        if (otaDuration && responseBody.indexOf("ota_duration") >= 0)
+        {
+            int startPos = responseBody.indexOf("ota_duration") + 14; // Length of "ota_duration" + 2 for ": "
+            int endPos = responseBody.indexOf(",", startPos);
+            if (endPos < 0)
+                endPos = responseBody.indexOf("}", startPos);
+            if (endPos > startPos)
+            {
+                String valueStr = responseBody.substring(startPos, endPos);
+                valueStr.trim();
+                *otaDuration = valueStr.toInt();
+                Logger.info(LOG_TAG_HTTP, "Parsed ota_duration: %d", *otaDuration);
+            }
+        }
+
+        // Parse remote_ota flag if pointer is provided
+        if (remoteOta && responseBody.indexOf("remote_ota") >= 0)
+        {
+            int startPos = responseBody.indexOf("remote_ota") + 12; // Length of "remote_ota" + 2 for ": "
+            int endPos = responseBody.indexOf(",", startPos);
+            if (endPos < 0)
+                endPos = responseBody.indexOf("}", startPos);
+            if (endPos > startPos)
+            {
+                String valueStr = responseBody.substring(startPos, endPos);
+                valueStr.trim();
+
+                // Convert string to boolean - any non-zero value or "true" will be considered true
+                if (valueStr.equalsIgnoreCase("true") || valueStr.equalsIgnoreCase("1"))
+                {
+                    *remoteOta = true;
+                    Logger.info(LOG_TAG_HTTP, "Parsed remote_ota: true");
+                }
+                else
+                {
+                    *remoteOta = false;
+                    Logger.info(LOG_TAG_HTTP, "Parsed remote_ota: false");
+                }
+            }
+        }
+
         return true;
     }
     else
@@ -353,3 +428,7 @@ bool HttpClient::fetchConfiguration(const char *stationId, unsigned long *tempIn
         return false;
     }
 }
+
+// NOTE: The checkRemoteOtaFlag and clearRemoteOtaFlag methods have been removed
+// Remote OTA flag is now handled through the fetchConfiguration method which gets
+// all configuration parameters (including remote_ota) in a single API call.
