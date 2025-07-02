@@ -8,7 +8,7 @@ mkdir -p /app/tmp
 node /app/apps/adonis-api/build/ace.js migration:run --force
 
 # Run seeders
-node /app/apps/adonis-api/build/ace.js db:seed --files=/app/database/seeders/main.js
+node /app/apps/adonis-api/build/ace.js db:seed --files=/app/apps/adonis-api/database/seeders/main.js
 
 # Start the application
 exec node /app/apps/adonis-api/build/bin/server.js
