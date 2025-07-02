@@ -7,7 +7,7 @@ services:
       - .env
     restart: unless-stopped
     volumes:
-      - sqlite_data:/app/apps/adonis-api/tmp
+      - sqlite_data:/app/tmp
     expose:
       - 8080
     healthcheck:

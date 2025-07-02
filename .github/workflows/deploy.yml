@@ -28,7 +28,7 @@ jobs:
       - name: Set up QEMU for multi-platform builds
         uses: docker/setup-qemu-action@v3
         with:
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/arm64
 
       - name: Build and push backend Docker image
         uses: docker/build-push-action@v5
@@ -36,7 +36,7 @@ jobs:
           context: .
           file: ./apps/adonis-api/Dockerfile
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/arm64
           tags: |
             ${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:latest
             ${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:${{ github.sha }}
@@ -67,7 +67,7 @@ jobs:
       - name: Set up QEMU for multi-platform builds
         uses: docker/setup-qemu-action@v3
         with:
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/arm64
 
       - name: Build and push frontend Docker image
         uses: docker/build-push-action@v5
@@ -75,7 +75,7 @@ jobs:
           context: .
           file: ./apps/react-frontend/Dockerfile
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/arm64
           tags: |
             ${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:latest
             ${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:${{ github.sha }}
