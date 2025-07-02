@@ -1,14 +1,14 @@
 #!/bin/sh
 set -e
 
-# Create the directory for the SQLite database if it doesn't exist.
+# Ensure the directory exists (double check)
 mkdir -p /app/tmp
+
+# Create an empty database file to ensure it exists
+touch /app/tmp/db.sqlite3
 
 # Run migrations
 node /app/apps/adonis-api/build/ace.js migration:run --force
 
-# Run seeders
-node /app/apps/adonis-api/build/ace.js db:seed --files=/app/apps/adonis-api/database/seeders/main.js
-
-# Start the application
+# Start the application (skip seeders for now)
 exec node /app/apps/adonis-api/build/bin/server.js
