@@ -77,6 +77,8 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
 
   // Format uptime from seconds to a human-readable format
   const formatUptime = (seconds: number) => {
+    if (seconds === undefined || seconds === null || isNaN(seconds)) return 'N/A';
+    
     const days = Math.floor(seconds / (24 * 60 * 60));
     const hours = Math.floor((seconds % (24 * 60 * 60)) / (60 * 60));
     const minutes = Math.floor((seconds % (60 * 60)) / 60);
@@ -132,11 +134,19 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span className="text-slate-600 dark:text-slate-300">Battery Voltage:</span>
-                <span className="font-medium">{diagnosticsData.batteryVoltage.toFixed(2)}V</span>
+                <span className="font-medium">
+                  {diagnosticsData.batteryVoltage !== null && diagnosticsData.batteryVoltage !== undefined 
+                    ? `${diagnosticsData.batteryVoltage.toFixed(2)}V` 
+                    : 'N/A'}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-600 dark:text-slate-300">Solar Voltage:</span>
-                <span className="font-medium">{diagnosticsData.solarVoltage.toFixed(2)}V</span>
+                <span className="font-medium">
+                  {diagnosticsData.solarVoltage !== null && diagnosticsData.solarVoltage !== undefined 
+                    ? `${diagnosticsData.solarVoltage.toFixed(2)}V` 
+                    : 'N/A'}
+                </span>
               </div>
               
               {/* Battery Level Visual Indicator */}
@@ -145,7 +155,7 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
                 <div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-2.5">
                   <div 
                     className={`h-2.5 rounded-full ${getBatteryColorClass(diagnosticsData.batteryVoltage)}`} 
-                    style={{ width: `${getBatteryPercentage(diagnosticsData.batteryVoltage)}%` }}
+                    style={{ width: `${getBatteryPercentage(diagnosticsData.batteryVoltage || 0)}%` }}
                   ></div>
                 </div>
               </div>
@@ -166,7 +176,11 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-600 dark:text-slate-300">Uptime:</span>
-                <span className="font-medium">{formatUptime(diagnosticsData.uptime)}</span>
+                <span className="font-medium">
+                  {diagnosticsData.uptime !== null && diagnosticsData.uptime !== undefined 
+                    ? formatUptime(diagnosticsData.uptime) 
+                    : 'N/A'}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-600 dark:text-slate-300">Last Update:</span>
@@ -181,7 +195,11 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span className="text-slate-600 dark:text-slate-300">Signal Quality:</span>
-                <span className="font-medium">{formatSignalQuality(diagnosticsData.signalQuality)}</span>
+                <span className="font-medium">
+                  {diagnosticsData.signalQuality !== null && diagnosticsData.signalQuality !== undefined 
+                    ? formatSignalQuality(diagnosticsData.signalQuality) 
+                    : 'N/A'}
+                </span>
               </div>
               
               {/* Signal Strength Visual Indicator */}
@@ -190,7 +208,7 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
                 <div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-2.5">
                   <div 
                     className={`h-2.5 rounded-full ${getSignalColorClass(diagnosticsData.signalQuality)}`} 
-                    style={{ width: `${getSignalPercentage(diagnosticsData.signalQuality)}%` }}
+                    style={{ width: `${getSignalPercentage(diagnosticsData.signalQuality || -120)}%` }}
                   ></div>
                 </div>
               </div>
@@ -201,8 +219,8 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
                   <div 
                     key={index}
                     className={`w-2 rounded-sm ${
-                      index < getSignalBars(diagnosticsData.signalQuality) 
-                        ? getSignalColorClass(diagnosticsData.signalQuality) 
+                      index < getSignalBars(diagnosticsData.signalQuality || -120) 
+                        ? getSignalColorClass(diagnosticsData.signalQuality || -120) 
                         : 'bg-slate-200 dark:bg-slate-600'
                     }`}
                     style={{ height: `${6 + (index * 3)}px` }}
