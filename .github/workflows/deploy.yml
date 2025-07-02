@@ -151,6 +151,10 @@ jobs:
             echo "Checking container status:"
             docker compose -f docker-compose.prod.yml ps
             
+            # Verify SQLite functionality before running migrations
+            echo "Verifying SQLite functionality..."
+            docker compose -f docker-compose.prod.yml exec -T backend node -e "try { require('better-sqlite3')('test.db'); console.log('SQLite is working correctly!'); } catch (err) { console.error('SQLite error:', err.message); process.exit(1); }"
+            
             # Run database migrations
             echo "Running database migrations..."
             docker compose -f docker-compose.prod.yml exec -T backend node ace migration:run

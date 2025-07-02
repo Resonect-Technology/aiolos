@@ -1,7 +1,8 @@
 FROM node:22-slim AS base
 
-# Install pnpm
+# Install pnpm and required build tools
 RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN apt-get update && apt-get install -y python3 make g++ sqlite3 libsqlite3-dev
 
 # All deps stage
 FROM base AS deps
@@ -29,8 +30,10 @@ FROM base
 ENV NODE_ENV=production
 WORKDIR /app
 
-# Install system utilities for healthcheck
-RUN apt-get update && apt-get install -y wget && rm -rf /var/lib/apt/lists/*
+# Install system utilities for healthcheck and runtime requirements
+RUN apt-get update && \
+    apt-get install -y wget sqlite3 libsqlite3-dev && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY --from=production-deps /app/node_modules ./node_modules
 COPY --from=build /app/apps/adonis-api/build ./
