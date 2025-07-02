@@ -1,14 +1,17 @@
 #!/bin/sh
-set -e
 
 echo "=== Starting AdonisJS Application ==="
 echo "Working directory: $(pwd)"
 
 # Ensure the tmp directory exists for SQLite
+echo "Creating tmp directory..."
 mkdir -p /app/apps/adonis-api/tmp
+echo "Directory created. Verifying:"
+ls -la /app/apps/adonis-api/tmp/
 
 # Change to the app directory
 cd /app/apps/adonis-api
+echo "Changed to: $(pwd)"
 
 echo "=== Running Database Migrations ==="
 node build/ace.js migration:run --force
