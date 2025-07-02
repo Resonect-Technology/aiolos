@@ -1,0 +1,25 @@
+{
+  "public": true,
+  "sortNum": 20000,
+  "headers": [
+    {
+      "name": "Content-Type",
+      "value": "application/json"
+    },
+    {
+      "name": "X-API-Key",
+      "value": "{{admin_api_key}}"
+    }
+  ],
+  "method": "POST",
+  "url": "{{base_url}}/api/stations/{{station_id}}/config",
+  "name": "Update Station Configuration",
+  "description": "Updates the configuration for a station",
+  "params": [],
+  "body": {
+    "type": "json",
+    "raw": "{\n  \"temp_interval\": 300000,\n  \"wind_interval\": 1000,\n  \"diag_interval\": 300000,\n  \"time_interval\": 3600000,\n  \"restart_interval\": 21600,\n  \"sleep_start_hour\": 22,\n  \"sleep_end_hour\": 9\n}",
+    "form": []
+  },
+  "tests": []
+}

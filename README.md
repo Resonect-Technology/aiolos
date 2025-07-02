@@ -31,6 +31,7 @@ Aiolos is a modern, scalable platform for collecting, storing, and serving real-
 /
 ├── apps/
 │   ├── adonis-api/      # RESTful backend API (AdonisJS v6)
+│   ├── bruno-api/       # API client for managing station configuration
 │   └── react-frontend/  # User interface for live data (React, Vite)
 ├── firmware/            # ESP32/SIM7000G code for weather stations
 ├── hardware/            # 3D models and hardware specs
@@ -51,7 +52,12 @@ Aiolos is a modern, scalable platform for collecting, storing, and serving real-
 - RESTful, IoT-friendly routes: `/station/:station_id/readings`
 - Direct HTTP endpoint for weather stations to submit data
 - Auto-generated OpenAPI docs with [adonis-autoswagger](https://github.com/ad-on-is/adonis-autoswagger)
-- Insomnia API collection for system administration ([docs](docs/api/README.md))
+
+### Bruno API Client ([docs](apps/bruno-api/README.md))
+- API client collection for managing station configuration and viewing diagnostics
+- Git-friendly alternative to Postman/Insomnia that stores collections as files
+- Includes environments for development and production
+- Provides easy access to station configuration without requiring the frontend
 
 ### React Frontend ([docs](apps/react-frontend/README.md))
 - User interface built with React, Vite, and TypeScript.
