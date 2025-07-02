@@ -10,23 +10,17 @@ services:
       - sqlite_data:/app/tmp
     expose:
       - 8080
-    # Add environment variables to help with better-sqlite3 bindings
-    environment:
-      - npm_config_platform=linux
-      - npm_config_arch=arm64
-      - npm_config_target_arch=arm64
-      - npm_config_target_platform=linux
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/healthcheck" , "||", "exit", "1"]
-      interval: 10s
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/healthcheck"]
+      interval: 15s
       timeout: 5s
-      retries: 5
-      start_period: 60s # Increased to allow more time for startup
+      retries: 3
+      start_period: 30s
     command: >
       sh -c "
-        node ace migration:run --force &&
-        node ace db:seed &&
-        node bin/server.js
+        node apps/adonis-api/build/ace.js migration:run --force &&
+        node apps/adonis-api/build/ace.js db:seed --files=./database/seeders/main.js &&
+        node apps/adonis-api/build/bin/server.js
       "
 
   frontend:

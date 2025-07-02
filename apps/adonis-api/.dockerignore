@@ -1,12 +1,23 @@
-node_modules
-build
-.env
-*.log
-tmp/
-tests/
-.vscode/
-.git/
+# Git
+.git
+.gitignore
+
+# Docker
+.dockerignore
 Dockerfile
-docker-compose.yml
-*.md
-coverage/
+
+# Node
+node_modules
+npm-debug.log
+pnpm-lock.yaml
+
+# AdonisJS
+build
+tmp
+.env
+.env.example
+.env.test
+
+# Other
+.vscode
+README.md
