@@ -17,6 +17,7 @@ const SensorReadingsController = () => import('#app/SensorReadingsController')
 const StationLiveController = () => import('#app/controllers/StationLiveController')
 const StationDiagnosticsController = () => import('#app/controllers/StationDiagnosticsController')
 const StationConfigsController = () => import('#app/controllers/station_configs_controller')
+const SystemConfigsController = () => import('#app/controllers/system_configs_controller')
 
 /**
  * Home route
@@ -52,6 +53,15 @@ router.get('/docs', async () => {
  * API Routes - All routes under /api prefix
  */
 router.group(() => {
+  /**
+   * System-wide configuration routes
+   */
+  router.group(() => {
+    router.get('/', [SystemConfigsController, 'index']).as('index')
+    router.get('/:key', [SystemConfigsController, 'get']).as('get')
+    router.post('/:key', [SystemConfigsController, 'set']).as('set')
+  }).prefix('/system/config').as('system.config')
+
   /**
    * Station API routes
    */

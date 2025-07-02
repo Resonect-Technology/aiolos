@@ -1,0 +1,15 @@
+meta {
+  name: Get construction mode
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{base_url}}/api/system/config/construction_mode
+  body: none
+  auth: none
+}
+
+headers {
+  accept: application/json
+}
