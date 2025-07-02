@@ -19,7 +19,8 @@ This application serves as the backend API for the Aiolos live wind data monitor
 -   [AdonisJS](https://adonisjs.com/) v6
 -   [TypeScript](https://www.typescriptlang.org/)
 -   [@adonisjs/transmit](https://github.com/adonisjs/transmit) for SSE
--   [SQLite](https://www.sqlite.org/) (default database for development)
+-   [SQLite](https://www.sqlite.org/) with [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) driver
+-   [Lucid ORM](https://lucid.adonisjs.com/) for database interactions
 -   [adonis-autoswagger](https://github.com/Julien-R44/adonis-autoswagger) for OpenAPI documentation
 
 ## Setup and Running
@@ -146,3 +147,121 @@ curl -X POST http://localhost:33891/stations/station-001/live/wind/mock
 ---
 
 For more, see code comments and [adonis-autoswagger docs](https://github.com/ad-on-is/adonis-autoswagger).
+
+## Database Setup
+
+### SQLite with better-sqlite3
+This application uses SQLite as the database with the `better-sqlite3` driver for optimal performance on ARM64 (Raspberry Pi/EC2) and x86_64 architectures.
+
+**Database Configuration:**
+- **File location:** `/app/tmp/db.sqlite3` (in production Docker container)
+- **Driver:** `better-sqlite3` for synchronous operations and better ARM64 support
+- **Migrations:** Automatically run on container startup
+- **Persistence:** Database file is stored on a Docker volume for data persistence
+
+**Available Tables:**
+- `sensor_readings` - Stores wind speed, temperature, and other sensor data
+- `station_diagnostics` - System diagnostics and health monitoring
+- `station_configs` - Configuration settings per station (including OTA update settings)
+- `system_configs` - Global system configuration
+
+### Migration Management
+Migrations are automatically executed during container startup. The migration order has been carefully configured to ensure proper table creation:
+
+1. `create_sensor_readings_table` - Basic sensor data storage
+2. `create_station_diagnostics_table` - Diagnostic information
+3. `create_station_configs_table` - Station configuration
+4. `add_ota_fields_to_station_configs` - OTA update fields (added after table creation)
+5. `create_system_configs_table` - System-wide settings
+
+**Manual Migration Commands:**
+```bash
+# Run pending migrations
+node ace migration:run
+
+# Rollback last migration
+node ace migration:rollback
+
+# Check migration status
+node ace migration:status
+```
+
+## Docker Deployment
+
+### Production Container Setup
+The application is containerized for reliable deployment on ARM64 (Raspberry Pi/EC2) and x86_64 architectures.
+
+**Key Container Features:**
+- **Base Image:** `node:22-slim` with native compilation support
+- **Working Directory:** `/app` (app root), with build output in `/app/build/`
+- **Database Path Resolution:** Symlink from `/app/build/tmp` → `/app/tmp` for proper AdonisJS path resolution
+- **Volume Mount:** `/app/tmp` for SQLite database persistence
+- **Health Check:** HTTP check on port 8080 (requires `/healthcheck` route)
+
+**Directory Structure in Container:**
+```
+/app/
+├── build/           # AdonisJS build output (compiled TypeScript)
+│   ├── tmp/         # Symlink to /app/tmp
+│   ├── bin/
+│   │   └── server.js
+│   ├── ace.js
+│   └── ...
+├── tmp/             # Database and temporary files (volume mounted)
+│   └── db.sqlite3   # SQLite database file
+├── node_modules/
+└── package.json
+```
+
+**Startup Process:**
+1. Create `/app/tmp` directory for database
+2. Create symlink `/app/build/tmp` → `/app/tmp` for AdonisJS path resolution
+3. Run database migrations from `/app/build/`
+4. Start AdonisJS server from compiled build output
+
+### Path Resolution Fix
+**Issue:** AdonisJS when running from `/app/build/` considers that as the app root, so `app.tmpPath()` resolves to `/app/build/tmp/` instead of `/app/tmp/` where the volume is mounted.
+
+**Solution:** The entrypoint script creates a symbolic link:
+```bash
+ln -sf /app/tmp /app/build/tmp
+```
+
+This ensures that:
+- AdonisJS can find the database at the path it expects (`/app/build/tmp/db.sqlite3`)
+- The actual database file is stored in the persistent volume (`/app/tmp/db.sqlite3`)
+- Data persists across container restarts
+
+### Building and Deployment
+**GitHub Actions Pipeline:**
+- Builds Docker images for ARM64 architecture only
+- Pushes to Amazon ECR
+- Deploys to EC2 instance via SSH
+- Includes health checks and rollback capabilities
+
+**Local Development:**
+```bash
+# Build image locally
+docker build -t aiolos-backend -f apps/adonis-api/Dockerfile .
+
+# Run with database persistence
+docker run -d \
+  --name aiolos-backend \
+  -p 8080:8080 \
+  -v aiolos_db:/app/tmp \
+  aiolos-backend
+```
+
+### Troubleshooting
+**Common Issues:**
+1. **"Cannot open database because the directory does not exist"**
+   - Fixed by ensuring proper path resolution and symlink creation
+   - Database path must be accessible from AdonisJS runtime context
+
+2. **Migration ordering errors**
+   - Fixed by renaming migration files with proper timestamps
+   - Table creation must happen before table alterations
+
+3. **Container unhealthy status**
+   - Usually caused by missing `/healthcheck` route or `wget` not being available
+   - Check server logs for actual startup status
