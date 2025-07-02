@@ -23,7 +23,7 @@ echo "=== Running migrations ==="
 cd build && node ace.js migration:run --force
 
 echo "=== Running seeders ==="
-node ace.js db:seed --force
+node ace.js db:seed
 
 echo "=== Starting Server ==="
 exec node bin/server.js
