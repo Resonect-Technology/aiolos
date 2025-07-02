@@ -33,7 +33,15 @@ FROM alpine:latest
 RUN apk add --no-cache busybox-extras
 
 # Copy the built files from the build stage
-COPY --from=build /app/apps/react-frontend/dist /dist
+COPY --from=build /app/apps/react-frontend/dist /app/dist
 
-# Command that will keep the container running for volume mounting
-CMD ["tail", "-f", "/dev/null"]
+# Create entrypoint script to copy files to volume mount
+RUN echo '#!/bin/sh' > /entrypoint.sh && \
+    echo 'echo "Copying frontend build to volume..."' >> /entrypoint.sh && \
+    echo 'cp -r /app/dist/* /dist/' >> /entrypoint.sh && \
+    echo 'echo "Frontend files copied successfully"' >> /entrypoint.sh && \
+    echo 'tail -f /dev/null' >> /entrypoint.sh && \
+    chmod +x /entrypoint.sh
+
+# Command that copies files to volume and keeps container running
+CMD ["/entrypoint.sh"]
