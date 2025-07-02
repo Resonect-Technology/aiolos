@@ -228,10 +228,25 @@ void setup()
         }
 
         // Check for remote OTA flag after initial config
-        if (!otaActive && httpClient.checkRemoteOtaFlag(DEVICE_ID))
+        if (!otaActive)
         {
-            Logger.info(LOG_TAG_SYSTEM, "Remote OTA flag detected during initial configuration");
-            checkAndInitRemoteOta();
+            bool remoteOtaRequested = false;
+            if (httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
+                                              &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
+                                              &otaHour, &otaMinute, &otaDuration, &remoteOtaRequested))
+            {
+                if (remoteOtaRequested)
+                {
+                    Logger.info(LOG_TAG_SYSTEM, "Remote OTA flag detected during initial configuration");
+                    checkAndInitRemoteOta();
+
+                    // Clear the flag after activation attempt
+                    remoteOtaRequested = false;
+                    httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
+                                                  &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
+                                                  &otaHour, &otaMinute, &otaDuration, &remoteOtaRequested);
+                }
+            }
         }
     }
 
@@ -452,10 +467,25 @@ void loop()
         }
 
         // Check for remote OTA flag after config update
-        if (!otaActive && httpClient.checkRemoteOtaFlag(DEVICE_ID))
+        if (!otaActive)
         {
-            Logger.info(LOG_TAG_SYSTEM, "Remote OTA flag detected during configuration check");
-            checkAndInitRemoteOta();
+            bool remoteOtaRequested = false;
+            if (httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
+                                              &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
+                                              &otaHour, &otaMinute, &otaDuration, &remoteOtaRequested))
+            {
+                if (remoteOtaRequested)
+                {
+                    Logger.info(LOG_TAG_SYSTEM, "Remote OTA flag detected during configuration check");
+                    checkAndInitRemoteOta();
+
+                    // Clear the flag after activation attempt
+                    remoteOtaRequested = false;
+                    httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
+                                                  &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
+                                                  &otaHour, &otaMinute, &otaDuration, &remoteOtaRequested);
+                }
+            }
         }
     }
 
@@ -690,8 +720,7 @@ bool checkAndInitOta()
 /**
  * @brief Check for remote OTA activation and initialize OTA mode if needed
  *
- * This function checks if remote OTA flag is set in the backend and
- * activates OTA mode if it is. It also clears the flag after activation.
+ * This function activates OTA mode for remote updates.
  *
  * @return true if remote OTA is activated
  * @return false if remote OTA is not activated or initialization failed
@@ -704,49 +733,32 @@ bool checkAndInitRemoteOta()
         return true;
     }
 
-    // Check if remote OTA flag is set
-    Logger.info(LOG_TAG_SYSTEM, "Checking for remote OTA activation...");
-    if (httpClient.checkRemoteOtaFlag(DEVICE_ID))
+    Logger.info(LOG_TAG_SYSTEM, "Activating Remote OTA mode...");
+
+    // Temporarily disable watchdog during OTA initialization
+    Logger.debug(LOG_TAG_SYSTEM, "Temporarily disabling watchdog for OTA initialization");
+    esp_task_wdt_deinit();
+
+    // Initialize OTA manager with remote OTA duration
+    if (otaManager.init(OTA_SSID, OTA_PASSWORD, OTA_PASSWORD, REMOTE_OTA_DURATION * 60 * 1000))
     {
-        Logger.info(LOG_TAG_SYSTEM, "Remote OTA flag is set. Starting OTA mode...");
+        otaActive = true;
+        Logger.info(LOG_TAG_SYSTEM, "Remote OTA mode initialized successfully");
 
-        // Temporarily disable watchdog during OTA initialization
-        Logger.debug(LOG_TAG_SYSTEM, "Temporarily disabling watchdog for OTA initialization");
-        esp_task_wdt_deinit();
+        // Re-enable watchdog after OTA initialization
+        Logger.debug(LOG_TAG_SYSTEM, "Re-enabling watchdog after OTA initialization");
+        setupWatchdog();
 
-        // Initialize OTA manager with remote OTA duration
-        if (otaManager.init(OTA_SSID, OTA_PASSWORD, OTA_PASSWORD, REMOTE_OTA_DURATION * 60 * 1000))
-        {
-            otaActive = true;
-            Logger.info(LOG_TAG_SYSTEM, "Remote OTA mode initialized successfully");
-
-            // Clear the remote OTA flag to prevent repeated activations
-            if (httpClient.clearRemoteOtaFlag(DEVICE_ID))
-            {
-                Logger.info(LOG_TAG_SYSTEM, "Remote OTA flag cleared successfully");
-            }
-            else
-            {
-                Logger.warn(LOG_TAG_SYSTEM, "Failed to clear remote OTA flag. Will try again later.");
-            }
-
-            // Re-enable watchdog after OTA initialization
-            Logger.debug(LOG_TAG_SYSTEM, "Re-enabling watchdog after OTA initialization");
-            setupWatchdog();
-
-            return true;
-        }
-        else
-        {
-            Logger.error(LOG_TAG_SYSTEM, "Failed to initialize remote OTA mode");
-
-            // Re-enable watchdog after failed OTA initialization
-            Logger.debug(LOG_TAG_SYSTEM, "Re-enabling watchdog after failed OTA initialization");
-            setupWatchdog();
-
-            return false;
-        }
+        return true;
     }
+    else
+    {
+        Logger.error(LOG_TAG_SYSTEM, "Failed to initialize remote OTA mode");
 
-    return false;
+        // Re-enable watchdog after failed OTA initialization
+        Logger.debug(LOG_TAG_SYSTEM, "Re-enabling watchdog after failed OTA initialization");
+        setupWatchdog();
+
+        return false;
+    }
 }

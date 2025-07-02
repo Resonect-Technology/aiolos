@@ -137,7 +137,7 @@ bool HttpClient::sendDiagnostics(const char *stationId, float batteryVoltage, fl
 bool HttpClient::fetchConfiguration(const char *stationId, unsigned long *tempInterval, unsigned long *windInterval,
                                     unsigned long *diagInterval, unsigned long *timeInterval,
                                     unsigned long *restartInterval, int *sleepStartHour, int *sleepEndHour,
-                                    int *otaHour, int *otaMinute, int *otaDuration)
+                                    int *otaHour, int *otaMinute, int *otaDuration, bool *remoteOta)
 {
     if (!_modemManager || !_client)
     {
@@ -394,6 +394,32 @@ bool HttpClient::fetchConfiguration(const char *stationId, unsigned long *tempIn
             }
         }
 
+        // Parse remote_ota flag if pointer is provided
+        if (remoteOta && responseBody.indexOf("remote_ota") >= 0)
+        {
+            int startPos = responseBody.indexOf("remote_ota") + 12; // Length of "remote_ota" + 2 for ": "
+            int endPos = responseBody.indexOf(",", startPos);
+            if (endPos < 0)
+                endPos = responseBody.indexOf("}", startPos);
+            if (endPos > startPos)
+            {
+                String valueStr = responseBody.substring(startPos, endPos);
+                valueStr.trim();
+
+                // Convert string to boolean - any non-zero value or "true" will be considered true
+                if (valueStr.equalsIgnoreCase("true") || valueStr.equalsIgnoreCase("1"))
+                {
+                    *remoteOta = true;
+                    Logger.info(LOG_TAG_HTTP, "Parsed remote_ota: true");
+                }
+                else
+                {
+                    *remoteOta = false;
+                    Logger.info(LOG_TAG_HTTP, "Parsed remote_ota: false");
+                }
+            }
+        }
+
         return true;
     }
     else
@@ -403,221 +429,6 @@ bool HttpClient::fetchConfiguration(const char *stationId, unsigned long *tempIn
     }
 }
 
-/**
- * @brief Check for remote OTA activation flag
- *
- * @param stationId Station identifier
- * @return true if remote OTA is requested
- * @return false if remote OTA is not requested
- */
-bool HttpClient::checkRemoteOtaFlag(const char *stationId)
-{
-    if (!_modemManager || !_client)
-    {
-        Logger.error(LOG_TAG_HTTP, "HTTP client not initialized");
-        return false;
-    }
-
-    if (!_modemManager->isNetworkConnected() || !_modemManager->isGprsConnected())
-    {
-        Logger.error(LOG_TAG_HTTP, "Network not connected, cannot check remote OTA flag");
-        return false;
-    }
-
-    Logger.info(LOG_TAG_HTTP, "Checking remote OTA flag for station %s", stationId);
-
-    // Build the URL path with the station ID
-    char urlPath[80];
-    snprintf(urlPath, sizeof(urlPath), "/stations/%s/flags/%s", stationId, REMOTE_OTA_FLAG_KEY);
-
-    // Connect to server
-    Logger.debug(LOG_TAG_HTTP, "Connecting to %s:%d", _serverHost, _serverPort);
-    if (!_client->connect(_serverHost, _serverPort))
-    {
-        Logger.error(LOG_TAG_HTTP, "Failed to connect to server");
-        return false;
-    }
-
-    // Send HTTP GET request
-    Logger.debug(LOG_TAG_HTTP, "Sending GET request to %s", urlPath);
-    _client->print(F("GET "));
-    _client->print(urlPath);
-    _client->println(F(" HTTP/1.1"));
-
-    // Request headers
-    _client->print(F("Host: "));
-    _client->println(_serverHost);
-    _client->println(F("User-Agent: AiolosWeatherStation/1.0"));
-    _client->println(F("Accept: application/json"));
-    _client->println(F("Connection: close"));
-    _client->println();
-
-    // Wait for server response with timeout
-    unsigned long timeout = millis();
-    String responseBody = "";
-    bool inBody = false;
-
-    while (_client->connected() && millis() - timeout < 10000L)
-    {
-        // Wait for data to be available
-        while (_client->available())
-        {
-            char c = _client->read();
-
-            // Start collecting the body after headers (marked by an empty line)
-            if (c == '\n' && !inBody)
-            {
-                if (_client->peek() == '\r')
-                {
-                    _client->read(); // consume the \r
-                    if (_client->peek() == '\n')
-                    {
-                        _client->read(); // consume the \n
-                        inBody = true;
-                        Logger.debug(LOG_TAG_HTTP, "Found response body");
-                    }
-                }
-            }
-            else if (inBody)
-            {
-                responseBody += c;
-            }
-
-            timeout = millis();
-        }
-    }
-
-    // Read and process response
-    int statusCode = 0;
-    bool success = false;
-
-    if (_client->find("HTTP/1.1 "))
-    {
-        statusCode = _client->parseInt();
-        Logger.debug(LOG_TAG_HTTP, "HTTP response status code: %d", statusCode);
-
-        // Check if status code indicates success (2xx)
-        success = (statusCode >= 200 && statusCode < 300);
-    }
-
-    // Close connection
-    _client->stop();
-    Logger.debug(LOG_TAG_HTTP, "Connection closed");
-
-    if (success && responseBody.length() > 0)
-    {
-        Logger.info(LOG_TAG_HTTP, "Remote OTA flag response: %s", responseBody.c_str());
-
-        // Check if flag is set (true)
-        if (responseBody.indexOf("true") >= 0 || responseBody.indexOf("1") >= 0)
-        {
-            Logger.info(LOG_TAG_HTTP, "Remote OTA flag is set");
-            return true;
-        }
-    }
-
-    Logger.info(LOG_TAG_HTTP, "Remote OTA flag is not set");
-    return false;
-}
-
-/**
- * @brief Clear remote OTA activation flag
- *
- * @param stationId Station identifier
- * @return true if successful
- * @return false if failed
- */
-bool HttpClient::clearRemoteOtaFlag(const char *stationId)
-{
-    if (!_modemManager || !_client)
-    {
-        Logger.error(LOG_TAG_HTTP, "HTTP client not initialized");
-        return false;
-    }
-
-    if (!_modemManager->isNetworkConnected() || !_modemManager->isGprsConnected())
-    {
-        Logger.error(LOG_TAG_HTTP, "Network not connected, cannot clear remote OTA flag");
-        return false;
-    }
-
-    Logger.info(LOG_TAG_HTTP, "Clearing remote OTA flag for station %s", stationId);
-
-    // Build the URL path with the station ID
-    char urlPath[80];
-    snprintf(urlPath, sizeof(urlPath), "/stations/%s/flags/%s", stationId, REMOTE_OTA_FLAG_KEY);
-
-    // Create JSON payload with flag value
-    char jsonBuffer[50];
-    snprintf(jsonBuffer, sizeof(jsonBuffer), "{\"value\":false}");
-
-    // Calculate content length
-    size_t contentLength = strlen(jsonBuffer);
-
-    // Connect to server
-    Logger.debug(LOG_TAG_HTTP, "Connecting to %s:%d", _serverHost, _serverPort);
-    if (!_client->connect(_serverHost, _serverPort))
-    {
-        Logger.error(LOG_TAG_HTTP, "Failed to connect to server");
-        return false;
-    }
-
-    // Send HTTP PUT request
-    Logger.debug(LOG_TAG_HTTP, "Sending PUT request to %s", urlPath);
-    _client->print(F("PUT "));
-    _client->print(urlPath);
-    _client->println(F(" HTTP/1.1"));
-
-    // Request headers
-    _client->print(F("Host: "));
-    _client->println(_serverHost);
-    _client->println(F("User-Agent: AiolosWeatherStation/1.0"));
-    _client->println(F("Content-Type: application/json"));
-    _client->print(F("Content-Length: "));
-    _client->println(contentLength);
-    _client->println(F("Connection: close"));
-    _client->println();
-
-    // Request body
-    _client->println(jsonBuffer);
-
-    // Wait for server response with timeout
-    unsigned long timeout = millis();
-    while (_client->connected() && millis() - timeout < 10000L)
-    {
-        // Wait for data to be available
-        while (_client->available())
-        {
-            char c = _client->read();
-            timeout = millis();
-        }
-    }
-
-    // Read and process response
-    int statusCode = 0;
-    bool success = false;
-
-    if (_client->find("HTTP/1.1 "))
-    {
-        statusCode = _client->parseInt();
-        Logger.debug(LOG_TAG_HTTP, "HTTP response status code: %d", statusCode);
-
-        // Check if status code indicates success (2xx)
-        success = (statusCode >= 200 && statusCode < 300);
-    }
-
-    // Close connection
-    _client->stop();
-    Logger.debug(LOG_TAG_HTTP, "Connection closed");
-
-    if (success)
-    {
-        Logger.info(LOG_TAG_HTTP, "Remote OTA flag cleared successfully");
-        return true;
-    }
-    else
-    {
-        Logger.error(LOG_TAG_HTTP, "Failed to clear remote OTA flag, status code: %d", statusCode);
-        return false;
-    }
-}
+// NOTE: The checkRemoteOtaFlag and clearRemoteOtaFlag methods have been removed
+// Remote OTA flag is now handled through the fetchConfiguration method which gets
+// all configuration parameters (including remote_ota) in a single API call.

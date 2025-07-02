@@ -52,6 +52,7 @@ public:
      * @param otaHour Pointer to store retrieved OTA hour
      * @param otaMinute Pointer to store retrieved OTA minute
      * @param otaDuration Pointer to store retrieved OTA duration in minutes
+     * @param remoteOta Pointer to store retrieved remote OTA flag
      * @return true if successful
      * @return false if failed
      */
@@ -59,25 +60,9 @@ public:
                             unsigned long *diagInterval, unsigned long *timeInterval = nullptr,
                             unsigned long *restartInterval = nullptr, int *sleepStartHour = nullptr,
                             int *sleepEndHour = nullptr, int *otaHour = nullptr,
-                            int *otaMinute = nullptr, int *otaDuration = nullptr);
+                            int *otaMinute = nullptr, int *otaDuration = nullptr, bool *remoteOta = nullptr);
 
-    /**
-     * @brief Check for remote OTA activation flag
-     *
-     * @param stationId Station identifier
-     * @return true if remote OTA is requested
-     * @return false if remote OTA is not requested
-     */
-    bool checkRemoteOtaFlag(const char *stationId);
-
-    /**
-     * @brief Clear remote OTA activation flag
-     *
-     * @param stationId Station identifier
-     * @return true if successful
-     * @return false if failed
-     */
-    bool clearRemoteOtaFlag(const char *stationId);
+    // Remote OTA flag is now handled through the fetchConfiguration method
 
 private:
     ModemManager *_modemManager = nullptr;

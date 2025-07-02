@@ -1,6 +1,9 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import StationConfig from '#app/models/station_config'
 
+// Define a type that supports indexing with strings
+type ConfigRecord = Record<string, any>
+
 export default class StationConfigsController {
     /**
      * Get the current configuration for a station
@@ -25,6 +28,10 @@ export default class StationConfigsController {
                     restart_interval: null,
                     sleep_start_hour: null,
                     sleep_end_hour: null,
+                    ota_hour: null,
+                    ota_minute: null,
+                    ota_duration: null,
+                    remote_ota: false,
                     message: 'No configuration found for this station. Default values will be used.'
                 }
             }
@@ -54,13 +61,14 @@ export default class StationConfigsController {
 
         try {
             // Validate data types if values are provided
-            const configData: Record<string, number> = {}
+            const configData: Record<string, any> = {}
 
             // Only include fields that are provided and are valid numbers
             const configFields = [
                 'temp_interval', 'wind_interval', 'diag_interval',
                 'time_interval', 'restart_interval',
-                'sleep_start_hour', 'sleep_end_hour'
+                'sleep_start_hour', 'sleep_end_hour',
+                'ota_hour', 'ota_minute', 'ota_duration'
             ]
 
             for (const field of configFields) {
@@ -71,6 +79,11 @@ export default class StationConfigsController {
                     }
                     configData[field] = value
                 }
+            }
+
+            // Handle remote_ota flag (boolean)
+            if (data.remote_ota !== undefined) {
+                configData.remote_ota = Boolean(data.remote_ota)
             }
 
             // Add station_id to the data
