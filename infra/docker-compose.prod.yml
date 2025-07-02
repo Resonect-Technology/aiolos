@@ -16,6 +16,12 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+    command: >
+      sh -c "
+        node ace migration:run --force &&
+        node ace db:seed &&
+        node bin/server.js
+      "
 
   frontend:
     image: 590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:latest

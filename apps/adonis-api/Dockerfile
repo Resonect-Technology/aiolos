@@ -9,6 +9,7 @@ FROM base AS deps
 WORKDIR /app
 COPY apps/adonis-api/package.json ./package.json
 COPY pnpm-lock.yaml ./pnpm-lock.yaml
+# Use --no-frozen-lockfile to allow package.json to override
 RUN pnpm install --no-frozen-lockfile
 
 # Build stage
@@ -23,6 +24,7 @@ FROM base AS production-deps
 WORKDIR /app
 COPY apps/adonis-api/package.json ./package.json
 COPY pnpm-lock.yaml ./pnpm-lock.yaml
+# Use --no-frozen-lockfile to allow package.json to override
 RUN pnpm install --no-frozen-lockfile --prod
 
 # Production stage
@@ -42,4 +44,7 @@ COPY --from=build /app/apps/adonis-api/build ./
 HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=3 CMD wget --no-verbose --tries=1 --spider http://localhost:8080/healthcheck || exit 1
 
 EXPOSE 8080
-CMD ["node", "./bin/server.js"]
+# Create a wrapper script that runs migrations and seeds before starting the server
+RUN echo '#!/bin/sh\nnode ace migration:run --force\nnode ace db:seed\nexec node ./bin/server.js' > /app/start.sh && \
+    chmod +x /app/start.sh
+CMD ["/app/start.sh"]
