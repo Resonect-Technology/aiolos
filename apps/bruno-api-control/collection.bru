@@ -1,0 +1,24 @@
+vars:pre-request {
+  station_id: vasiliki
+}
+
+docs {
+  # Aiolos API Collection
+  
+  ## Endpoints
+  
+  ### Station Configuration
+  - `GET /api/stations/{station_id}/config` - Retrieves station configuration
+  - `POST /api/stations/{station_id}/config` - Updates configuration (requires X-API-Key)
+  
+  ### Station Diagnostics
+  - `GET /api/stations/{station_id}/diagnostics` - Retrieves station diagnostics
+  
+  ## Authentication
+  For POST requests, use header: `X-API-Key: resonect_vasiliki_lets_go`
+  
+  ## Environment Variables
+  - `base_url` - API server (e.g., http://localhost:8080 or http://3.79.164.51)
+  - `station_id` - Weather station ID (e.g., Aiolos-Vasiliki)
+  - `admin_api_key` - Authentication key for admin operations
+}

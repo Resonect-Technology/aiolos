@@ -13,7 +13,7 @@ Aiolos is a modern, scalable platform for collecting, storing, and serving real-
 ### Key Features
 - **Live wind & weather data** for water sports and research
 - **Custom hardware**: [Aiolos meteostation](https://github.com/Resonect-Technology/Aiolos-HW)
-
+- **Remote administration**: Station config management via Bruno API client
 - **Modern backend**: AdonisJS REST API
 - **OpenAPI/Swagger docs**: Auto-generated for the API
 - **Monorepo**: Managed with [pnpm](https://pnpm.io/) and [Turborepo](https://turbo.build/)
@@ -31,6 +31,7 @@ Aiolos is a modern, scalable platform for collecting, storing, and serving real-
 /
 ├── apps/
 │   ├── adonis-api/      # RESTful backend API (AdonisJS v6)
+│   ├── bruno-api/       # API client for managing station configuration
 │   └── react-frontend/  # User interface for live data (React, Vite)
 ├── firmware/            # ESP32/SIM7000G code for weather stations
 ├── hardware/            # 3D models and hardware specs
@@ -51,6 +52,13 @@ Aiolos is a modern, scalable platform for collecting, storing, and serving real-
 - RESTful, IoT-friendly routes: `/station/:station_id/readings`
 - Direct HTTP endpoint for weather stations to submit data
 - Auto-generated OpenAPI docs with [adonis-autoswagger](https://github.com/ad-on-is/adonis-autoswagger)
+
+### Bruno API Client ([docs](apps/bruno-api/README.md))
+- API client collection for managing station configuration and viewing diagnostics
+- Git-friendly alternative to Postman/Insomnia that stores collections as files
+- Used for remote configuration and diagnostics of weather stations
+- Includes environments for development and production
+- Provides easy access to station configuration without requiring the frontend
 
 ### React Frontend ([docs](apps/react-frontend/README.md))
 - User interface built with React, Vite, and TypeScript.

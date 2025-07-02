@@ -9,6 +9,8 @@
 #pragma once
 
 #include <Arduino.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
 #include "ModemManager.h"
 #include "HttpClient.h"
 #include "Logger.h"
@@ -31,7 +33,7 @@ public:
      * @brief Send current diagnostics data to the server
      *
      * Collects and sends system diagnostics data including battery voltage,
-     * solar voltage, signal quality, and uptime.
+     * solar voltage, signal quality, internal temperature, and uptime.
      *
      * @return true if successful
      * @return false if failed
@@ -57,6 +59,8 @@ private:
     HttpClient *_httpClient = nullptr;
     bool _initialized = false;
     unsigned long _interval = 300000; // Default interval is 5 minutes
+    OneWire *_oneWireInternal = nullptr;
+    DallasTemperature *_tempSensors = nullptr;
 
     /**
      * @brief Read the battery voltage from ADC
@@ -71,6 +75,13 @@ private:
      * @return float Solar panel voltage in volts
      */
     float readSolarVoltage();
+
+    /**
+     * @brief Read the internal temperature sensor
+     *
+     * @return float Temperature in Celsius
+     */
+    float readInternalTemperature();
 };
 
 extern DiagnosticsManager diagnosticsManager;

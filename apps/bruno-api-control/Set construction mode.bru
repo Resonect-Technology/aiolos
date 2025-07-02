@@ -1,0 +1,22 @@
+meta {
+  name: Set construction mode
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{base_url}}/api/system/config/construction_mode
+  body: json
+  auth: inherit
+}
+
+headers {
+  content-type: application/json
+  X-API-Key: {{admin_api_key}}
+}
+
+body:json {
+  {
+    "value": true
+  }
+}

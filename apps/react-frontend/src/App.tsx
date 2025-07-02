@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { WindDashboard } from './components/WindDashboard'
+import { ConstructionModeAlert } from './components/ConstructionModeAlert'
 
 function App() {
   const [stationId, setStationId] = useState('station-001');
@@ -12,6 +13,8 @@ function App() {
           Real-time wind data visualization with Server-Sent Events
         </p>
       </header>
+      
+      <ConstructionModeAlert />
 
       <div className="max-w-4xl mx-auto mb-8">
         <div className="flex items-center space-x-4">

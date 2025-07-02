@@ -1,5 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import transmit from '@adonisjs/transmit/services/main'
+import StationDiagnostic from '#app/models/StationDiagnostic'
 
 export default class StationDiagnosticsController {
     /**
@@ -11,13 +12,14 @@ export default class StationDiagnosticsController {
 
         try {
             // Validate required fields
-            const { battery_voltage, solar_voltage, signal_quality } = data
+            const { battery_voltage, solar_voltage, signal_quality, uptime } = data
             if (
                 typeof battery_voltage !== 'number' ||
                 typeof solar_voltage !== 'number' ||
-                typeof signal_quality !== 'number'
+                typeof signal_quality !== 'number' ||
+                typeof uptime !== 'number'
             ) {
-                return response.badRequest({ error: 'Invalid diagnostics data' })
+                return response.badRequest({ error: 'Invalid diagnostics data. Required fields: battery_voltage, solar_voltage, signal_quality, uptime' })
             }
 
             // Prepare diagnostics data with timestamp
@@ -25,6 +27,16 @@ export default class StationDiagnosticsController {
                 ...data,
                 timestamp: data.timestamp || new Date().toISOString(),
             }
+
+            // Save diagnostics to database
+            await StationDiagnostic.create({
+                station_id: stationId,
+                battery_voltage: battery_voltage,
+                solar_voltage: solar_voltage,
+                internal_temperature: data.internal_temperature || null,
+                signal_quality: signal_quality,
+                uptime: uptime
+            })
 
             // Broadcast the diagnostics data via Transmit
             await transmit.broadcast(`station/diagnostics/${stationId}`, diagnosticsData)
@@ -47,12 +59,24 @@ export default class StationDiagnosticsController {
     async show({ params }: HttpContext) {
         const stationId = params.station_id
 
-        // In a real implementation, you would fetch data from a database
-        // For now, return a placeholder response
-        return {
-            station_id: stationId,
-            message: 'Latest diagnostics would be returned here',
-            note: 'This endpoint is a placeholder. Implement database storage to see actual data.'
+        try {
+            // Get the latest diagnostics for the station
+            const latestDiagnostics = await StationDiagnostic.query()
+                .where('station_id', stationId)
+                .orderBy('created_at', 'desc')
+                .first()
+
+            if (!latestDiagnostics) {
+                return {
+                    station_id: stationId,
+                    message: 'No diagnostics found for this station'
+                }
+            }
+
+            return latestDiagnostics
+        } catch (error) {
+            console.error('Error fetching diagnostics data:', error)
+            return { error: 'Failed to fetch diagnostics data' }
         }
     }
 }

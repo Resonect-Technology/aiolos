@@ -19,6 +19,26 @@ bool DiagnosticsManager::init(ModemManager &modemManager, HttpClient &httpClient
     _modemManager = &modemManager;
     _httpClient = &httpClient;
     _interval = interval;
+
+    // Initialize OneWire and Dallas Temperature sensors
+    _oneWireInternal = new OneWire(TEMP_BUS_INT);
+    if (!_oneWireInternal)
+    {
+        Logger.error(LOG_TAG_DIAG, "Failed to initialize OneWire for internal temperature");
+        return false;
+    }
+
+    _tempSensors = new DallasTemperature(_oneWireInternal);
+    if (!_tempSensors)
+    {
+        Logger.error(LOG_TAG_DIAG, "Failed to initialize DallasTemperature");
+        delete _oneWireInternal;
+        _oneWireInternal = nullptr;
+        return false;
+    }
+
+    _tempSensors->begin();
+
     _initialized = true;
 
     Logger.info(LOG_TAG_DIAG, "Diagnostics manager initialized with interval of %lu ms", _interval);
@@ -54,11 +74,14 @@ bool DiagnosticsManager::sendDiagnostics()
     float batteryVoltage = readBatteryVoltage();
     float solarVoltage = readSolarVoltage();
 
+    // Read internal temperature
+    float internalTemp = readInternalTemperature();
+
     // Get system uptime in seconds
     unsigned long uptime = millis() / 1000;
 
     // Send data to server
-    bool success = _httpClient->sendDiagnostics(DEVICE_ID, batteryVoltage, solarVoltage, signalQuality, uptime);
+    bool success = _httpClient->sendDiagnostics(DEVICE_ID, batteryVoltage, solarVoltage, internalTemp, signalQuality, uptime);
 
     if (success)
     {
@@ -150,4 +173,31 @@ float DiagnosticsManager::readSolarVoltage()
     Logger.debug(LOG_TAG_DIAG, "Solar ADC: %d, Voltage: %.2fV", solarRaw, solarVoltage);
 
     return solarVoltage;
+}
+
+/**
+ * @brief Read the internal temperature sensor
+ */
+float DiagnosticsManager::readInternalTemperature()
+{
+    if (!_tempSensors)
+    {
+        Logger.error(LOG_TAG_DIAG, "Temperature sensors not initialized");
+        return -127.0; // DEVICE_DISCONNECTED_C value
+    }
+
+    // Request temperature readings from all sensors
+    _tempSensors->requestTemperatures();
+
+    // Read temperature from the first sensor on the bus
+    float temp = _tempSensors->getTempCByIndex(0);
+
+    if (temp == DEVICE_DISCONNECTED_C)
+    {
+        Logger.error(LOG_TAG_DIAG, "Failed to read internal temperature sensor");
+        return -127.0;
+    }
+
+    Logger.debug(LOG_TAG_DIAG, "Internal temperature: %.2f°C", temp);
+    return temp;
 }
