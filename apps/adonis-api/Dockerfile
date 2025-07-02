@@ -36,8 +36,13 @@ EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:8080/healthcheck || exit 1
 
-# The final command to run migrations, seeds, and start the application.
-# The build output is now in ./apps/adonis-api/build
-CMD node apps/adonis-api/build/ace.js migration:run --force && \
-    node apps/adonis-api/build/ace.js db:seed --files=./database/seeders/main.js && \
-    node apps/adonis-api/build/bin/server.js
+# Copy the entrypoint script and make it executable
+COPY ./apps/adonis-api/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+# Set the entrypoint
+ENTRYPOINT ["/app/entrypoint.sh"]
+
+# The command is now part of the entrypoint script, so this can be empty
+# or used to pass arguments to the entrypoint if needed.
+CMD []

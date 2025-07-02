@@ -16,13 +16,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
-    command: >
-      sh -c "
-        mkdir -p /app/tmp &&
-        node apps/adonis-api/build/ace.js migration:run --force &&
-        node apps/adonis-api/build/ace.js db:seed --files=./database/seeders/main.js &&
-        node apps/adonis-api/build/bin/server.js
-      "
 
   frontend:
     image: 590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:latest
