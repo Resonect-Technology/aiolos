@@ -23,5 +23,4 @@ echo "=== Running migrations ==="
 cd build && node ace.js migration:run --force
 
 echo "=== Starting Server ==="
-echo "=== Starting Server ==="
-exec node build/bin/server.js
+exec node bin/server.js
