@@ -24,9 +24,6 @@ COPY . .
 # Build the AdonisJS application. This needs the dev dependencies.
 RUN cd apps/adonis-api && node ace build --ignore-ts-errors
 
-# After the build, remove development dependencies to keep the final image smaller
-RUN pnpm -r prune --prod
-
 # Set Node.js environment to production
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
@@ -42,5 +39,5 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
 # The final command to run migrations, seeds, and start the application.
 # The build output is now in ./apps/adonis-api/build
 CMD node apps/adonis-api/build/ace.js migration:run --force && \
-    node apps/adonis-api/build/ace.js db:seed --files ./database/seeders/main.ts && \
+    node apps/adonis-api/build/ace.js db:seed --files=./database/seeders/main.js && \
     node apps/adonis-api/build/bin/server.js
