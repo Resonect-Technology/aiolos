@@ -1,6 +1,7 @@
 services:
   backend:
     image: 590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:latest
+    container_name: aiolos-backend
     platform: linux/arm64
     env_file:
       - .env
@@ -18,6 +19,7 @@ services:
 
   frontend:
     image: 590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:latest
+    container_name: aiolos-frontend
     platform: linux/arm64
     volumes:
       - frontend-dist:/dist
@@ -25,6 +27,7 @@ services:
 
   caddy:
     image: caddy:2-alpine
+    container_name: aiolos-caddy
     restart: unless-stopped
     platform: linux/arm64
     ports:
