@@ -22,5 +22,8 @@ ls -la build/tmp
 echo "=== Running migrations ==="
 cd build && node ace.js migration:run --force
 
+echo "=== Running seeders ==="
+node ace.js db:seed --force
+
 echo "=== Starting Server ==="
 exec node bin/server.js
