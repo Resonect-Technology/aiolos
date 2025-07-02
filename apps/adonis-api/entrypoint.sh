@@ -13,12 +13,7 @@ mkdir -p tmp
 echo "Directory created. Contents:"
 ls -la tmp/
 
-echo "=== Running Database Migrations ==="
-node build/ace.js migration:run --force
-
-echo "=== Running Database Seeders ==="
-node build/ace.js db:seed --files=./database/seeders/main.js
-
+echo "=== Skipping migrations for now - starting server directly ==="
 echo "=== Starting Server ==="
 exec node build/bin/server.js
 node build/ace.js migration:run --force
