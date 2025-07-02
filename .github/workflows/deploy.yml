@@ -151,6 +151,10 @@ jobs:
             echo "Checking container status:"
             docker compose -f docker-compose.prod.yml ps
             
+            # Run database migrations
+            echo "Running database migrations..."
+            docker compose -f docker-compose.prod.yml exec -T backend node ace migration:run
+            
             # Check backend logs to diagnose any issues
             echo "Backend container logs:"
             docker compose -f docker-compose.prod.yml logs backend --tail 50

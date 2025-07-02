@@ -5,6 +5,8 @@ services:
     env_file:
       - .env
     restart: unless-stopped
+    volumes:
+      - sqlite_data:/app/tmp
     expose:
       - 8080
     healthcheck:
@@ -40,3 +42,4 @@ services:
 volumes:
   frontend-dist:
   caddy_data:
+  sqlite_data:
