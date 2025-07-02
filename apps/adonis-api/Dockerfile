@@ -25,8 +25,8 @@ ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=8080
 
-# Create the tmp directory (following AdonisJS structure)
-RUN mkdir -p tmp
+# Create the tmp directories (both at app root and in build output)
+RUN mkdir -p tmp build/tmp
 
 # Expose the application port
 EXPOSE 8080
