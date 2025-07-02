@@ -169,7 +169,7 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
               <div className="flex justify-between">
                 <span className="text-slate-600 dark:text-slate-300">Internal Temp:</span>
                 <span className="font-medium">
-                  {diagnosticsData.internalTemperature !== null 
+                  {diagnosticsData.internalTemperature !== null && diagnosticsData.internalTemperature !== undefined 
                     ? `${diagnosticsData.internalTemperature.toFixed(1)}°C` 
                     : 'N/A'}
                 </span>

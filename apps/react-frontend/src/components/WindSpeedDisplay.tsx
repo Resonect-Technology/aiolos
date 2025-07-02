@@ -43,6 +43,10 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
 
   // Format the gauge value label
   const formatGaugeValueLabel = (value: number): string => {
+    if (value === null || value === undefined || isNaN(value)) {
+      return `0 ${currentUnitLabel}`;
+    }
+    
     if (selectedUnit === "beaufort") {
       return `${Math.round(value)} ${currentUnitLabel}`;
     } else {
@@ -191,7 +195,9 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
         <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-700 rounded-lg">
           <div className="text-center">
             <span className="text-4xl font-bold text-slate-800 dark:text-slate-100">
-              {convertedValue.toFixed(selectedUnit === 'beaufort' ? 0 : 1)}
+              {convertedValue !== null && convertedValue !== undefined && !isNaN(convertedValue)
+                ? convertedValue.toFixed(selectedUnit === 'beaufort' ? 0 : 1)
+                : '0'}
             </span>
             <span className="text-lg font-medium text-slate-600 dark:text-slate-400 ml-2">
               {currentUnitLabel}
