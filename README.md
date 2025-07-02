@@ -13,7 +13,7 @@ Aiolos is a modern, scalable platform for collecting, storing, and serving real-
 ### Key Features
 - **Live wind & weather data** for water sports and research
 - **Custom hardware**: [Aiolos meteostation](https://github.com/Resonect-Technology/Aiolos-HW)
-
+- **Remote administration**: Station config management via Bruno API client
 - **Modern backend**: AdonisJS REST API
 - **OpenAPI/Swagger docs**: Auto-generated for the API
 - **Monorepo**: Managed with [pnpm](https://pnpm.io/) and [Turborepo](https://turbo.build/)
@@ -56,6 +56,7 @@ Aiolos is a modern, scalable platform for collecting, storing, and serving real-
 ### Bruno API Client ([docs](apps/bruno-api/README.md))
 - API client collection for managing station configuration and viewing diagnostics
 - Git-friendly alternative to Postman/Insomnia that stores collections as files
+- Used for remote configuration and diagnostics of weather stations
 - Includes environments for development and production
 - Provides easy access to station configuration without requiring the frontend
 
