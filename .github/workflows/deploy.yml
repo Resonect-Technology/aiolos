@@ -143,33 +143,23 @@ jobs:
             echo "Starting services..."
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
             
-            # Wait longer for containers to stabilize (especially for ARM platforms)
-            echo "Waiting for containers to stabilize..."
-            sleep 30
-            
-            # Check container status
-            echo "Checking container status:"
-            docker compose -f docker-compose.prod.yml ps
-            
-            # Verify SQLite functionality
-            echo "Verifying SQLite functionality..."
-            # Try a few times with increasing delay to account for startup time
-            for i in 1 2 3; do
-              if docker compose -f docker-compose.prod.yml exec -T backend node -e "try { require('better-sqlite3')('test.db'); console.log('SQLite is working correctly!'); } catch (err) { console.error('SQLite error:', err.message); process.exit(1); }"; then
-                echo "SQLite verification successful on attempt $i!"
+            # Wait for the backend container to become healthy
+            echo "Waiting for backend container to be healthy..."
+            # This loop will wait for the container to be in a 'healthy' state.
+            # It will timeout after 2 minutes (12 * 10 seconds).
+            for i in $(seq 1 12); do
+              STATUS=$(docker inspect --format '{{.State.Health.Status}}' aiolos-backend)
+              if [ "$STATUS" = "healthy" ]; then
+                echo "Backend is healthy!"
                 break
-              else
-                echo "SQLite verification failed on attempt $i, waiting and trying again..."
-                sleep 10
               fi
-              # If we've failed all attempts, continue anyway as migrations might still work
-              if [ $i -eq 3 ]; then
-                echo "Warning: SQLite verification failed, but continuing with deployment..."
-              fi
+              echo "Backend status is '$STATUS'. Waiting..."
+              sleep 10
             done
-            
-            # Database migrations and seeds are now run automatically when container starts
-            # via the command in docker-compose.prod.yml
+
+            # Final check on container status
+            echo "Final container status:"
+            docker compose -f docker-compose.prod.yml ps
             
             # Check backend logs to diagnose any issues
             echo "Backend container logs:"

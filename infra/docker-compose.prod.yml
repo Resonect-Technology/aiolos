@@ -18,6 +18,7 @@ services:
       start_period: 30s
     command: >
       sh -c "
+        mkdir -p /app/tmp &&
         node apps/adonis-api/build/ace.js migration:run --force &&
         node apps/adonis-api/build/ace.js db:seed --files=./database/seeders/main.js &&
         node apps/adonis-api/build/bin/server.js
