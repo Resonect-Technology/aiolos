@@ -11,10 +11,15 @@ mkdir -p /app/tmp
 echo "Directory created. Contents of /app/tmp:"
 ls -la /app/tmp/
 
-echo "Creating empty database file..."
-touch /app/tmp/db.sqlite3
-echo "Database file created. Contents of /app/tmp:"
-ls -la /app/tmp/
+echo "Creating AdonisJS tmp directory..."
+mkdir -p /app/apps/adonis-api/tmp
+echo "AdonisJS tmp directory created. Contents:"
+ls -la /app/apps/adonis-api/tmp/
+
+echo "Creating empty database file in AdonisJS tmp..."
+touch /app/apps/adonis-api/tmp/db.sqlite3
+echo "Database file created. Contents of /app/apps/adonis-api/tmp:"
+ls -la /app/apps/adonis-api/tmp/
 
 echo "Checking if ace.js exists..."
 ls -la /app/apps/adonis-api/build/ace.js
