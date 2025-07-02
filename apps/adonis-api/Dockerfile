@@ -40,8 +40,8 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
 COPY ./apps/adonis-api/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# Create the database directory at build time (where AdonisJS expects it)
-RUN mkdir -p /app/apps/adonis-api/tmp
+# Create the database directory at build time (using the same approach as entrypoint)
+RUN cd /app/apps/adonis-api && mkdir -p tmp
 
 # Set the entrypoint
 ENTRYPOINT ["/app/entrypoint.sh"]
