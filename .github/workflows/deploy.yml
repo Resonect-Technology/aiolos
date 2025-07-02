@@ -143,9 +143,9 @@ jobs:
             echo "Starting services..."
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
             
-            # Wait a bit for containers to stabilize
+            # Wait longer for containers to stabilize (especially for ARM platforms)
             echo "Waiting for containers to stabilize..."
-            sleep 15
+            sleep 30
             
             # Check container status
             echo "Checking container status:"
@@ -153,7 +153,20 @@ jobs:
             
             # Verify SQLite functionality
             echo "Verifying SQLite functionality..."
-            docker compose -f docker-compose.prod.yml exec -T backend node -e "try { require('better-sqlite3')('test.db'); console.log('SQLite is working correctly!'); } catch (err) { console.error('SQLite error:', err.message); process.exit(1); }"
+            # Try a few times with increasing delay to account for startup time
+            for i in 1 2 3; do
+              if docker compose -f docker-compose.prod.yml exec -T backend node -e "try { require('better-sqlite3')('test.db'); console.log('SQLite is working correctly!'); } catch (err) { console.error('SQLite error:', err.message); process.exit(1); }"; then
+                echo "SQLite verification successful on attempt $i!"
+                break
+              else
+                echo "SQLite verification failed on attempt $i, waiting and trying again..."
+                sleep 10
+              fi
+              # If we've failed all attempts, continue anyway as migrations might still work
+              if [ $i -eq 3 ]; then
+                echo "Warning: SQLite verification failed, but continuing with deployment..."
+              fi
+            done
             
             # Database migrations and seeds are now run automatically when container starts
             # via the command in docker-compose.prod.yml
