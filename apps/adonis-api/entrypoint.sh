@@ -1,35 +1,20 @@
 #!/bin/sh
+set -e
 
-# Remove set -e temporarily to prevent immediate exit on error
-echo "=== ENTRYPOINT DEBUG START ==="
-echo "Current working directory: $(pwd)"
-echo "Contents of /app:"
-ls -la /app/
+echo "=== Starting AdonisJS Application ==="
+echo "Working directory: $(pwd)"
 
-echo "Creating /app/tmp directory..."
-mkdir -p /app/tmp
-echo "Directory created. Contents of /app/tmp:"
-ls -la /app/tmp/
-
-echo "Creating AdonisJS tmp directory..."
+# Ensure the tmp directory exists for SQLite
 mkdir -p /app/apps/adonis-api/tmp
-echo "AdonisJS tmp directory created. Contents:"
-ls -la /app/apps/adonis-api/tmp/
 
-echo "Creating empty database file in AdonisJS tmp..."
-touch /app/apps/adonis-api/tmp/db.sqlite3
-echo "Database file created. Contents of /app/apps/adonis-api/tmp:"
-ls -la /app/apps/adonis-api/tmp/
-
-echo "Checking if ace.js exists..."
-ls -la /app/apps/adonis-api/build/ace.js
-
-echo "Checking database config..."
+# Change to the app directory
 cd /app/apps/adonis-api
-echo "Current directory: $(pwd)"
 
-echo "=== ATTEMPTING MIGRATION ==="
+echo "=== Running Database Migrations ==="
 node build/ace.js migration:run --force
 
-echo "=== MIGRATION COMPLETE, STARTING SERVER ==="
+echo "=== Running Database Seeders ==="
+node build/ace.js db:seed --files=./database/seeders/main.js
+
+echo "=== Starting Server ==="
 exec node build/bin/server.js
