@@ -31,7 +31,7 @@ public:
         analogSetPinAttenuation(ADC_BATTERY_PIN, ADC_11db); // Set attenuation for 0-3.3V range
 
         // Characterize ADC for calibrated readings
-        esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_12, 1100, &_adc_chars);
+        esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_12, ADC_WIDTH_BIT_12, 1100, &_adc_chars);
         Logger.info("BATTERY", "Battery ADC characterized for calibrated readings.");
     }
 
@@ -76,6 +76,3 @@ private:
     // Store ADC characteristics for calibrated conversion
     static esp_adc_cal_characteristics_t _adc_chars;
 };
-
-// Define the static member variable
-esp_adc_cal_characteristics_t BatteryUtils::_adc_chars;

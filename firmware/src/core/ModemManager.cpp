@@ -941,3 +941,48 @@ bool ModemManager::pingHost(const char *host, int count)
         return false;
     }
 }
+
+void ModemManager::maintainConnection(bool active)
+{
+    if (active)
+    {
+        // If we need an active connection, ensure network and GPRS are up
+        if (!isNetworkConnected())
+        {
+            connectNetwork();
+        }
+        if (!isGprsConnected())
+        {
+            connectGprs();
+        }
+    }
+    else
+    {
+        // If we want to be inactive, just disconnect GPRS
+        if (isGprsConnected())
+        {
+            disconnectGprs();
+        }
+    }
+}
+
+bool ModemManager::disconnectGprs()
+{
+    Logger.info(LOG_TAG_MODEM, "Disconnecting from GPRS...");
+
+    // Make sure modem is responsive before attempting to disconnect
+    bool isResponsive = _modem.testAT(1000);
+
+    if (isResponsive)
+    {
+        // Directly use TinyGSM's disconnect method
+        _modem.gprsDisconnect();
+        Logger.info(LOG_TAG_MODEM, "GPRS disconnected");
+    }
+    else
+    {
+        Logger.warn(LOG_TAG_MODEM, "Modem not responsive, cannot disconnect GPRS");
+    }
+
+    return true;
+}
