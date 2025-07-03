@@ -9,11 +9,16 @@
 #pragma once
 
 #include <Arduino.h>
+#include <ArduinoHttpClient.h>
 #include "ModemManager.h"
 #include "../config/Config.h"
 
 #define BASE_BACKOFF_DELAY_MS 5000  // 5 seconds
 #define MAX_BACKOFF_DELAY_MS 900000 // 15 minutes
+#define RESPONSE_TIMEOUT_MS 10000   // 10 seconds
+
+// Create a type alias to avoid name collision with the library's HttpClient
+using ArduinoHttpClient_t = ::HttpClient;
 
 class HttpClient
 {
@@ -77,6 +82,11 @@ public:
                             int *otaMinute = nullptr, int *otaDuration = nullptr, bool *remoteOta = nullptr);
 
     /**
+     * @brief Checks if the HTTP client is currently in a backoff period.
+     */
+    bool isConnectionThrottled();
+
+    /**
      * @brief Send temperature data to the server
      *
      * @param stationId Station identifier
@@ -98,29 +108,21 @@ public:
      */
     bool confirmOtaStarted(const char *stationId);
 
-    /**
-     * @brief Checks if the HTTP client is currently in a backoff period due to failures.
-     *
-     * @return true if connection attempts should be throttled.
-     * @return false if it's okay to attempt a connection.
-     */
-    bool isConnectionThrottled();
-
-    // Remote OTA flag is now handled through the fetchConfiguration method
-
 private:
     ModemManager *_modemManager = nullptr;
     TinyGsmClient *_client = nullptr;
-    const char *_serverHost = SERVER_HOST;
-    const uint16_t _serverPort = SERVER_PORT;
+    ArduinoHttpClient_t *_httpClient = nullptr; // Use the new alias
 
-    // Backoff mechanism state
-    uint8_t _failedAttempts = 0;
-    unsigned long _backoffDelay = 0;
+    // Server connection details
+    const char *_serverHost = SERVER_HOST;
+    uint16_t _serverPort = SERVER_PORT;
+
+    unsigned long _backoffDelay = BASE_BACKOFF_DELAY_MS;
     unsigned long _lastAttemptTime = 0;
+    uint8_t _failedAttempts = 0;
     void _handleHttpFailure();
     void _resetBackoff();
-    int _handleResponse(bool &success, String *responseBody = nullptr);
+    int _performRequest(const char *method, const char *path, const char *body, String &responseBody);
 };
 
 extern HttpClient httpClient;

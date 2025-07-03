@@ -74,88 +74,6 @@ bool HttpClient::isConnectionThrottled()
 }
 
 /**
- * @brief Private helper to handle reading HTTP responses.
- *
- * @param success Reference to a boolean that will be set to true if the status code is 2xx.
- * @param responseBody Optional pointer to a String to store the response body. If null, body is discarded.
- * @return The HTTP status code.
- */
-int HttpClient::_handleResponse(bool &success, String *responseBody)
-{
-    unsigned long timeout = millis();
-    // Wait for the client to start receiving data
-    while (_client->connected() && !_client->available() && millis() - timeout < 15000L)
-    {
-        esp_task_wdt_reset();
-        delay(10);
-    }
-
-    int statusCode = 0;
-    int contentLength = -1;
-    success = false;
-
-    // Check for the HTTP status line
-    if (_client->find("HTTP/1.1 "))
-    {
-        statusCode = _client->parseInt();
-        Logger.debug(LOG_TAG_HTTP, "HTTP response status code: %d", statusCode);
-        success = (statusCode >= 200 && statusCode < 300);
-
-        // Find Content-Length to know how much data to read
-        if (_client->find("Content-Length: "))
-        {
-            contentLength = _client->parseInt();
-        }
-
-        // Find the end of the headers
-        if (_client->find("\r\n\r\n"))
-        {
-            if (contentLength > 0)
-            {
-                if (responseBody)
-                {
-                    // Read the body into the provided String object
-                    responseBody->reserve(contentLength);
-                    timeout = millis();
-                    while (responseBody->length() < contentLength && millis() - timeout < 5000L)
-                    {
-                        if (_client->available())
-                        {
-                            *responseBody += (char)_client->read();
-                            timeout = millis(); // Reset timeout on each byte
-                        }
-                    }
-                }
-                else
-                {
-                    // If no response body is needed, just read and discard the bytes
-                    timeout = millis();
-                    int bytesRead = 0;
-                    while (bytesRead < contentLength && millis() - timeout < 5000L)
-                    {
-                        if (_client->available())
-                        {
-                            _client->read();
-                            bytesRead++;
-                            timeout = millis();
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // If the request was not successful, close the connection
-    if (!success)
-    {
-        _client->stop();
-        Logger.debug(LOG_TAG_HTTP, "Connection closed due to error or non-success status.");
-    }
-
-    return statusCode;
-}
-
-/**
  * @brief Initialize the HTTP client
  */
 bool HttpClient::init(ModemManager &modemManager)
@@ -169,8 +87,88 @@ bool HttpClient::init(ModemManager &modemManager)
         return false;
     }
 
-    Logger.info(LOG_TAG_HTTP, "HTTP client initialized");
+    // Initialize the ArduinoHttpClient
+    _httpClient = new ArduinoHttpClient_t(*_client, _serverHost, _serverPort);
+    if (!_httpClient)
+    {
+        Logger.error(LOG_TAG_HTTP, "Failed to create ArduinoHttpClient instance");
+        return false;
+    }
+    // Set the connection timeout. This is important for cellular connections.
+    _httpClient->setTimeout(30000L); // 30 seconds
+
+    Logger.info(LOG_TAG_HTTP, "HTTP client initialized for server %s:%u", _serverHost, _serverPort);
     return true;
+}
+
+/**
+ * @brief Performs the actual HTTP request and handles the response.
+ * @param method The HTTP method ("GET" or "POST").
+ * @param path The URL path for the request.
+ * @param body The request body (for POST requests, can be nullptr for GET).
+ * @param responseBody A String reference to store the response body.
+ * @return The HTTP status code, or 0 on failure before sending.
+ */
+int HttpClient::_performRequest(const char *method, const char *path, const char *body, String &responseBody)
+{
+    if (this->isConnectionThrottled())
+    {
+        return 0; // Throttled, do not attempt
+    }
+
+    if (!_modemManager || !_httpClient)
+    {
+        Logger.error(LOG_TAG_HTTP, "HTTP client not initialized");
+        return 0; // 0 as an error indicator
+    }
+
+    if (!_modemManager->isNetworkConnected() || !_modemManager->isGprsConnected())
+    {
+        Logger.error(LOG_TAG_HTTP, "Network not connected, cannot send request");
+        return 0;
+    }
+
+    Logger.debug(LOG_TAG_HTTP, "Sending %s request to %s", method, path);
+
+    // The ArduinoHttpClient library handles the entire request flow within the get() or post() call.
+    // We don't need to use beginRequest/endRequest for these simple cases.
+    int statusCode = 0;
+    if (strcmp(method, "POST") == 0)
+    {
+        // For POST, we include the content type and body in the call.
+        _httpClient->post(path, "application/json", body);
+    }
+    else
+    {
+        // For GET, it's simpler.
+        _httpClient->get(path);
+    }
+
+    // After the request is sent, we can get the status and response.
+    statusCode = _httpClient->responseStatusCode();
+    responseBody = _httpClient->responseBody(); // Always get the body for logging
+
+    Logger.debug(LOG_TAG_HTTP, "HTTP Status: %d", statusCode);
+    if (responseBody.length() > 0)
+    {
+        Logger.debug(LOG_TAG_HTTP, "Response Body: %s", responseBody.c_str());
+    }
+
+    if (statusCode >= 200 && statusCode < 300)
+    {
+        _resetBackoff();
+    }
+    else
+    {
+        _handleHttpFailure();
+        Logger.error(LOG_TAG_HTTP, "HTTP request failed with status code: %d", statusCode);
+        if (responseBody.length() > 0)
+        {
+            Logger.error(LOG_TAG_HTTP, "Response: %s", responseBody.c_str());
+        }
+    }
+
+    return statusCode;
 }
 
 /**
@@ -178,74 +176,34 @@ bool HttpClient::init(ModemManager &modemManager)
  */
 bool HttpClient::sendDiagnostics(const char *stationId, float batteryVoltage, float solarVoltage, float internalTemp, int signalQuality, unsigned long uptime)
 {
-    if (!_modemManager || !_client)
-    {
-        Logger.error(LOG_TAG_HTTP, "HTTP client not initialized");
-        return false;
-    }
-
-    if (!_modemManager->isNetworkConnected() || !_modemManager->isGprsConnected())
-    {
-        Logger.error(LOG_TAG_HTTP, "Network not connected, cannot send diagnostics");
-        return false;
-    }
-
     Logger.info(LOG_TAG_HTTP, "Sending diagnostics data for station %s", stationId);
 
-    // Create JSON payload with diagnostic data
-    char jsonBuffer[320];
-    snprintf(jsonBuffer, sizeof(jsonBuffer),
-             "{\"battery_voltage\":%.2f,\"solar_voltage\":%.2f,\"internal_temperature\":%.2f,\"signal_quality\":%d,\"uptime\":%lu}",
-             batteryVoltage, solarVoltage, internalTemp, signalQuality, uptime);
+    // Create JSON payload using ArduinoJson
+    JsonDocument doc;
+    doc["battery_voltage"] = batteryVoltage;
+    doc["solar_voltage"] = solarVoltage;
+    doc["internal_temperature"] = internalTemp;
+    doc["signal_quality"] = signalQuality;
+    doc["uptime"] = uptime;
 
-    // Calculate content length
-    size_t contentLength = strlen(jsonBuffer);
+    String jsonBuffer;
+    serializeJson(doc, jsonBuffer);
 
-    // Connect to server
-    Logger.debug(LOG_TAG_HTTP, "Connecting to %s:%d", _serverHost, _serverPort);
-    if (!_client->connect(_serverHost, _serverPort, 15000L)) // 15-second timeout
-    {
-        Logger.error(LOG_TAG_HTTP, "Failed to connect to server");
-        return false;
-    }
-
-    // Build the URL path with the station ID
+    // Build the URL path
     char urlPath[64];
     snprintf(urlPath, sizeof(urlPath), "/api/stations/%s/diagnostics", stationId);
 
-    // Send HTTP POST request
-    Logger.debug(LOG_TAG_HTTP, "Sending POST request to %s", urlPath);
-    _client->print(F("POST "));
-    _client->print(urlPath);
-    _client->println(F(" HTTP/1.1"));
+    String responseBody;
+    int statusCode = _performRequest("POST", urlPath, jsonBuffer.c_str(), responseBody);
 
-    // Request headers
-    _client->print(F("Host: "));
-    _client->println(_serverHost);
-    _client->println(F("User-Agent: AiolosWeatherStation/1.0"));
-    _client->println(F("Content-Type: application/json"));
-    _client->print(F("Content-Length: "));
-    _client->println(contentLength);
-    _client->println(F("Connection: keep-alive"));
-    _client->println();
-
-    // Request body
-    _client->println(jsonBuffer);
-
-    // Read and process response
-    bool success = false;
-    int statusCode = _handleResponse(success);
-
-    if (success)
+    if (statusCode >= 200 && statusCode < 300)
     {
-        _resetBackoff(); // Success, reset backoff
         Logger.info(LOG_TAG_HTTP, "Diagnostics data sent successfully");
         return true;
     }
     else
     {
-        _handleHttpFailure(); // Failure, trigger backoff
-        Logger.error(LOG_TAG_HTTP, "Failed to send diagnostics data, status code: %d", statusCode);
+        Logger.error(LOG_TAG_HTTP, "Failed to send diagnostics data.");
         return false;
     }
 }
@@ -258,55 +216,18 @@ bool HttpClient::fetchConfiguration(const char *stationId, unsigned long *tempIn
                                     unsigned long *restartInterval, int *sleepStartHour, int *sleepEndHour,
                                     int *otaHour, int *otaMinute, int *otaDuration, bool *remoteOta)
 {
-    if (!_modemManager || !_client)
-    {
-        Logger.error(LOG_TAG_HTTP, "HTTP client not initialized");
-        return false;
-    }
-
-    if (!_modemManager->isNetworkConnected() || !_modemManager->isGprsConnected())
-    {
-        Logger.error(LOG_TAG_HTTP, "Network not connected, cannot fetch configuration");
-        return false;
-    }
-
     Logger.info(LOG_TAG_HTTP, "Fetching configuration for station %s", stationId);
 
     // Build the URL path with the station ID
     char urlPath[64];
     snprintf(urlPath, sizeof(urlPath), "/api/stations/%s/config", stationId);
 
-    // Connect to server
-    Logger.debug(LOG_TAG_HTTP, "Connecting to %s:%d", _serverHost, _serverPort);
-    if (!_client->connect(_serverHost, _serverPort, 15000L)) // 15-second timeout
+    String responseBody;
+    int statusCode = _performRequest("GET", urlPath, nullptr, responseBody);
+
+    if (statusCode >= 200 && statusCode < 300)
     {
-        Logger.error(LOG_TAG_HTTP, "Failed to connect to server");
-        return false;
-    }
-
-    // Send HTTP GET request
-    Logger.debug(LOG_TAG_HTTP, "Sending GET request to %s", urlPath);
-    _client->print(F("GET "));
-    _client->print(urlPath);
-    _client->println(F(" HTTP/1.1"));
-
-    // Request headers
-    _client->print(F("Host: "));
-    _client->println(_serverHost);
-    _client->println(F("User-Agent: AiolosWeatherStation/1.0"));
-    _client->println(F("Accept: application/json"));
-    _client->println(F("Connection: keep-alive"));
-    _client->println();
-
-    // Read and process response
-    bool success = false;
-    String responseBody = "";
-    int statusCode = _handleResponse(success, &responseBody);
-
-    if (success && responseBody.length() > 0)
-    {
-        _resetBackoff(); // Success, reset backoff
-        Logger.info(LOG_TAG_HTTP, "Configuration data received: %s", responseBody.c_str());
+        Logger.info(LOG_TAG_HTTP, "Configuration data received.");
 
         // Use ArduinoJson for robust parsing
         JsonDocument doc;
@@ -315,83 +236,61 @@ bool HttpClient::fetchConfiguration(const char *stationId, unsigned long *tempIn
         if (error)
         {
             Logger.error(LOG_TAG_HTTP, "Failed to parse JSON configuration: %s", error.c_str());
+            _handleHttpFailure(); // Treat parsing error as a failure for backoff
             return false;
         }
 
         // Safely extract values using the parsed JSON document
-        // Use .is<T>() to check for existence and correct type
         if (!doc["temp_interval"].isNull())
         {
             *tempInterval = doc["temp_interval"].as<unsigned long>();
-            Logger.info(LOG_TAG_HTTP, "Parsed temp_interval: %lu", *tempInterval);
         }
-
         if (!doc["wind_interval"].isNull())
         {
             *windInterval = doc["wind_interval"].as<unsigned long>();
-            Logger.info(LOG_TAG_HTTP, "Parsed wind_interval: %lu", *windInterval);
         }
-
         if (!doc["diag_interval"].isNull())
         {
             *diagInterval = doc["diag_interval"].as<unsigned long>();
-            Logger.info(LOG_TAG_HTTP, "Parsed diag_interval: %lu", *diagInterval);
         }
-
         if (timeInterval && !doc["time_interval"].isNull())
         {
             *timeInterval = doc["time_interval"].as<unsigned long>();
-            Logger.info(LOG_TAG_HTTP, "Parsed time_interval: %lu", *timeInterval);
         }
-
         if (restartInterval && !doc["restart_interval"].isNull())
         {
             *restartInterval = doc["restart_interval"].as<unsigned long>();
-            Logger.info(LOG_TAG_HTTP, "Parsed restart_interval: %lu", *restartInterval);
         }
-
         if (sleepStartHour && !doc["sleep_start_hour"].isNull())
         {
             *sleepStartHour = doc["sleep_start_hour"].as<int>();
-            Logger.info(LOG_TAG_HTTP, "Parsed sleep_start_hour: %d", *sleepStartHour);
         }
-
         if (sleepEndHour && !doc["sleep_end_hour"].isNull())
         {
             *sleepEndHour = doc["sleep_end_hour"].as<int>();
-            Logger.info(LOG_TAG_HTTP, "Parsed sleep_end_hour: %d", *sleepEndHour);
         }
-
         if (otaHour && !doc["ota_hour"].isNull())
         {
             *otaHour = doc["ota_hour"].as<int>();
-            Logger.info(LOG_TAG_HTTP, "Parsed ota_hour: %d", *otaHour);
         }
-
         if (otaMinute && !doc["ota_minute"].isNull())
         {
             *otaMinute = doc["ota_minute"].as<int>();
-            Logger.info(LOG_TAG_HTTP, "Parsed ota_minute: %d", *otaMinute);
         }
-
         if (otaDuration && !doc["ota_duration"].isNull())
         {
             *otaDuration = doc["ota_duration"].as<int>();
-            Logger.info(LOG_TAG_HTTP, "Parsed ota_duration: %d", *otaDuration);
         }
-
         if (remoteOta && !doc["remote_ota"].isNull())
         {
             *remoteOta = doc["remote_ota"].as<bool>();
-            Logger.info(LOG_TAG_HTTP, "Parsed remote_ota: %s", *remoteOta ? "true" : "false");
         }
 
         return true;
     }
     else
     {
-        _handleHttpFailure(); // Failure, trigger backoff
-        Logger.error(LOG_TAG_HTTP, "Failed to fetch configuration, status code: %d", statusCode);
+        Logger.error(LOG_TAG_HTTP, "Failed to fetch configuration.");
         return false;
     }
 }
@@ -401,74 +300,31 @@ bool HttpClient::fetchConfiguration(const char *stationId, unsigned long *tempIn
  */
 bool HttpClient::sendWindData(const char *stationId, float windSpeed, float windDirection)
 {
-    if (!_modemManager || !_client)
-    {
-        Logger.error(LOG_TAG_HTTP, "HTTP client not initialized");
-        return false;
-    }
-
-    if (!_modemManager->isNetworkConnected() || !_modemManager->isGprsConnected())
-    {
-        Logger.error(LOG_TAG_HTTP, "Network not connected, cannot send wind data");
-        return false;
-    }
-
     Logger.info(LOG_TAG_HTTP, "Sending wind data for station %s", stationId);
 
-    // Create JSON payload with wind data
-    char jsonBuffer[128];
-    snprintf(jsonBuffer, sizeof(jsonBuffer),
-             "{\"wind_speed\":%.2f,\"wind_direction\":%.1f}",
-             windSpeed, windDirection);
+    // Create JSON payload using ArduinoJson
+    JsonDocument doc;
+    doc["wind_speed"] = windSpeed;
+    doc["wind_direction"] = windDirection;
 
-    // Calculate content length
-    size_t contentLength = strlen(jsonBuffer);
+    String jsonBuffer;
+    serializeJson(doc, jsonBuffer);
 
-    // Connect to server
-    Logger.debug(LOG_TAG_HTTP, "Connecting to %s:%d", _serverHost, _serverPort);
-    if (!_client->connect(_serverHost, _serverPort, 15000L)) // 15-second timeout
-    {
-        Logger.error(LOG_TAG_HTTP, "Failed to connect to server");
-        return false;
-    }
-
-    // Build the URL path with the station ID
+    // Build the URL path
     char urlPath[64];
     snprintf(urlPath, sizeof(urlPath), "/api/stations/%s/wind", stationId);
 
-    // Send HTTP POST request
-    Logger.debug(LOG_TAG_HTTP, "Sending POST request to %s", urlPath);
-    _client->print(F("POST "));
-    _client->print(urlPath);
-    _client->println(F(" HTTP/1.1"));
+    String responseBody;
+    int statusCode = _performRequest("POST", urlPath, jsonBuffer.c_str(), responseBody);
 
-    // Request headers
-    _client->print(F("Host: "));
-    _client->println(_serverHost);
-    _client->println(F("User-Agent: AiolosWeatherStation/1.0"));
-    _client->println(F("Content-Type: application/json"));
-    _client->print(F("Content-Length: "));
-    _client->println(contentLength);
-    _client->println(F("Connection: keep-alive"));
-    _client->println();
-
-    // Request body
-    _client->println(jsonBuffer);
-
-    // Read and process response
-    bool success = false;
-    int statusCode = _handleResponse(success);
-
-    if (success)
+    if (statusCode >= 200 && statusCode < 300)
     {
-        _resetBackoff(); // Success, reset backoff
         Logger.info(LOG_TAG_HTTP, "Wind data sent successfully");
         return true;
     }
     else
     {
-        _handleHttpFailure(); // Failure, trigger backoff
-        Logger.error(LOG_TAG_HTTP, "Failed to send wind data, status code: %d", statusCode);
+        Logger.error(LOG_TAG_HTTP, "Failed to send wind data.");
         return false;
     }
 }
@@ -478,74 +334,30 @@ bool HttpClient::sendWindData(const char *stationId, float windSpeed, float wind
  */
 bool HttpClient::sendTemperatureData(const char *stationId, float internalTemp, float externalTemp)
 {
-    if (!_modemManager || !_client)
-    {
-        Logger.error(LOG_TAG_HTTP, "HTTP client not initialized");
-        return false;
-    }
-
-    if (!_modemManager->isNetworkConnected() || !_modemManager->isGprsConnected())
-    {
-        Logger.error(LOG_TAG_HTTP, "Network not connected, cannot send temperature data");
-        return false;
-    }
-
     Logger.info(LOG_TAG_HTTP, "Sending temperature data for station %s", stationId);
 
-    // Create JSON payload with only external temperature data (internal temp is sent in diagnostics)
-    char jsonBuffer[256];
-    snprintf(jsonBuffer, sizeof(jsonBuffer),
-             "{\"temperature\":%.2f}",
-             externalTemp);
+    // Create JSON payload using ArduinoJson
+    JsonDocument doc;
+    doc["temperature"] = externalTemp;
 
-    // Calculate content length
-    size_t contentLength = strlen(jsonBuffer);
+    String jsonBuffer;
+    serializeJson(doc, jsonBuffer);
 
-    // Connect to server
-    Logger.debug(LOG_TAG_HTTP, "Connecting to %s:%d", _serverHost, _serverPort);
-    if (!_client->connect(_serverHost, _serverPort, 15000L)) // 15-second timeout
-    {
-        Logger.error(LOG_TAG_HTTP, "Failed to connect to server");
-        return false;
-    }
-
-    // Build the URL path with the station ID
+    // Build the URL path
     char urlPath[64];
     snprintf(urlPath, sizeof(urlPath), "/api/stations/%s/temperature", stationId);
 
-    // Send HTTP POST request
-    Logger.debug(LOG_TAG_HTTP, "Sending POST request to %s", urlPath);
-    _client->print(F("POST "));
-    _client->print(urlPath);
-    _client->println(F(" HTTP/1.1"));
+    String responseBody;
+    int statusCode = _performRequest("POST", urlPath, jsonBuffer.c_str(), responseBody);
 
-    // Request headers
-    _client->print(F("Host: "));
-    _client->println(_serverHost);
-    _client->println(F("User-Agent: AiolosWeatherStation/1.0"));
-    _client->println(F("Content-Type: application/json"));
-    _client->print(F("Content-Length: "));
-    _client->println(contentLength);
-    _client->println(F("Connection: keep-alive"));
-    _client->println();
-
-    // Request body
-    _client->println(jsonBuffer);
-
-    // Read and process response
-    bool success = false;
-    int statusCode = _handleResponse(success);
-
-    if (success)
+    if (statusCode >= 200 && statusCode < 300)
     {
-        _resetBackoff(); // Success, reset backoff
         Logger.info(LOG_TAG_HTTP, "Temperature data sent successfully");
         return true;
     }
     else
     {
-        _handleHttpFailure(); // Failure, trigger backoff
-        Logger.error(LOG_TAG_HTTP, "Failed to send temperature data, status code: %d", statusCode);
+        Logger.error(LOG_TAG_HTTP, "Failed to send temperature data.");
         return false;
     }
 }
@@ -555,54 +367,22 @@ bool HttpClient::sendTemperatureData(const char *stationId, float internalTemp, 
  */
 bool HttpClient::confirmOtaStarted(const char *stationId)
 {
-    if (!_modemManager || !_client)
-    {
-        Logger.error(LOG_TAG_HTTP, "HTTP client not initialized");
-        return false;
-    }
-
-    if (!_modemManager->isGprsConnected())
-    {
-        Logger.warn(LOG_TAG_HTTP, "GPRS not connected, cannot confirm OTA start");
-        return false;
-    }
-
     Logger.info(LOG_TAG_HTTP, "Confirming OTA start for station %s", stationId);
-
-    // Connect to server
-    if (!_client->connect(_serverHost, _serverPort, 15000L)) // 15-second timeout
-    {
-        Logger.error(LOG_TAG_HTTP, "Failed to connect to server for OTA confirmation");
-        return false;
-    }
 
     // Build the URL path
     char urlPath[64];
     snprintf(urlPath, sizeof(urlPath), "/api/stations/%s/ota-confirm", stationId);
 
-    // Send HTTP POST request
-    _client->print(F("POST "));
-    _client->print(urlPath);
-    _client->println(F(" HTTP/1.1"));
-    _client->print(F("Host: "));
-    _client->println(_serverHost);
-    _client->println(F("User-Agent: AiolosWeatherStation/1.0"));
-    _client->println(F("Connection: keep-alive"));
-    _client->println(); // End of headers
+    String responseBody;
+    int statusCode = _performRequest("POST", urlPath, nullptr, responseBody);
 
-    // Read and process response
-    bool success = false;
-    int statusCode = _handleResponse(success);
-
-    if (success)
+    if (statusCode >= 200 && statusCode < 300)
     {
-        _resetBackoff(); // Success, reset backoff
         Logger.info(LOG_TAG_HTTP, "OTA start confirmed successfully (status: %d)", statusCode);
         return true;
     }
     else
     {
-        _handleHttpFailure(); // Failure, trigger backoff
         Logger.error(LOG_TAG_HTTP, "Failed to confirm OTA start (status: %d)", statusCode);
         return false;
     }
