@@ -1,280 +1,121 @@
-# Aiolos Firmware
+# Aiolos Firmware v2.0
 
-## Using USB Devices with WSL and PlatformIO
+This document provides a comprehensive overview of the Aiolos Weather Station firmware, designed for the LilyGO T-SIM7000G module. It covers the system architecture, key features, and operational logic, intended for developers maintaining or extending the project.
 
-If you are developing firmware using PlatformIO in VS Code on Windows Subsystem for Linux (WSL), and you want to use USB devices (such as serial programmers or modems), you need to use `usbipd` to attach USB devices to your WSL environment.
+## Core Architecture
 
-### Attaching USB Devices
+The firmware is built on a modular architecture that separates concerns into distinct components, managed by the main application loop in `main.cpp`.
 
-1. **List available USB devices:**
-   ```bash
-   usbipd wsl list
-   ```
-   This will show all USB devices that can be attached to WSL.
+- **`main.cpp`**: The entry point and central orchestrator. It manages the main loop, initializes all modules, handles the device's state (active, sleep, OTA), and schedules all tasks.
+- **`ModemManager`**: Encapsulates all logic for the SIM7000G modem, including power, network registration, GPRS connection, and sleep management.
+- **`HttpClient`**: Manages all communication with the backend server, including sending sensor data and fetching remote configuration. It relies on `ModemManager` for an active connection.
+- **`WindSensor`**: Handles all wind speed and direction measurements. It supports both instantaneous and long-term averaged readings.
+- **`TemperatureSensor`**: Manages the DS18B20 external temperature sensor.
+- **`BatteryUtils`**: Provides accurate, calibrated battery voltage readings.
+- **`OtaManager`**: Manages both scheduled and remote-triggered Over-The-Air firmware updates via a Wi-Fi Access Point.
+- **`DiagnosticsManager`**: Collects and sends device health data (battery, signal, uptime).
+- **`Config.h`**: A central header for all default compile-time configurations.
 
-2. **Attach the device:**
-   Find the `BUSID` of your device from the list, then run:
-   ```bash
-   usbipd wsl attach --busid <BUSID>
-   ```
-   Replace `<BUSID>` with the correct value (e.g., `1-2`).
+---
 
-### Persistence Limitation
+## Key Features & Operational Logic
 
-**Note:** If you unplug and replug your USB device, it will not be automatically re-attached to WSL. You must repeat the `usbipd wsl attach` command each time you reconnect the device. This is a current limitation of `usbipd` and WSL.
+### 1. Power and Connection Management
 
-#### Workaround
-- You can create a simple script to re-attach the device when needed.
-- Some advanced users set up automation on Windows to detect device changes and run the attach command, but this requires extra setup.
+To ensure reliability and conserve power for long-term field deployment, the firmware uses a smart connection management strategy.
 
-### Troubleshooting
-- If your device does not show up in WSL after replugging, repeat the attach steps above.
-- Make sure you have the latest version of `usbipd-win` installed on Windows.
-- For more information, see the [usbipd-win documentation](https://github.com/dorssel/usbipd-win).
+- **Active vs. Inactive Hours**: The device operates in two main states based on the time of day, defined by `DEFAULT_SLEEP_START_HOUR` and `DEFAULT_SLEEP_END_HOUR`.
+- **`maintainConnection(bool active)`**: This is the core function for power management.
+  - During **active hours**, `maintainConnection(true)` is called, which ensures the modem is powered on and the GPRS connection is active and stable. All data transmission occurs during this time.
+  - Before entering sleep, `maintainConnection(false)` is called, which gracefully disconnects GPRS and puts the modem into a low-power sleep state.
+- **Deep Sleep**: During inactive (night) hours, the ESP32 enters deep sleep to minimize power consumption, waking up at the configured start of active hours.
 
-## Modem Implementation (LilyGO T-SIM7000G)
+### 2. Dual-Mode Wind Measurement
 
-The Aiolos Weather Station uses a LilyGO T-SIM7000G module (ESP32 + SIM7000G cellular modem) for connectivity. The firmware follows best practices for robust cellular communication:
+The wind sensor can operate in two distinct modes, determined by the `dynamicWindInterval` fetched from the remote configuration.
 
-### Key Features
+- **Livestream Mode** (`interval <= 5 seconds`):
+  - Provides near real-time wind data.
+  - Uses `getWindSpeed()` and `getWindDirection()` for instantaneous readings.
+  - Ideal for active monitoring during the day.
 
-- **Reliable Power Sequence**: Proper initialization of the SIM7000G modem with correct timing for power-on sequence
-- **Error Resilience**: System continues operation even if modem/SIM errors occur
-- **Network Connection**: Automatic connection to cellular network and GPRS with retry mechanisms
-- **HTTP Communication**: Direct HTTP POST requests to the Adonis backend API
+- **Low-Power Averaged Mode** (`interval > 5 seconds`):
+  - Designed for power efficiency and data accuracy over long periods.
+  - Uses `startSamplingPeriod()` to begin a measurement window (e.g., 5 minutes).
+  - Internally, it samples the wind every `WIND_AVERAGING_SAMPLE_INTERVAL_MS` (e.g., 10 seconds).
+  - At the end of the period, `getAveragedWindData()` returns the final values.
+  - **Direction Averaging**: Uses **vector averaging** for a mathematically correct mean direction, which prevents issues with the 0°/360° crossover.
 
-- **Power Management**: Sleep mode support for power conservation with proper wake-up sequence
-- **SIM Detection**: Multiple methods to detect SIM card presence (CPIN, CCID, TinyGSM)
+### 3. Sensor Implementation & Optimizations
 
-### Configuration
+- **Wind Sensor**:
+  - **Direction**: Uses **raw ADC values** mapped to calibrated direction headings. This is more robust than converting to voltage first.
+  - **Speed**: Uses **hardware interrupts** for accurate, non-blocking counting of anemometer rotations.
 
-- APN: "simbase" - Used for cellular data connection
-- Baud Rate: 115200
-- Hardware Pins:
-  - PIN_DTR: 25
-  - PIN_TX: 27
-  - PIN_RX: 26
-  - PWR_PIN: 4
+- **Temperature Sensor (DS18B20)**:
+  - To prevent the main loop from freezing during temperature conversions (which can take up to 750ms), the sensor's resolution is set to **9-bit**. This provides a fast, **~94ms non-blocking reading** with a precision of 0.5°C, which is more than sufficient for this application.
 
-### Modem Initialization Process
+- **Battery Measurement**:
+  - Uses the ESP32's `esp_adc_cal` library for **calibrated voltage readings**. This corrects for the non-linear behavior of the ESP32's ADC, providing much higher accuracy across the full charge cycle.
+  - The `BATTERY_VOLTAGE_DIVIDER_RATIO` constant in `BatteryUtils.h` can be fine-tuned with a multimeter for per-device calibration.
 
-1. Initialize hardware (serial port, pins)
-2. Power on the modem with correct pulse timing
-3. Test AT command response
-4. Check SIM card status
-5. Connect to network and GPRS
+### 4. Over-The-Air (OTA) Updates
 
-### Power Management
+The firmware supports two methods for remote updates, managed by `OtaManager`.
 
-The modem supports sleep mode for power conservation:
+- **Scheduled OTA**: The device automatically enters OTA mode during a pre-configured daily window (`DEFAULT_OTA_HOUR`, `DEFAULT_OTA_MINUTE`). It will host a Wi-Fi AP (`Aiolos-Ota`) for a set duration.
+- **Remote-Triggered OTA**: An update can be initiated on-demand by setting a flag on the backend server.
+  - When the device fetches its configuration and sees the flag, it immediately enters OTA mode.
+  - It then sends a confirmation to the server (`confirmOtaStarted`) to clear the flag, ensuring the OTA process only runs once per request.
 
-- DTR pin control for sleep/wake
-- Software commands for power management
-- Support for wake-up after ESP32 deep sleep
+### 5. Configuration System
 
-### Troubleshooting
+The firmware uses a flexible, three-tiered configuration system.
 
-- If the modem doesn't respond, try a power cycle
-- Check signal quality using diagnostic functions
-- Verify SIM card is properly inserted
-- Ensure the correct APN is configured for your cellular provider
-- Test HTTP connectivity with the test request function
+1.  **`secrets.ini`**: For per-device secrets that should not be in version control (APN, Wi-Fi passwords, etc.). See "Environment Configuration" below.
+2.  **`Config.h`**: Contains the default fallback values for all operational parameters (e.g., `DEFAULT_WIND_INTERVAL`). These are used if the device cannot reach the server.
+3.  **Remote Configuration**: At runtime, the device periodically fetches a JSON configuration from the backend server. These values override the defaults, allowing for dynamic adjustment of reporting intervals, sleep times, and other parameters without reflashing the firmware.
 
-### HTTP API Communication
+---
 
-The firmware communicates with the backend using simple HTTP POST requests:
+## Hardware Connections
 
-- Endpoints follow the pattern: `/station/{stationId}/{resourceType}`
-- JSON payloads for structured data transmission
-- Support for sending diagnostic data, wind readings, and temperature values
-- Automatic retries on connection failures
+| Component         | Pin Name          | ESP32 Pin | Notes                               |
+| ----------------- | ----------------- | --------- | ----------------------------------- |
+| Anemometer        | `ANEMOMETER_PIN`  | `GPIO33`  | Interrupt-capable pin for pulse counting |
+| Wind Vane         | `WIND_VANE_PIN`   | `GPIO32`  | ADC pin for direction reading       |
+| External Temp     | `TEMP_BUS_EXT`    | `GPIO19`  | OneWire bus for DS18B20             |
+| Battery Sensing   | `ADC_BATTERY_PIN` | `GPIO35`  | ADC pin for voltage measurement     |
+| Modem TX          | `PIN_TX`          | `GPIO27`  |                                     |
+| Modem RX          | `PIN_RX`          | `GPIO26`  |                                     |
+| Modem Power       | `PWR_PIN`         | `GPIO4`   |                                     |
+| Modem DTR         | `PIN_DTR`         | `GPIO25`  | For modem sleep control             |
+| Status LED        | `LED_PIN`         | `GPIO12`  |                                     |
 
-## Wind Measurement System
-
-The Aiolos Weather Station includes a comprehensive wind measurement system that accurately measures both wind direction and wind speed:
-
-### Wind Direction Sensor (Wind Vane)
-
-- **Operating Principle**: Uses a resistor network with a rotating magnet to create voltage variations based on wind direction
-- **Resolution**: 16 distinct directions (22.5° increments) covering full 360° range
-- **Hardware Interface**: Analog input connected to ESP32 ADC (pin GPIO2)
-- **Voltage Range**: 0V to 3.3V corresponding to different wind directions
-- **Reading Method**: ADC reading converted to voltage, then matched against calibrated lookup table
-- **Calibration**: Precise resistance-to-voltage-to-direction lookup table for accurate readings
-
-### Wind Speed Sensor (Anemometer)
-
-- **Operating Principle**: Reed switch sends pulses as the anemometer cups rotate
-- **Hardware Interface**: Digital input with interrupt for pulse counting (pin GPIO14)
-- **Calibration**: 1Hz (one rotation per second) = 0.447 m/s wind speed
-- **Debounce Protection**: 10ms software debounce to prevent false readings
-- **Measurement Period**: Wind speed averaged over configurable interval (default 1 minute)
-
-### Implementation Details
-
-- Sampling rate configurable via `WIND_INTERVAL` in Config.h
-- Dedicated `WindSensor` class separates wind measurement logic from main application
-- Interrupt-driven anemometer readings for accurate pulse counting
-- Direct ADC value mapping for wind direction based on calibrated thresholds
-- Comprehensive logging of wind measurements
-
-### Hardware Connections
-
-- Wind vane connects to `WIND_VANE_PIN` (GPIO2, ADC2_CH2)
-- Anemometer connects to `ANEMOMETER_PIN` (GPIO14, interrupt-capable pin)
-- Both sensors operate at 3.3V for compatibility with ESP32
-
-### Current Implementation Status
-
-As of June 27, 2025, the wind measurement system has been updated with the following improvements:
-
-#### Completed:
-- ✅ Aligned pin assignments with the original working implementation (GPIO2 for wind vane, GPIO14 for anemometer)
-- ✅ Implemented direct ADC value mapping for wind direction using calibrated thresholds from proven code
-- ✅ Added wind direction adjustment (subtracting 90° with proper wrap-around) for correct compass alignment
-- ✅ Configured ADC with proper resolution (12-bit) and attenuation for accurate readings
-- ✅ Fixed ADC_ATTEN_DB_11 deprecation warning by using ADC_ATTEN_DB_12
-- ✅ Added robust wind speed calculation based on pulse counting and time measurement
-- ✅ Implemented debounce protection for anemometer readings
-- ✅ Added optional calibration mode for testing and diagnostics
-- ✅ Enhanced debug logging for troubleshooting
-
-#### Next Steps:
-- Continue testing to verify wind direction accuracy across all 16 positions
-- Fine-tune ADC thresholds if needed based on field testing
-- Consider adding smoothing/averaging for more stable readings in variable conditions
-- Integrate with HTTP API for data transmission to backend
-- Implement power optimization to reduce consumption during measurements
-
-The current implementation combines the reliability of the proven direction calculation from the original code with the more modular and maintainable structure of the new code.
-
-### Recommended Operational Settings
-
-The wind measurement system supports configurable sampling and reporting intervals for different operational modes:
-
-#### Live Mode (Daytime/High Activity)
-- **Wind Sampling Interval**: 30 seconds
-- **Wind Reporting Interval**: 2 minutes
-- **Temperature Reporting**: 5 minutes
-- **Diagnostics Reporting**: 5 minutes
-- **Use Case**: Active monitoring periods when real-time data is important
-
-#### Power-Saving Mode (Nighttime/Low Activity)
-- **Wind Sampling Interval**: 2 minutes
-- **Wind Reporting Interval**: 10 minutes
-- **Temperature Reporting**: 15 minutes
-- **Diagnostics Reporting**: 15 minutes
-- **Use Case**: Extended battery operation during low-activity periods
-
-#### Configuration Methods
-- **Local Configuration**: Set via `Config.h` constants
-- **Remote Configuration**: Configurable via HTTP API endpoint `/stations/{stationId}/configuration`
-- **Runtime Adjustment**: Sampling intervals can be updated without firmware reflashing
-
-#### Backend Integration
-- Wind data sent to `/stations/{stationId}/wind` endpoint
-- Configuration fetched from `/stations/{stationId}/configuration`
-- Support for dynamic interval adjustment based on weather conditions or time of day
-
-## Diagnostics System
-
-The Aiolos Weather Station includes a comprehensive diagnostics system that monitors the health and status of the device:
-
-### Diagnostics Data Collected
-
-- **Battery Voltage**: Current battery level in volts (3.5V-4.2V range)
-- **Solar Panel Voltage**: Solar input voltage in volts (4.4V-6V range)
-- **Signal Quality**: Cellular signal strength in dBm
-- **System Uptime**: Time since last boot in seconds
-
-### Sending Frequency
-
-- Diagnostics data is sent at configurable intervals (default: 5 minutes)
-- The interval can be adjusted in code via the DiagnosticsManager
-- Initial value is set in `Config.h` as `DIAG_INTERVAL`
-
-### Implementation Details
-
-- ADC readings are averaged over multiple samples for accuracy
-- Voltage readings include calibration factors for hardware-specific adjustments
-- USB power detection to warn when battery readings may be inaccurate
-- Dedicated DiagnosticsManager class separates concerns from main application logic
-
-### Data Format
-
-Diagnostics data is sent as a JSON payload to `/stations/{stationId}/diagnostics`:
-
-```json
-{
-  "battery_voltage": 4.1,
-  "solar_voltage": 5.2,
-  "signal_quality": -67,
-  "uptime": 3600,
-  "timestamp": "2025-06-27T14:30:00Z"
-}
-```
-
-The timestamp is added by the server if not provided by the device.
+---
 
 ## Environment Configuration
 
-The Aiolos firmware uses PlatformIO's build system to manage environment-specific configurations and sensitive values. Rather than hardcoding sensitive information in source files, we use a `firmware/secrets.ini` file that is excluded from version control.
+The project uses a `secrets.ini` file (ignored by Git) to manage sensitive data and per-device settings.
 
 ### Setup
 
-1. Copy the example file to create your own secrets file:
-   ```bash
-   cp firmware/secrets.ini.example firmware/secrets.ini
-   ```
+1.  **Copy the example file:**
+    ```bash
+    cp firmware/secrets.ini.example firmware/secrets.ini
+    ```
 
-2. Edit `firmware/secrets.ini` with your specific configuration values:
-   ```ini
-   [secrets]
-   APN = "your_apn_here"
-   GPRS_USER = "your_username"
-   GPRS_PASS = "your_password"
-   OTA_SSID = "your_ota_ssid"
-   OTA_PASSWORD = "your_secure_password"
-   # ... and other values
-   ```
+2.  **Edit `firmware/secrets.ini`** with your specific values (APN, server host, etc.).
 
-3. Build the project normally with PlatformIO - it will automatically incorporate your secret values.
+3.  **Build the project.** PlatformIO automatically injects these values into the build process. The firmware uses them via `CONFIG_*` macros, which are then assigned to the `DEFAULT_*` constants in `Config.h`.
 
-### How It Works
+---
 
-- The main `platformio.ini` includes the `secrets.ini` file using the `extra_configs` directive
-- Values from `secrets.ini` are passed to the compiler via `-D` flags in `build_flags`
-- The `Config.h` file has fallback definitions for when environment values aren't provided
+## Project Status (July 2025)
 
-### Environment-Specific Builds
+The firmware is considered feature-complete and stable for field testing. All major systems have been refactored for robustness and power efficiency.
 
-You can create different environment configurations for development, testing, and production:
-
-```ini
-[env:development]
-# Development-specific configuration
-platform = espressif32
-# ... other settings
-build_flags =
-    # ... other flags
-    -DCONFIG_SERVER_HOST=\"dev.example.com\"
-
-[env:production]
-# Production-specific configuration
-platform = espressif32
-# ... other settings
-build_flags =
-    # ... other flags
-    -DCONFIG_SERVER_HOST=\"prod.example.com\"
-```
-
-To build for a specific environment:
-```bash
-pio run -e production
-```
-
-### Security Notes
-
-- The `secrets.ini` file should NEVER be committed to version control
-- Ensure it's listed in `.gitignore`
-- For production deployments, consider using PlatformIO's encrypted storage or CI/CD secrets management
+#### Next Steps
+- **Field Testing**: Deploy the station in a real-world environment to validate long-term stability, battery life, and data accuracy.
+- **Calibration**: Fine-tune the `BATTERY_VOLTAGE_DIVIDER_RATIO` and the wind vane's ADC-to-direction map if necessary.
+- **Monitoring**: Monitor data from the backend to ensure consistency and reliability.
