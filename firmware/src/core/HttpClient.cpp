@@ -74,6 +74,88 @@ bool HttpClient::isConnectionThrottled()
 }
 
 /**
+ * @brief Private helper to handle reading HTTP responses.
+ *
+ * @param success Reference to a boolean that will be set to true if the status code is 2xx.
+ * @param responseBody Optional pointer to a String to store the response body. If null, body is discarded.
+ * @return The HTTP status code.
+ */
+int HttpClient::_handleResponse(bool &success, String *responseBody)
+{
+    unsigned long timeout = millis();
+    // Wait for the client to start receiving data
+    while (_client->connected() && !_client->available() && millis() - timeout < 15000L)
+    {
+        esp_task_wdt_reset();
+        delay(10);
+    }
+
+    int statusCode = 0;
+    int contentLength = -1;
+    success = false;
+
+    // Check for the HTTP status line
+    if (_client->find("HTTP/1.1 "))
+    {
+        statusCode = _client->parseInt();
+        Logger.debug(LOG_TAG_HTTP, "HTTP response status code: %d", statusCode);
+        success = (statusCode >= 200 && statusCode < 300);
+
+        // Find Content-Length to know how much data to read
+        if (_client->find("Content-Length: "))
+        {
+            contentLength = _client->parseInt();
+        }
+
+        // Find the end of the headers
+        if (_client->find("\r\n\r\n"))
+        {
+            if (contentLength > 0)
+            {
+                if (responseBody)
+                {
+                    // Read the body into the provided String object
+                    responseBody->reserve(contentLength);
+                    timeout = millis();
+                    while (responseBody->length() < contentLength && millis() - timeout < 5000L)
+                    {
+                        if (_client->available())
+                        {
+                            *responseBody += (char)_client->read();
+                            timeout = millis(); // Reset timeout on each byte
+                        }
+                    }
+                }
+                else
+                {
+                    // If no response body is needed, just read and discard the bytes
+                    timeout = millis();
+                    int bytesRead = 0;
+                    while (bytesRead < contentLength && millis() - timeout < 5000L)
+                    {
+                        if (_client->available())
+                        {
+                            _client->read();
+                            bytesRead++;
+                            timeout = millis();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // If the request was not successful, close the connection
+    if (!success)
+    {
+        _client->stop();
+        Logger.debug(LOG_TAG_HTTP, "Connection closed due to error or non-success status.");
+    }
+
+    return statusCode;
+}
+
+/**
  * @brief Initialize the HTTP client
  */
 bool HttpClient::init(ModemManager &modemManager)
@@ -150,40 +232,9 @@ bool HttpClient::sendDiagnostics(const char *stationId, float batteryVoltage, fl
     // Request body
     _client->println(jsonBuffer);
 
-    // Wait for server response with timeout
-    unsigned long timeout = millis();
-    while (_client->connected() && millis() - timeout < 15000L)
-    {
-        esp_task_wdt_reset(); // Reset watchdog
-        // Wait for data to be available
-        while (_client->available())
-        {
-            char c = _client->read();
-            // For debugging, you could print each character
-            // Serial.print(c);
-            timeout = millis();
-        }
-    }
-
-    // Read and process response (basic response handling)
-    int statusCode = 0;
+    // Read and process response
     bool success = false;
-
-    if (_client->find("HTTP/1.1 "))
-    {
-        statusCode = _client->parseInt();
-        Logger.debug(LOG_TAG_HTTP, "HTTP response status code: %d", statusCode);
-
-        // Check if status code indicates success (2xx)
-        success = (statusCode >= 200 && statusCode < 300);
-    }
-
-    // Close connection only if the request failed, to allow for keep-alive
-    if (!success)
-    {
-        _client->stop();
-        Logger.debug(LOG_TAG_HTTP, "Connection closed due to error");
-    }
+    int statusCode = _handleResponse(success);
 
     if (success)
     {
@@ -247,49 +298,10 @@ bool HttpClient::fetchConfiguration(const char *stationId, unsigned long *tempIn
     _client->println(F("Connection: keep-alive"));
     _client->println();
 
-    // Wait for server response with timeout
-    unsigned long timeout = millis();
-    String response = "";
-    int statusCode = 0;
+    // Read and process response
     bool success = false;
-
-    while (_client->connected() && millis() - timeout < 15000L)
-    {
-        esp_task_wdt_reset(); // Reset watchdog
-        // Wait for data to be available
-        while (_client->available())
-        {
-            char c = _client->read();
-            response += c;
-            timeout = millis();
-        }
-    }
-
-    // Parse status code from response
-    if (response.indexOf("HTTP/1.1 ") >= 0)
-    {
-        int statusStart = response.indexOf("HTTP/1.1 ") + 9;
-        statusCode = response.substring(statusStart, statusStart + 3).toInt();
-        Logger.debug(LOG_TAG_HTTP, "HTTP response status code: %d", statusCode);
-
-        // Check if status code indicates success (2xx)
-        success = (statusCode >= 200 && statusCode < 300);
-    }
-
-    // Extract response body (after headers)
     String responseBody = "";
-    int bodyStart = response.indexOf("\r\n\r\n");
-    if (bodyStart >= 0)
-    {
-        responseBody = response.substring(bodyStart + 4);
-    }
-
-    // Close connection only if the request failed, to allow for keep-alive
-    if (!success)
-    {
-        _client->stop();
-        Logger.debug(LOG_TAG_HTTP, "Connection closed due to error");
-    }
+    int statusCode = _handleResponse(success, &responseBody);
 
     if (success && responseBody.length() > 0)
     {
@@ -443,42 +455,9 @@ bool HttpClient::sendWindData(const char *stationId, float windSpeed, float wind
     // Request body
     _client->println(jsonBuffer);
 
-    // Wait for server response with timeout
-    unsigned long timeout = millis();
-    String response = "";
-
-    while (_client->connected() && millis() - timeout < 15000L)
-    {
-        esp_task_wdt_reset(); // Reset watchdog
-        // Wait for data to be available
-        while (_client->available())
-        {
-            char c = _client->read();
-            response += c;
-            timeout = millis();
-        }
-    }
-
-    // Parse status code from response
-    int statusCode = 0;
+    // Read and process response
     bool success = false;
-
-    if (response.indexOf("HTTP/1.1 ") >= 0)
-    {
-        int statusStart = response.indexOf("HTTP/1.1 ") + 9;
-        statusCode = response.substring(statusStart, statusStart + 3).toInt();
-        Logger.debug(LOG_TAG_HTTP, "HTTP response status code: %d", statusCode);
-
-        // Check if status code indicates success (2xx)
-        success = (statusCode >= 200 && statusCode < 300);
-    }
-
-    // Close connection only if the request failed, to allow for keep-alive
-    if (!success)
-    {
-        _client->stop();
-        Logger.debug(LOG_TAG_HTTP, "Connection closed due to error");
-    }
+    int statusCode = _handleResponse(success);
 
     if (success)
     {
@@ -553,38 +532,9 @@ bool HttpClient::sendTemperatureData(const char *stationId, float internalTemp, 
     // Request body
     _client->println(jsonBuffer);
 
-    // Wait for server response with timeout
-    unsigned long timeout = millis();
-    while (_client->connected() && millis() - timeout < 15000L)
-    {
-        esp_task_wdt_reset(); // Reset watchdog
-        // Wait for data to be available
-        while (_client->available())
-        {
-            char c = _client->read();
-            timeout = millis();
-        }
-    }
-
-    // Parse status code from response
-    int statusCode = 0;
+    // Read and process response
     bool success = false;
-
-    if (_client->find("HTTP/1.1 "))
-    {
-        statusCode = _client->parseInt();
-        Logger.debug(LOG_TAG_HTTP, "HTTP response status code: %d", statusCode);
-
-        // Check if status code indicates success (2xx)
-        success = (statusCode >= 200 && statusCode < 300);
-    }
-
-    // Close connection only if the request failed, to allow for keep-alive
-    if (!success)
-    {
-        _client->stop();
-        Logger.debug(LOG_TAG_HTTP, "Connection closed due to error");
-    }
+    int statusCode = _handleResponse(success);
 
     if (success)
     {
@@ -640,31 +590,9 @@ bool HttpClient::confirmOtaStarted(const char *stationId)
     _client->println(F("Connection: keep-alive"));
     _client->println(); // End of headers
 
-    // Wait for server response
-    unsigned long timeout = millis();
-    while (_client->connected() && millis() - timeout < 5000L)
-    {
-        esp_task_wdt_reset(); // Reset watchdog
-        if (_client->available())
-        {
-            break; // Response received
-        }
-    }
-
-    // Read status code
-    int statusCode = 0;
-    if (_client->find("HTTP/1.1 "))
-    {
-        statusCode = _client->parseInt();
-    }
-
-    bool success = (statusCode >= 200 && statusCode < 300);
-
-    // Stop client only if there was an error
-    if (!success)
-    {
-        _client->stop();
-    }
+    // Read and process response
+    bool success = false;
+    int statusCode = _handleResponse(success);
 
     if (success)
     {

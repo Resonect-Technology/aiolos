@@ -118,16 +118,9 @@ private:
     uint8_t _failedAttempts = 0;
     unsigned long _backoffDelay = 0;
     unsigned long _lastAttemptTime = 0;
-
-    /**
-     * @brief Handles the logic for a failed HTTP request, incrementing the backoff timer.
-     */
     void _handleHttpFailure();
-
-    /**
-     * @brief Resets the backoff state after a successful request.
-     */
     void _resetBackoff();
+    int _handleResponse(bool &success, String *responseBody = nullptr);
 };
 
 extern HttpClient httpClient;
