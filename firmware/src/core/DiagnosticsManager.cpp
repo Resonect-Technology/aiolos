@@ -30,7 +30,7 @@ bool DiagnosticsManager::init(ModemManager &modemManager, HttpClient &httpClient
     // Initialize external temperature sensor
     if (!_externalTempSensor.init(TEMP_BUS_EXT, 0))
     {
-        Logger.warning(LOG_TAG_DIAG, "Failed to initialize external temperature sensor (optional)");
+        Logger.warn(LOG_TAG_DIAG, "Failed to initialize external temperature sensor (optional)");
         // Continue initialization even if external sensor fails
     }
 

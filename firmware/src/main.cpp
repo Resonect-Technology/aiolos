@@ -298,7 +298,7 @@ void setup()
     }
     else
     {
-        Logger.warning(LOG_TAG_SYSTEM, "Failed to initialize external temperature sensor (optional)");
+        Logger.warn(LOG_TAG_SYSTEM, "Failed to initialize external temperature sensor (optional)");
     }
 
     // Schedule periodic restart
