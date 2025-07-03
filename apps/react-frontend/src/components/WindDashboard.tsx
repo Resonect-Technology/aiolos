@@ -8,6 +8,7 @@ import { WindSpeedDisplay } from './WindSpeedDisplay';
 import { ControlPanel } from './ControlPanel';
 import { ConnectionStatus } from './ConnectionStatus';
 import { DiagnosticsPanel } from './DiagnosticsPanel';
+import { TemperatureDisplay } from './TemperatureDisplay';
 import './WindDirectionCompass.css';
 
 interface WindData {
@@ -157,6 +158,13 @@ export function WindDashboard({ stationId }: WindDashboardProps) {
             isConnected={isConnected}
             error={error}
           />
+        </div>
+
+        {/* Temperature Display Card */}
+        <div className="mb-10">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-2xl transition-shadow duration-300">
+            <TemperatureDisplay stationId={stationId} />
+          </div>
         </div>
 
         {/* Unit Selector */}
