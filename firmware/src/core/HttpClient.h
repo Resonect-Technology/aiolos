@@ -99,15 +99,6 @@ public:
     bool confirmOtaStarted(const char *stationId);
 
     /**
-     * @brief Send mock wind data for testing purposes.
-     *
-     * @param windSpeed
-     * @param windDirection
-     * @param batteryVoltage
-     */
-    void sendMockWindData(float windSpeed, float windDirection, float batteryVoltage);
-
-    /**
      * @brief Checks if the HTTP client is currently in a backoff period due to failures.
      *
      * @return true if connection attempts should be throttled.

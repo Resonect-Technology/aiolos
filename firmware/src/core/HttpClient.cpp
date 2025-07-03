@@ -7,7 +7,6 @@
 #include "Logger.h"
 #include <ArduinoJson.h> // Use ArduinoJson for robust parsing
 #include "esp_task_wdt.h"
-#include <vector>
 
 #define LOG_TAG_HTTP "HTTP"
 
@@ -248,174 +247,141 @@ bool HttpClient::fetchConfiguration(const char *stationId, unsigned long *tempIn
     _client->println(F("Connection: keep-alive"));
     _client->println();
 
-    // Wait for the start of the response headers with a timeout
+    // Wait for server response with timeout
     unsigned long timeout = millis();
-    while (_client->connected() && !_client->available() && millis() - timeout < 15000L)
-    {
-        esp_task_wdt_reset(); // Reset watchdog
-        delay(10);
-    }
-
+    String response = "";
     int statusCode = 0;
     bool success = false;
-    long contentLength = 0;
 
-    // Check if we have a response before trying to parse
-    if (_client->available())
+    while (_client->connected() && millis() - timeout < 15000L)
     {
-        // Find and parse the status line
-        if (_client->find("HTTP/1.1 "))
+        esp_task_wdt_reset(); // Reset watchdog
+        // Wait for data to be available
+        while (_client->available())
         {
-            statusCode = _client->parseInt();
-            Logger.debug(LOG_TAG_HTTP, "HTTP response status code: %d", statusCode);
-            success = (statusCode >= 200 && statusCode < 300);
-        }
-
-        // If successful, find Content-Length to know exactly how much to read.
-        if (success && _client->find("Content-Length: "))
-        {
-            contentLength = _client->parseInt();
-        }
-        else if (success)
-        {
-            Logger.error(LOG_TAG_HTTP, "Could not find Content-Length header. Cannot proceed.");
-            success = false; // We need this header to reliably read the body.
-        }
-
-        // Find the start of the body (the blank line after headers)
-        if (success && _client->find("\r\n\r\n"))
-        {
-            if (contentLength > 0 && contentLength < 2048) // Sanity check on length
-            {
-                // Use a std::vector for safer, automatic memory management.
-                std::vector<char> responseBuffer(contentLength);
-
-                // Read exactly contentLength bytes into the buffer.
-                size_t bytesRead = _client->readBytes(responseBuffer.data(), contentLength);
-
-                if (bytesRead == contentLength)
-                {
-                    // The data is now in responseBuffer.data() with length bytesRead.
-                    // No need for null termination if we pass the buffer and its size to deserializeJson.
-                    _resetBackoff(); // Success, reset backoff
-                    Logger.info(LOG_TAG_HTTP, "Configuration data received (%d bytes).", bytesRead);
-                    // For debugging, let's print the buffer carefully
-                    // Logger.debug(LOG_TAG_HTTP, "Body: %.*s", bytesRead, responseBuffer.data());
-
-                    JsonDocument doc;
-                    // Use the buffer directly for parsing
-                    DeserializationError error = deserializeJson(doc, responseBuffer.data(), bytesRead);
-
-                    if (error)
-                    {
-                        Logger.error(LOG_TAG_HTTP, "Failed to parse JSON configuration: %s", error.c_str());
-                        success = false;
-                    }
-                    else
-                    {
-                        // Safely extract values
-                        if (!doc["temp_interval"].isNull())
-                        {
-                            *tempInterval = doc["temp_interval"].as<unsigned long>();
-                            Logger.info(LOG_TAG_HTTP, "Parsed temp_interval: %lu", *tempInterval);
-                        }
-
-                        if (!doc["wind_interval"].isNull())
-                        {
-                            *windInterval = doc["wind_interval"].as<unsigned long>();
-                            Logger.info(LOG_TAG_HTTP, "Parsed wind_interval: %lu", *windInterval);
-                        }
-
-                        if (!doc["diag_interval"].isNull())
-                        {
-                            *diagInterval = doc["diag_interval"].as<unsigned long>();
-                            Logger.info(LOG_TAG_HTTP, "Parsed diag_interval: %lu", *diagInterval);
-                        }
-
-                        if (timeInterval && !doc["time_interval"].isNull())
-                        {
-                            *timeInterval = doc["time_interval"].as<unsigned long>();
-                            Logger.info(LOG_TAG_HTTP, "Parsed time_interval: %lu", *timeInterval);
-                        }
-
-                        if (restartInterval && !doc["restart_interval"].isNull())
-                        {
-                            *restartInterval = doc["restart_interval"].as<unsigned long>();
-                            Logger.info(LOG_TAG_HTTP, "Parsed restart_interval: %lu", *restartInterval);
-                        }
-
-                        if (sleepStartHour && !doc["sleep_start_hour"].isNull())
-                        {
-                            *sleepStartHour = doc["sleep_start_hour"].as<int>();
-                            Logger.info(LOG_TAG_HTTP, "Parsed sleep_start_hour: %d", *sleepStartHour);
-                        }
-
-                        if (sleepEndHour && !doc["sleep_end_hour"].isNull())
-                        {
-                            *sleepEndHour = doc["sleep_end_hour"].as<int>();
-                            Logger.info(LOG_TAG_HTTP, "Parsed sleep_end_hour: %d", *sleepEndHour);
-                        }
-
-                        if (otaHour && !doc["ota_hour"].isNull())
-                        {
-                            *otaHour = doc["ota_hour"].as<int>();
-                            Logger.info(LOG_TAG_HTTP, "Parsed ota_hour: %d", *otaHour);
-                        }
-
-                        if (otaMinute && !doc["ota_minute"].isNull())
-                        {
-                            *otaMinute = doc["ota_minute"].as<int>();
-                            Logger.info(LOG_TAG_HTTP, "Parsed ota_minute: %d", *otaMinute);
-                        }
-
-                        if (otaDuration && !doc["ota_duration"].isNull())
-                        {
-                            *otaDuration = doc["ota_duration"].as<int>();
-                            Logger.info(LOG_TAG_HTTP, "Parsed ota_duration: %d", *otaDuration);
-                        }
-
-                        if (remoteOta && !doc["remote_ota"].isNull())
-                        {
-                            *remoteOta = doc["remote_ota"].as<bool>();
-                            Logger.info(LOG_TAG_HTTP, "Parsed remote_ota: %s", *remoteOta ? "true" : "false");
-                        }
-                    }
-                }
-                else
-                {
-                    Logger.error(LOG_TAG_HTTP, "Failed to read full response body. Expected %ld, got %d.", contentLength, bytesRead);
-                    success = false;
-                }
-            }
-            else
-            {
-                Logger.error(LOG_TAG_HTTP, "Received invalid or empty content length: %ld", contentLength);
-                success = false;
-            }
-        }
-        else if (success)
-        {
-            // This case handles a successful status code but malformed headers.
-            Logger.error(LOG_TAG_HTTP, "Received successful status code but could not find response body delimiter.");
-            success = false;
+            char c = _client->read();
+            response += c;
+            timeout = millis();
         }
     }
-    else
+
+    // Parse status code from response
+    if (response.indexOf("HTTP/1.1 ") >= 0)
     {
-        Logger.error(LOG_TAG_HTTP, "HTTP request timed out waiting for headers.");
-        success = false;
+        int statusStart = response.indexOf("HTTP/1.1 ") + 9;
+        statusCode = response.substring(statusStart, statusStart + 3).toInt();
+        Logger.debug(LOG_TAG_HTTP, "HTTP response status code: %d", statusCode);
+
+        // Check if status code indicates success (2xx)
+        success = (statusCode >= 200 && statusCode < 300);
+    }
+
+    // Extract response body (after headers)
+    String responseBody = "";
+    int bodyStart = response.indexOf("\r\n\r\n");
+    if (bodyStart >= 0)
+    {
+        responseBody = response.substring(bodyStart + 4);
     }
 
     // Close connection only if the request failed, to allow for keep-alive
     if (!success)
     {
-        _handleHttpFailure(); // Failure, trigger backoff
         _client->stop();
         Logger.debug(LOG_TAG_HTTP, "Connection closed due to error");
-        Logger.error(LOG_TAG_HTTP, "Failed to fetch configuration, status code: %d", statusCode);
     }
 
-    return success;
+    if (success && responseBody.length() > 0)
+    {
+        _resetBackoff(); // Success, reset backoff
+        Logger.info(LOG_TAG_HTTP, "Configuration data received: %s", responseBody.c_str());
+
+        // Use ArduinoJson for robust parsing
+        JsonDocument doc;
+        DeserializationError error = deserializeJson(doc, responseBody);
+
+        if (error)
+        {
+            Logger.error(LOG_TAG_HTTP, "Failed to parse JSON configuration: %s", error.c_str());
+            return false;
+        }
+
+        // Safely extract values using the parsed JSON document
+        // Use .is<T>() to check for existence and correct type
+        if (!doc["temp_interval"].isNull())
+        {
+            *tempInterval = doc["temp_interval"].as<unsigned long>();
+            Logger.info(LOG_TAG_HTTP, "Parsed temp_interval: %lu", *tempInterval);
+        }
+
+        if (!doc["wind_interval"].isNull())
+        {
+            *windInterval = doc["wind_interval"].as<unsigned long>();
+            Logger.info(LOG_TAG_HTTP, "Parsed wind_interval: %lu", *windInterval);
+        }
+
+        if (!doc["diag_interval"].isNull())
+        {
+            *diagInterval = doc["diag_interval"].as<unsigned long>();
+            Logger.info(LOG_TAG_HTTP, "Parsed diag_interval: %lu", *diagInterval);
+        }
+
+        if (timeInterval && !doc["time_interval"].isNull())
+        {
+            *timeInterval = doc["time_interval"].as<unsigned long>();
+            Logger.info(LOG_TAG_HTTP, "Parsed time_interval: %lu", *timeInterval);
+        }
+
+        if (restartInterval && !doc["restart_interval"].isNull())
+        {
+            *restartInterval = doc["restart_interval"].as<unsigned long>();
+            Logger.info(LOG_TAG_HTTP, "Parsed restart_interval: %lu", *restartInterval);
+        }
+
+        if (sleepStartHour && !doc["sleep_start_hour"].isNull())
+        {
+            *sleepStartHour = doc["sleep_start_hour"].as<int>();
+            Logger.info(LOG_TAG_HTTP, "Parsed sleep_start_hour: %d", *sleepStartHour);
+        }
+
+        if (sleepEndHour && !doc["sleep_end_hour"].isNull())
+        {
+            *sleepEndHour = doc["sleep_end_hour"].as<int>();
+            Logger.info(LOG_TAG_HTTP, "Parsed sleep_end_hour: %d", *sleepEndHour);
+        }
+
+        if (otaHour && !doc["ota_hour"].isNull())
+        {
+            *otaHour = doc["ota_hour"].as<int>();
+            Logger.info(LOG_TAG_HTTP, "Parsed ota_hour: %d", *otaHour);
+        }
+
+        if (otaMinute && !doc["ota_minute"].isNull())
+        {
+            *otaMinute = doc["ota_minute"].as<int>();
+            Logger.info(LOG_TAG_HTTP, "Parsed ota_minute: %d", *otaMinute);
+        }
+
+        if (otaDuration && !doc["ota_duration"].isNull())
+        {
+            *otaDuration = doc["ota_duration"].as<int>();
+            Logger.info(LOG_TAG_HTTP, "Parsed ota_duration: %d", *otaDuration);
+        }
+
+        if (remoteOta && !doc["remote_ota"].isNull())
+        {
+            *remoteOta = doc["remote_ota"].as<bool>();
+            Logger.info(LOG_TAG_HTTP, "Parsed remote_ota: %s", *remoteOta ? "true" : "false");
+        }
+
+        return true;
+    }
+    else
+    {
+        _handleHttpFailure(); // Failure, trigger backoff
+        Logger.error(LOG_TAG_HTTP, "Failed to fetch configuration, status code: %d", statusCode);
+        return false;
+    }
 }
 
 /**
@@ -712,112 +678,4 @@ bool HttpClient::confirmOtaStarted(const char *stationId)
         Logger.error(LOG_TAG_HTTP, "Failed to confirm OTA start (status: %d)", statusCode);
         return false;
     }
-}
-
-void HttpClient::sendMockWindData(float windSpeed, float windDirection, float batteryVoltage)
-{
-    if (!_modemManager || !_client)
-    {
-        Logger.error(LOG_TAG_HTTP, "HTTP client not initialized");
-        return;
-    }
-
-    if (!_modemManager->isNetworkConnected() || !_modemManager->isGprsConnected())
-    {
-        Logger.error(LOG_TAG_HTTP, "Network not connected, cannot send mock wind data");
-        return;
-    }
-
-    Logger.info(LOG_TAG_HTTP, "Sending mock wind data");
-
-    // Create JSON payload with mock wind data
-    char jsonBuffer[128];
-    snprintf(jsonBuffer, sizeof(jsonBuffer),
-             "{\"wind_speed\":%.2f,\"wind_direction\":%.1f,\"battery_voltage\":%.2f}",
-             windSpeed, windDirection, batteryVoltage);
-
-    // Calculate content length
-    size_t contentLength = strlen(jsonBuffer);
-
-    // Connect to server
-    Logger.debug(LOG_TAG_HTTP, "Connecting to %s:%d", _serverHost, _serverPort);
-    if (!_client->connect(_serverHost, _serverPort, 15000L)) // 15-second timeout
-    {
-        Logger.error(LOG_TAG_HTTP, "Failed to connect to server");
-        return;
-    }
-
-    // Build the URL path for mock data
-    char urlPath[64];
-    snprintf(urlPath, sizeof(urlPath), "/api/stations/mock/wind");
-
-    // Send HTTP POST request
-    Logger.debug(LOG_TAG_HTTP, "Sending POST request to %s", urlPath);
-    _client->print(F("POST "));
-    _client->print(urlPath);
-    _client->println(F(" HTTP/1.1"));
-
-    // Request headers
-    _client->print(F("Host: "));
-    _client->println(_serverHost);
-    _client->println(F("User-Agent: AiolosWeatherStation/1.0"));
-    _client->println(F("Content-Type: application/json"));
-    _client->print(F("Content-Length: "));
-    _client->println(contentLength);
-    _client->println(F("Connection: keep-alive"));
-    _client->println();
-
-    // Request body
-    _client->println(jsonBuffer);
-
-    // Wait for server response with timeout
-    unsigned long timeout = millis();
-    String response = "";
-
-    while (_client->connected() && millis() - timeout < 15000L)
-    {
-        esp_task_wdt_reset(); // Reset watchdog
-        // Wait for data to be available
-        while (_client->available())
-        {
-            char c = _client->read();
-            response += c;
-            timeout = millis();
-        }
-    }
-
-    // Parse status code from response
-    int statusCode = 0;
-    bool success = false;
-
-    if (response.indexOf("HTTP/1.1 ") >= 0)
-    {
-        int statusStart = response.indexOf("HTTP/1.1 ") + 9;
-        statusCode = response.substring(statusStart, statusStart + 3).toInt();
-        Logger.debug(LOG_TAG_HTTP, "HTTP response status code: %d", statusCode);
-
-        // Check if status code indicates success (2xx)
-        success = (statusCode >= 200 && statusCode < 300);
-    }
-
-    // Close connection only if the request failed, to allow for keep-alive
-    if (!success)
-    {
-        _client->stop();
-        Logger.debug(LOG_TAG_HTTP, "Connection closed due to error");
-    }
-
-    if (success)
-    {
-        _resetBackoff(); // Success, reset backoff
-        Logger.info(LOG_TAG_HTTP, "Mock wind data sent successfully");
-    }
-    else
-    {
-        _handleHttpFailure(); // Failure, trigger backoff
-        Logger.error(LOG_TAG_HTTP, "Failed to send mock wind data, status code: %d", statusCode);
-    }
-
-    // After handling the response, stop the client to free up resources.
-    _client->stop();
 }
