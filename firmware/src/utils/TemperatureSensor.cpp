@@ -46,6 +46,13 @@ bool TemperatureSensor::init(uint8_t pin, const char *name)
     // Detect sensors on the bus
     detectSensors();
 
+    // Set resolution for all sensors on the bus to 9-bit for faster readings (~94ms)
+    if (_sensorCount > 0)
+    {
+        _dallasSensor->setResolution(9);
+        Logger.info(LOG_TAG_TEMP, "Set temperature sensor resolution to 9-bit.");
+    }
+
     _initialized = true;
     Logger.info(LOG_TAG_TEMP, "Temperature sensor '%s' initialized on pin %d with %d sensor(s)",
                 _name, _pin, _sensorCount);
