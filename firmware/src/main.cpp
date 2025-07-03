@@ -141,110 +141,118 @@ void setup()
         // Initialize diagnostics manager with interval from config
         diagnosticsManager.init(modemManager, httpClient, dynamicDiagInterval);
 
-        // Send initial diagnostics data
-        diagnosticsManager.sendDiagnostics();
-
-        // Initialize configuration update time
-        lastConfigUpdate = millis();
-
-        // Fetch initial configuration
-        Logger.info(LOG_TAG_SYSTEM, "Fetching initial remote configuration...");
-        unsigned long tempInterval, windInterval, diagInterval, timeInterval, restartInterval;
-        int sleepStartHour, sleepEndHour, otaHour, otaMinute, otaDuration;
-
-        if (httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
-                                          &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
-                                          &otaHour, &otaMinute, &otaDuration))
+        // Only proceed with network operations if GPRS is connected and not in backoff
+        if (modemManager.isGprsConnected() && !httpClient.isConnectionThrottled())
         {
-            // Apply configuration if values are valid (non-zero)
-            if (tempInterval > 0)
+            // Send initial diagnostics data
+            diagnosticsManager.sendDiagnostics();
+
+            // Initialize configuration update time
+            lastConfigUpdate = millis();
+
+            // Fetch initial configuration
+            Logger.info(LOG_TAG_SYSTEM, "Fetching initial remote configuration...");
+            unsigned long tempInterval, windInterval, diagInterval, timeInterval, restartInterval;
+            int sleepStartHour, sleepEndHour, otaHour, otaMinute, otaDuration;
+
+            if (httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
+                                              &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
+                                              &otaHour, &otaMinute, &otaDuration))
             {
-                dynamicTempInterval = tempInterval;
-                Logger.info(LOG_TAG_SYSTEM, "Set temperature interval to %lu ms", dynamicTempInterval);
+                // Apply configuration if values are valid (non-zero)
+                if (tempInterval > 0)
+                {
+                    dynamicTempInterval = tempInterval;
+                    Logger.info(LOG_TAG_SYSTEM, "Set temperature interval to %lu ms", dynamicTempInterval);
+                }
+
+                if (windInterval > 0)
+                {
+                    dynamicWindInterval = windInterval;
+                    Logger.info(LOG_TAG_SYSTEM, "Set wind interval to %lu ms", dynamicWindInterval);
+                }
+
+                if (diagInterval > 0)
+                {
+                    dynamicDiagInterval = diagInterval;
+                    diagnosticsManager.setInterval(dynamicDiagInterval);
+                    Logger.info(LOG_TAG_SYSTEM, "Set diagnostics interval to %lu ms", dynamicDiagInterval);
+                }
+
+                if (timeInterval > 0)
+                {
+                    dynamicTimeInterval = timeInterval;
+                    Logger.info(LOG_TAG_SYSTEM, "Set time update interval to %lu ms", dynamicTimeInterval);
+                }
+
+                if (restartInterval > 0)
+                {
+                    dynamicRestartInterval = restartInterval;
+                    // Update the restart ticker with the new interval
+                    periodicRestartTicker.detach();
+                    periodicRestartTicker.attach(dynamicRestartInterval, periodicRestart);
+                    Logger.info(LOG_TAG_SYSTEM, "Set restart interval to %lu seconds", dynamicRestartInterval);
+                }
+
+                if (sleepStartHour >= 0 && sleepStartHour < 24)
+                {
+                    dynamicSleepStartHour = sleepStartHour;
+                    Logger.info(LOG_TAG_SYSTEM, "Set sleep start hour to %d", dynamicSleepStartHour);
+                }
+
+                if (sleepEndHour >= 0 && sleepEndHour < 24)
+                {
+                    dynamicSleepEndHour = sleepEndHour;
+                    Logger.info(LOG_TAG_SYSTEM, "Set sleep end hour to %d", dynamicSleepEndHour);
+                }
+
+                if (otaHour >= 0 && otaHour < 24)
+                {
+                    dynamicOtaHour = otaHour;
+                    Logger.info(LOG_TAG_SYSTEM, "Set OTA hour to %d", dynamicOtaHour);
+                }
+
+                if (otaMinute >= 0 && otaMinute < 60)
+                {
+                    dynamicOtaMinute = otaMinute;
+                    Logger.info(LOG_TAG_SYSTEM, "Set OTA minute to %d", dynamicOtaMinute);
+                }
+
+                if (otaDuration > 0)
+                {
+                    dynamicOtaDuration = otaDuration;
+                    Logger.info(LOG_TAG_SYSTEM, "Set OTA duration to %d minutes", dynamicOtaDuration);
+                }
+            }
+            else
+            {
+                Logger.warn(LOG_TAG_SYSTEM, "Failed to fetch initial remote configuration. Using default values.");
             }
 
-            if (windInterval > 0)
+            // Check for remote OTA flag after initial config
+            if (!otaActive)
             {
-                dynamicWindInterval = windInterval;
-                Logger.info(LOG_TAG_SYSTEM, "Set wind interval to %lu ms", dynamicWindInterval);
-            }
-
-            if (diagInterval > 0)
-            {
-                dynamicDiagInterval = diagInterval;
-                diagnosticsManager.setInterval(dynamicDiagInterval);
-                Logger.info(LOG_TAG_SYSTEM, "Set diagnostics interval to %lu ms", dynamicDiagInterval);
-            }
-
-            if (timeInterval > 0)
-            {
-                dynamicTimeInterval = timeInterval;
-                Logger.info(LOG_TAG_SYSTEM, "Set time update interval to %lu ms", dynamicTimeInterval);
-            }
-
-            if (restartInterval > 0)
-            {
-                dynamicRestartInterval = restartInterval;
-                // Update the restart ticker with the new interval
-                periodicRestartTicker.detach();
-                periodicRestartTicker.attach(dynamicRestartInterval, periodicRestart);
-                Logger.info(LOG_TAG_SYSTEM, "Set restart interval to %lu seconds", dynamicRestartInterval);
-            }
-
-            if (sleepStartHour >= 0 && sleepStartHour < 24)
-            {
-                dynamicSleepStartHour = sleepStartHour;
-                Logger.info(LOG_TAG_SYSTEM, "Set sleep start hour to %d", dynamicSleepStartHour);
-            }
-
-            if (sleepEndHour >= 0 && sleepEndHour < 24)
-            {
-                dynamicSleepEndHour = sleepEndHour;
-                Logger.info(LOG_TAG_SYSTEM, "Set sleep end hour to %d", dynamicSleepEndHour);
-            }
-
-            if (otaHour >= 0 && otaHour < 24)
-            {
-                dynamicOtaHour = otaHour;
-                Logger.info(LOG_TAG_SYSTEM, "Set OTA hour to %d", dynamicOtaHour);
-            }
-
-            if (otaMinute >= 0 && otaMinute < 60)
-            {
-                dynamicOtaMinute = otaMinute;
-                Logger.info(LOG_TAG_SYSTEM, "Set OTA minute to %d", dynamicOtaMinute);
-            }
-
-            if (otaDuration > 0)
-            {
-                dynamicOtaDuration = otaDuration;
-                Logger.info(LOG_TAG_SYSTEM, "Set OTA duration to %d minutes", dynamicOtaDuration);
+                bool remoteOtaRequested = false;
+                if (httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
+                                                  &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
+                                                  &otaHour, &otaMinute, &otaDuration, &remoteOtaRequested))
+                {
+                    if (remoteOtaRequested)
+                    {
+                        Logger.info(LOG_TAG_SYSTEM, "Remote OTA flag detected, attempting to start remote OTA...");
+                        if (checkAndInitRemoteOta())
+                        {
+                            // If OTA started successfully, confirm with the server to clear the flag
+                            Logger.info(LOG_TAG_SYSTEM, "Remote OTA started, confirming with server.");
+                            httpClient.confirmOtaStarted(DEVICE_ID);
+                        }
+                    }
+                }
             }
         }
         else
         {
-            Logger.warn(LOG_TAG_SYSTEM, "Failed to fetch initial remote configuration. Using default values.");
-        }
-
-        // Check for remote OTA flag after initial config
-        if (!otaActive)
-        {
-            bool remoteOtaRequested = false;
-            if (httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
-                                              &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
-                                              &otaHour, &otaMinute, &otaDuration, &remoteOtaRequested))
-            {
-                if (remoteOtaRequested)
-                {
-                    Logger.info(LOG_TAG_SYSTEM, "Remote OTA flag detected, attempting to start remote OTA...");
-                    if (checkAndInitRemoteOta())
-                    {
-                        // If OTA started successfully, confirm with the server to clear the flag
-                        Logger.info(LOG_TAG_SYSTEM, "Remote OTA started, confirming with server.");
-                        httpClient.confirmOtaStarted(DEVICE_ID);
-                    }
-                }
-            }
+            Logger.warn(LOG_TAG_SYSTEM, "Connection is throttled. Skipping initial diagnostics and config fetch.");
         }
     }
 
@@ -371,8 +379,8 @@ void loop()
     // Maintain the connection, ensuring GPRS is active for data transmission.
     modemManager.maintainConnection(true);
 
-    // Only proceed with network operations if GPRS is connected
-    if (modemManager.isGprsConnected())
+    // Only proceed with network operations if GPRS is connected and not in backoff
+    if (modemManager.isGprsConnected() && !httpClient.isConnectionThrottled())
     {
         // Send diagnostics data periodically
         if (currentMillis - lastDiagnosticsUpdate >= dynamicDiagInterval)

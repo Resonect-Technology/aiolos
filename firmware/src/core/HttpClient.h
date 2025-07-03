@@ -12,6 +12,9 @@
 #include "ModemManager.h"
 #include "../config/Config.h"
 
+#define BASE_BACKOFF_DELAY_MS 5000  // 5 seconds
+#define MAX_BACKOFF_DELAY_MS 900000 // 15 minutes
+
 class HttpClient
 {
 public:
@@ -95,13 +98,36 @@ public:
      */
     bool confirmOtaStarted(const char *stationId);
 
+    /**
+     * @brief Checks if the HTTP client is currently in a backoff period due to failures.
+     *
+     * @return true if connection attempts should be throttled.
+     * @return false if it's okay to attempt a connection.
+     */
+    bool isConnectionThrottled();
+
     // Remote OTA flag is now handled through the fetchConfiguration method
 
 private:
     ModemManager *_modemManager = nullptr;
     TinyGsmClient *_client = nullptr;
-    const char *_serverHost = SERVER_HOST; // Server hostname from Config.h
-    int _serverPort = SERVER_PORT;         // Server port from Config.h
+    const char *_serverHost = SERVER_HOST;
+    const uint16_t _serverPort = SERVER_PORT;
+
+    // Backoff mechanism state
+    uint8_t _failedAttempts = 0;
+    unsigned long _backoffDelay = 0;
+    unsigned long _lastAttemptTime = 0;
+
+    /**
+     * @brief Handles the logic for a failed HTTP request, incrementing the backoff timer.
+     */
+    void _handleHttpFailure();
+
+    /**
+     * @brief Resets the backoff state after a successful request.
+     */
+    void _resetBackoff();
 };
 
 extern HttpClient httpClient;

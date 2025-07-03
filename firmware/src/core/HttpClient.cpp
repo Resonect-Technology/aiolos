@@ -13,6 +13,66 @@
 // Global instance
 HttpClient httpClient;
 
+// --- Backoff Mechanism Implementation ---
+
+/**
+ * @brief Handles the logic for a failed HTTP request, incrementing the backoff timer.
+ */
+void HttpClient::_handleHttpFailure()
+{
+    _lastAttemptTime = millis();
+    if (_failedAttempts < 255)
+    { // Prevent overflow
+        _failedAttempts++;
+    }
+
+    // Exponential backoff: 5s, 10s, 20s, 40s, ... up to the max
+    // Use 1UL to ensure unsigned long math, cap shift to avoid huge numbers quickly
+    _backoffDelay = BASE_BACKOFF_DELAY_MS * (1UL << min(_failedAttempts - 1, 10));
+
+    if (_backoffDelay > MAX_BACKOFF_DELAY_MS)
+    {
+        _backoffDelay = MAX_BACKOFF_DELAY_MS;
+    }
+
+    Logger.warn(LOG_TAG_HTTP, "HTTP request failed. Attempt #%u. Backing off for %lu ms.", _failedAttempts, _backoffDelay);
+}
+
+/**
+ * @brief Resets the backoff state after a successful request.
+ */
+void HttpClient::_resetBackoff()
+{
+    if (_failedAttempts > 0)
+    {
+        Logger.info(LOG_TAG_HTTP, "HTTP request successful. Resetting backoff.");
+        _failedAttempts = 0;
+        _backoffDelay = 0;
+    }
+}
+
+/**
+ * @brief Checks if the HTTP client is currently in a backoff period.
+ */
+bool HttpClient::isConnectionThrottled()
+{
+    if (_failedAttempts == 0)
+    {
+        return false; // No failures, not throttled
+    }
+
+    unsigned long elapsedTime = millis() - _lastAttemptTime;
+    if (elapsedTime < _backoffDelay)
+    {
+        // To avoid spamming the log, we could log this less frequently,
+        // but for now, this is useful for debugging.
+        Logger.debug(LOG_TAG_HTTP, "Connection is throttled. Time remaining: %lu ms", _backoffDelay - elapsedTime);
+        return true;
+    }
+
+    return false;
+}
+
 /**
  * @brief Initialize the HTTP client
  */
@@ -61,7 +121,7 @@ bool HttpClient::sendDiagnostics(const char *stationId, float batteryVoltage, fl
 
     // Connect to server
     Logger.debug(LOG_TAG_HTTP, "Connecting to %s:%d", _serverHost, _serverPort);
-    if (!_client->connect(_serverHost, _serverPort))
+    if (!_client->connect(_serverHost, _serverPort, 15000L)) // 15-second timeout
     {
         Logger.error(LOG_TAG_HTTP, "Failed to connect to server");
         return false;
@@ -84,7 +144,7 @@ bool HttpClient::sendDiagnostics(const char *stationId, float batteryVoltage, fl
     _client->println(F("Content-Type: application/json"));
     _client->print(F("Content-Length: "));
     _client->println(contentLength);
-    _client->println(F("Connection: close"));
+    _client->println(F("Connection: keep-alive"));
     _client->println();
 
     // Request body
@@ -92,7 +152,7 @@ bool HttpClient::sendDiagnostics(const char *stationId, float batteryVoltage, fl
 
     // Wait for server response with timeout
     unsigned long timeout = millis();
-    while (_client->connected() && millis() - timeout < 10000L)
+    while (_client->connected() && millis() - timeout < 15000L)
     {
         esp_task_wdt_reset(); // Reset watchdog
         // Wait for data to be available
@@ -118,17 +178,22 @@ bool HttpClient::sendDiagnostics(const char *stationId, float batteryVoltage, fl
         success = (statusCode >= 200 && statusCode < 300);
     }
 
-    // Close connection
-    _client->stop();
-    Logger.debug(LOG_TAG_HTTP, "Connection closed");
+    // Close connection only if the request failed, to allow for keep-alive
+    if (!success)
+    {
+        _client->stop();
+        Logger.debug(LOG_TAG_HTTP, "Connection closed due to error");
+    }
 
     if (success)
     {
+        _resetBackoff(); // Success, reset backoff
         Logger.info(LOG_TAG_HTTP, "Diagnostics data sent successfully");
         return true;
     }
     else
     {
+        _handleHttpFailure(); // Failure, trigger backoff
         Logger.error(LOG_TAG_HTTP, "Failed to send diagnostics data, status code: %d", statusCode);
         return false;
     }
@@ -162,7 +227,7 @@ bool HttpClient::fetchConfiguration(const char *stationId, unsigned long *tempIn
 
     // Connect to server
     Logger.debug(LOG_TAG_HTTP, "Connecting to %s:%d", _serverHost, _serverPort);
-    if (!_client->connect(_serverHost, _serverPort))
+    if (!_client->connect(_serverHost, _serverPort, 15000L)) // 15-second timeout
     {
         Logger.error(LOG_TAG_HTTP, "Failed to connect to server");
         return false;
@@ -179,7 +244,7 @@ bool HttpClient::fetchConfiguration(const char *stationId, unsigned long *tempIn
     _client->println(_serverHost);
     _client->println(F("User-Agent: AiolosWeatherStation/1.0"));
     _client->println(F("Accept: application/json"));
-    _client->println(F("Connection: close"));
+    _client->println(F("Connection: keep-alive"));
     _client->println();
 
     // Wait for server response with timeout
@@ -188,7 +253,7 @@ bool HttpClient::fetchConfiguration(const char *stationId, unsigned long *tempIn
     int statusCode = 0;
     bool success = false;
 
-    while (_client->connected() && millis() - timeout < 10000L)
+    while (_client->connected() && millis() - timeout < 15000L)
     {
         esp_task_wdt_reset(); // Reset watchdog
         // Wait for data to be available
@@ -219,12 +284,16 @@ bool HttpClient::fetchConfiguration(const char *stationId, unsigned long *tempIn
         responseBody = response.substring(bodyStart + 4);
     }
 
-    // Close connection
-    _client->stop();
-    Logger.debug(LOG_TAG_HTTP, "Connection closed");
+    // Close connection only if the request failed, to allow for keep-alive
+    if (!success)
+    {
+        _client->stop();
+        Logger.debug(LOG_TAG_HTTP, "Connection closed due to error");
+    }
 
     if (success && responseBody.length() > 0)
     {
+        _resetBackoff(); // Success, reset backoff
         Logger.info(LOG_TAG_HTTP, "Configuration data received: %s", responseBody.c_str());
 
         // Use ArduinoJson for robust parsing
@@ -309,6 +378,7 @@ bool HttpClient::fetchConfiguration(const char *stationId, unsigned long *tempIn
     }
     else
     {
+        _handleHttpFailure(); // Failure, trigger backoff
         Logger.error(LOG_TAG_HTTP, "Failed to fetch configuration, status code: %d", statusCode);
         return false;
     }
@@ -344,7 +414,7 @@ bool HttpClient::sendWindData(const char *stationId, float windSpeed, float wind
 
     // Connect to server
     Logger.debug(LOG_TAG_HTTP, "Connecting to %s:%d", _serverHost, _serverPort);
-    if (!_client->connect(_serverHost, _serverPort))
+    if (!_client->connect(_serverHost, _serverPort, 15000L)) // 15-second timeout
     {
         Logger.error(LOG_TAG_HTTP, "Failed to connect to server");
         return false;
@@ -367,7 +437,7 @@ bool HttpClient::sendWindData(const char *stationId, float windSpeed, float wind
     _client->println(F("Content-Type: application/json"));
     _client->print(F("Content-Length: "));
     _client->println(contentLength);
-    _client->println(F("Connection: close"));
+    _client->println(F("Connection: keep-alive"));
     _client->println();
 
     // Request body
@@ -377,7 +447,7 @@ bool HttpClient::sendWindData(const char *stationId, float windSpeed, float wind
     unsigned long timeout = millis();
     String response = "";
 
-    while (_client->connected() && millis() - timeout < 10000L)
+    while (_client->connected() && millis() - timeout < 15000L)
     {
         esp_task_wdt_reset(); // Reset watchdog
         // Wait for data to be available
@@ -403,17 +473,22 @@ bool HttpClient::sendWindData(const char *stationId, float windSpeed, float wind
         success = (statusCode >= 200 && statusCode < 300);
     }
 
-    // Close connection
-    _client->stop();
-    Logger.debug(LOG_TAG_HTTP, "Connection closed");
+    // Close connection only if the request failed, to allow for keep-alive
+    if (!success)
+    {
+        _client->stop();
+        Logger.debug(LOG_TAG_HTTP, "Connection closed due to error");
+    }
 
     if (success)
     {
+        _resetBackoff(); // Success, reset backoff
         Logger.info(LOG_TAG_HTTP, "Wind data sent successfully");
         return true;
     }
     else
     {
+        _handleHttpFailure(); // Failure, trigger backoff
         Logger.error(LOG_TAG_HTTP, "Failed to send wind data, status code: %d", statusCode);
         return false;
     }
@@ -449,7 +524,7 @@ bool HttpClient::sendTemperatureData(const char *stationId, float internalTemp, 
 
     // Connect to server
     Logger.debug(LOG_TAG_HTTP, "Connecting to %s:%d", _serverHost, _serverPort);
-    if (!_client->connect(_serverHost, _serverPort))
+    if (!_client->connect(_serverHost, _serverPort, 15000L)) // 15-second timeout
     {
         Logger.error(LOG_TAG_HTTP, "Failed to connect to server");
         return false;
@@ -472,7 +547,7 @@ bool HttpClient::sendTemperatureData(const char *stationId, float internalTemp, 
     _client->println(F("Content-Type: application/json"));
     _client->print(F("Content-Length: "));
     _client->println(contentLength);
-    _client->println(F("Connection: close"));
+    _client->println(F("Connection: keep-alive"));
     _client->println();
 
     // Request body
@@ -480,7 +555,7 @@ bool HttpClient::sendTemperatureData(const char *stationId, float internalTemp, 
 
     // Wait for server response with timeout
     unsigned long timeout = millis();
-    while (_client->connected() && millis() - timeout < 10000L)
+    while (_client->connected() && millis() - timeout < 15000L)
     {
         esp_task_wdt_reset(); // Reset watchdog
         // Wait for data to be available
@@ -504,17 +579,22 @@ bool HttpClient::sendTemperatureData(const char *stationId, float internalTemp, 
         success = (statusCode >= 200 && statusCode < 300);
     }
 
-    // Close connection
-    _client->stop();
-    Logger.debug(LOG_TAG_HTTP, "Connection closed");
+    // Close connection only if the request failed, to allow for keep-alive
+    if (!success)
+    {
+        _client->stop();
+        Logger.debug(LOG_TAG_HTTP, "Connection closed due to error");
+    }
 
     if (success)
     {
+        _resetBackoff(); // Success, reset backoff
         Logger.info(LOG_TAG_HTTP, "Temperature data sent successfully");
         return true;
     }
     else
     {
+        _handleHttpFailure(); // Failure, trigger backoff
         Logger.error(LOG_TAG_HTTP, "Failed to send temperature data, status code: %d", statusCode);
         return false;
     }
@@ -540,7 +620,7 @@ bool HttpClient::confirmOtaStarted(const char *stationId)
     Logger.info(LOG_TAG_HTTP, "Confirming OTA start for station %s", stationId);
 
     // Connect to server
-    if (!_client->connect(_serverHost, _serverPort))
+    if (!_client->connect(_serverHost, _serverPort, 15000L)) // 15-second timeout
     {
         Logger.error(LOG_TAG_HTTP, "Failed to connect to server for OTA confirmation");
         return false;
@@ -557,7 +637,7 @@ bool HttpClient::confirmOtaStarted(const char *stationId)
     _client->print(F("Host: "));
     _client->println(_serverHost);
     _client->println(F("User-Agent: AiolosWeatherStation/1.0"));
-    _client->println(F("Connection: close"));
+    _client->println(F("Connection: keep-alive"));
     _client->println(); // End of headers
 
     // Wait for server response
@@ -578,16 +658,23 @@ bool HttpClient::confirmOtaStarted(const char *stationId)
         statusCode = _client->parseInt();
     }
 
-    // Stop client
-    _client->stop();
+    bool success = (statusCode >= 200 && statusCode < 300);
 
-    if (statusCode >= 200 && statusCode < 300)
+    // Stop client only if there was an error
+    if (!success)
     {
+        _client->stop();
+    }
+
+    if (success)
+    {
+        _resetBackoff(); // Success, reset backoff
         Logger.info(LOG_TAG_HTTP, "OTA start confirmed successfully (status: %d)", statusCode);
         return true;
     }
     else
     {
+        _handleHttpFailure(); // Failure, trigger backoff
         Logger.error(LOG_TAG_HTTP, "Failed to confirm OTA start (status: %d)", statusCode);
         return false;
     }
