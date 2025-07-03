@@ -84,6 +84,17 @@ public:
      */
     bool sendTemperatureData(const char *stationId, float internalTemp, float externalTemp);
 
+    /**
+     * @brief Confirms to the server that OTA has been initiated
+     *
+     * This tells the server to clear the remote OTA flag for this device.
+     *
+     * @param stationId Station identifier
+     * @return true if successful
+     * @return false if failed
+     */
+    bool confirmOtaStarted(const char *stationId);
+
     // Remote OTA flag is now handled through the fetchConfiguration method
 
 private:

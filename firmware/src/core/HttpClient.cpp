@@ -514,3 +514,75 @@ bool HttpClient::sendTemperatureData(const char *stationId, float internalTemp, 
         return false;
     }
 }
+
+/**
+ * @brief Confirms to the server that OTA has been initiated
+ */
+bool HttpClient::confirmOtaStarted(const char *stationId)
+{
+    if (!_modemManager || !_client)
+    {
+        Logger.error(LOG_TAG_HTTP, "HTTP client not initialized");
+        return false;
+    }
+
+    if (!_modemManager->isGprsConnected())
+    {
+        Logger.warn(LOG_TAG_HTTP, "GPRS not connected, cannot confirm OTA start");
+        return false;
+    }
+
+    Logger.info(LOG_TAG_HTTP, "Confirming OTA start for station %s", stationId);
+
+    // Connect to server
+    if (!_client->connect(_serverHost, _serverPort))
+    {
+        Logger.error(LOG_TAG_HTTP, "Failed to connect to server for OTA confirmation");
+        return false;
+    }
+
+    // Build the URL path
+    char urlPath[64];
+    snprintf(urlPath, sizeof(urlPath), "/api/stations/%s/ota-confirm", stationId);
+
+    // Send HTTP POST request
+    _client->print(F("POST "));
+    _client->print(urlPath);
+    _client->println(F(" HTTP/1.1"));
+    _client->print(F("Host: "));
+    _client->println(_serverHost);
+    _client->println(F("User-Agent: AiolosWeatherStation/1.0"));
+    _client->println(F("Connection: close"));
+    _client->println(); // End of headers
+
+    // Wait for server response
+    unsigned long timeout = millis();
+    while (_client->connected() && millis() - timeout < 5000L)
+    {
+        if (_client->available())
+        {
+            break; // Response received
+        }
+    }
+
+    // Read status code
+    int statusCode = 0;
+    if (_client->find("HTTP/1.1 "))
+    {
+        statusCode = _client->parseInt();
+    }
+
+    // Stop client
+    _client->stop();
+
+    if (statusCode >= 200 && statusCode < 300)
+    {
+        Logger.info(LOG_TAG_HTTP, "OTA start confirmed successfully (status: %d)", statusCode);
+        return true;
+    }
+    else
+    {
+        Logger.error(LOG_TAG_HTTP, "Failed to confirm OTA start (status: %d)", statusCode);
+        return false;
+    }
+}

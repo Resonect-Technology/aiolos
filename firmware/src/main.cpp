@@ -29,9 +29,13 @@ unsigned long lastDiagnosticsUpdate = 0;
 unsigned long lastWindUpdate = 0;
 unsigned long lastTemperatureUpdate = 0;
 unsigned long lastConfigUpdate = 0;
+unsigned long lastWindDataSendTime = 0;
+unsigned long lastHeartbeatTime = 0;
+unsigned long lastConfigFetchTime = 0;
 int currentHour = 0, currentMinute = 0, currentSecond = 0;
 bool otaActive = false;
 unsigned long lastOtaCheck = 0;
+bool isSamplingWind = false; // For wind data averaging
 
 // Dynamic interval settings (can be updated via remote config)
 unsigned long dynamicTempInterval = TEMP_INTERVAL;
@@ -228,14 +232,13 @@ void setup()
             {
                 if (remoteOtaRequested)
                 {
-                    Logger.info(LOG_TAG_SYSTEM, "Remote OTA flag detected during initial configuration");
-                    checkAndInitRemoteOta();
-
-                    // Clear the flag after activation attempt
-                    remoteOtaRequested = false;
-                    httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
-                                                  &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
-                                                  &otaHour, &otaMinute, &otaDuration, &remoteOtaRequested);
+                    Logger.info(LOG_TAG_SYSTEM, "Remote OTA flag detected, attempting to start remote OTA...");
+                    if (checkAndInitRemoteOta())
+                    {
+                        // If OTA started successfully, confirm with the server to clear the flag
+                        Logger.info(LOG_TAG_SYSTEM, "Remote OTA started, confirming with server.");
+                        httpClient.confirmOtaStarted(DEVICE_ID);
+                    }
                 }
             }
         }
@@ -465,38 +468,75 @@ void loop()
                 {
                     if (remoteOtaRequested)
                     {
-                        Logger.info(LOG_TAG_SYSTEM, "Remote OTA flag detected during configuration check");
-                        checkAndInitRemoteOta();
-
-                        // Clear the flag after activation attempt
-                        remoteOtaRequested = false;
-                        httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
-                                                      &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
-                                                      &otaHour, &otaMinute, &otaDuration, &remoteOtaRequested);
+                        Logger.info(LOG_TAG_SYSTEM, "Remote OTA flag detected, attempting to start remote OTA...");
+                        if (checkAndInitRemoteOta())
+                        {
+                            // If OTA started successfully, confirm with the server to clear the flag
+                            Logger.info(LOG_TAG_SYSTEM, "Remote OTA started, confirming with server.");
+                            httpClient.confirmOtaStarted(DEVICE_ID);
+                        }
                     }
                 }
             }
         }
 
-        // Measure and send wind data periodically
-        if (currentMillis - lastWindUpdate >= dynamicWindInterval)
+        // --- Wind Data Task (Dual Mode: Livestream vs. Averaged) ---
+        const unsigned long LIVESTREAM_THRESHOLD_MS = 5000;
+
+        if (dynamicWindInterval <= LIVESTREAM_THRESHOLD_MS)
         {
-            lastWindUpdate = currentMillis;
-
-            // Get wind data (using a simple fixed sampling period for now)
-            float windSpeed = windSensor.getWindSpeed();
-            float windDirection = windSensor.getWindDirection();
-
-            Logger.info(LOG_TAG_SYSTEM, "Wind: %.1f m/s at %.0f°", windSpeed, windDirection);
-
-            // Send wind data to server
-            if (httpClient.sendWindData(DEVICE_ID, windSpeed, windDirection))
+            // --- LIVESTREAM MODE ---
+            if (currentMillis - lastWindUpdate >= dynamicWindInterval)
             {
-                Logger.info(LOG_TAG_SYSTEM, "Wind data sent successfully");
+                lastWindUpdate = currentMillis;
+
+                // Get instantaneous wind data
+                float windSpeed = windSensor.getWindSpeed();
+                float windDirection = windSensor.getWindDirection();
+
+                Logger.info(LOG_TAG_SYSTEM, "Livestream Wind: %.1f m/s at %.0f°", windSpeed, windDirection);
+
+                // Send wind data to server
+                if (httpClient.sendWindData(DEVICE_ID, windSpeed, windDirection))
+                {
+                    Logger.info(LOG_TAG_SYSTEM, "Livestream wind data sent successfully");
+                }
+                else
+                {
+                    Logger.warn(LOG_TAG_SYSTEM, "Failed to send livestream wind data");
+                }
             }
-            else
+        }
+        else
+        {
+            // --- LOW-POWER AVERAGED MODE ---
+            if (!isSamplingWind)
             {
-                Logger.warn(LOG_TAG_SYSTEM, "Failed to send wind data");
+                // Start a new sampling period if one isn't running
+                Logger.info(LOG_TAG_SYSTEM, "Starting %lu-second wind sampling period.", dynamicWindInterval / 1000);
+                windSensor.startSamplingPeriod();
+                isSamplingWind = true;
+            }
+
+            // Check if the sampling period is complete.
+            // getAveragedWindData is non-blocking and returns true only when data is ready.
+            float avgSpeed, avgDirection;
+            if (windSensor.getAveragedWindData(dynamicWindInterval, avgSpeed, avgDirection))
+            {
+                Logger.info(LOG_TAG_SYSTEM, "Averaged Wind: %.1f m/s at %.0f°", avgSpeed, avgDirection);
+
+                // Send the averaged data to the server
+                if (httpClient.sendWindData(DEVICE_ID, avgSpeed, avgDirection))
+                {
+                    Logger.info(LOG_TAG_SYSTEM, "Averaged wind data sent successfully");
+                }
+                else
+                {
+                    Logger.warn(LOG_TAG_SYSTEM, "Failed to send averaged wind data");
+                }
+
+                // Reset the flag to start a new sampling period on the next cycle
+                isSamplingWind = false;
             }
         }
 
