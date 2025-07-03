@@ -80,10 +80,13 @@ router.group(() => {
     router.get('/config', [StationConfigsController, 'show']).as('config.show')
     router.post('/config', [StationConfigsController, 'store']).as('config.store')
 
+    // Wind data endpoint for firmware (maps to same controller as live/wind)
+    router.post('/wind', [StationLiveController, 'wind']).as('wind')
+
     // Live data routes group
     router.group(() => {
       // Live wind data ingestion endpoint for stations
-      router.post('/wind', [StationLiveController, 'wind']).as('wind')
+      router.post('/wind', [StationLiveController, 'wind']).as('live_wind')
 
       // Mock data routes for development
       router.group(() => {
