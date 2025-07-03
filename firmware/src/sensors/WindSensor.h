@@ -70,8 +70,9 @@ private:
     unsigned long _lastMeasurementTime = 0;
 
     // Constants for anemometer calibration
-    // Standard Davis Anemometer: 1 pulse per second = 1.609 km/h (0.447 m/s)
-    const float ANEMOMETER_FACTOR = 0.447; // m/s per Hz
+    // From datasheet: 2.4 km/h causes the switch to close once per second
+    // 2.4 km/h = 2.4 * (1000/3600) = 0.6667 m/s per Hz
+    const float ANEMOMETER_FACTOR = 0.6667; // m/s per Hz (2.4 km/h per Hz)
 
     // Lookup table for wind vane readings (voltage to direction)
     struct WindDirectionEntry
