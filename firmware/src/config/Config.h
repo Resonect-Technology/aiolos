@@ -47,23 +47,26 @@
 
 #define UART_BAUD 115200
 
+// --- Default Timing and Scheduling --- //
+// These values are used as fallbacks if remote configuration is unavailable.
+
 // OTA settings
 #ifdef CONFIG_OTA_HOUR
-#define OTA_HOUR CONFIG_OTA_HOUR
+#define DEFAULT_OTA_HOUR CONFIG_OTA_HOUR
 #else
-#define OTA_HOUR 10 // Hour of day (24h format) to enable OTA mode
+#define DEFAULT_OTA_HOUR 10 // Hour of day (24h format) to enable OTA mode
 #endif
 
 #ifdef CONFIG_OTA_MINUTE
-#define OTA_MINUTE CONFIG_OTA_MINUTE
+#define DEFAULT_OTA_MINUTE CONFIG_OTA_MINUTE
 #else
-#define OTA_MINUTE 0 // Minute to enable OTA mode
+#define DEFAULT_OTA_MINUTE 0 // Minute to enable OTA mode
 #endif
 
 #ifdef CONFIG_OTA_DURATION
-#define OTA_DURATION CONFIG_OTA_DURATION
+#define DEFAULT_OTA_DURATION CONFIG_OTA_DURATION
 #else
-#define OTA_DURATION 15 // Minutes to keep WiFi active for OTA
+#define DEFAULT_OTA_DURATION 15 // Minutes to keep WiFi active for OTA
 #endif
 
 #ifdef CONFIG_OTA_SSID
@@ -92,29 +95,32 @@
 #define LOW_BATTERY_THRESHOLD 3.4 // Volts
 
 #ifdef CONFIG_SLEEP_START_HOUR
-#define SLEEP_START_HOUR CONFIG_SLEEP_START_HOUR
+#define DEFAULT_SLEEP_START_HOUR CONFIG_SLEEP_START_HOUR
 #else
-#define SLEEP_START_HOUR 22 // Hour to enter sleep (24h format)
+#define DEFAULT_SLEEP_START_HOUR 22 // Hour to enter sleep (24h format)
 #endif
 
 #ifdef CONFIG_SLEEP_END_HOUR
-#define SLEEP_END_HOUR CONFIG_SLEEP_END_HOUR
+#define DEFAULT_SLEEP_END_HOUR CONFIG_SLEEP_END_HOUR
 #else
-#define SLEEP_END_HOUR 9 // Hour to wake from sleep (24h format)
+#define DEFAULT_SLEEP_END_HOUR 9 // Hour to wake from sleep (24h format)
 #endif
 
 #ifdef CONFIG_RESTART_INTERVAL
-#define RESTART_INTERVAL CONFIG_RESTART_INTERVAL
+#define DEFAULT_RESTART_INTERVAL CONFIG_RESTART_INTERVAL
 #else
-#define RESTART_INTERVAL 21600 // Seconds between automatic restarts (6 hours)
+#define DEFAULT_RESTART_INTERVAL 21600 // Seconds between automatic restarts (6 hours)
 #endif
 
-// Sensor timing
-#define TEMP_INTERVAL 300000          // Temperature reading interval (ms) - 5 minutes
-#define WIND_INTERVAL 1000            // Wind reading interval (ms) - 1 second
-#define DIAG_INTERVAL 300000          // Diagnostics interval (ms) - 5 minutes (300000 = 5 minutes)
-#define TIME_UPDATE_INTERVAL 3600000  // Time sync interval (ms) - 1 hour (3600000 = 1 hour)
-#define CONFIG_UPDATE_INTERVAL 300000 // Remote configuration update interval (ms) - 5 minutes
+// Default sensor and update intervals (in milliseconds)
+#define DEFAULT_TEMP_INTERVAL 300000          // Default temperature reading interval (ms) - 5 minutes
+#define DEFAULT_WIND_INTERVAL 1000            // Default wind reading interval (ms) - 1 second
+#define DEFAULT_DIAG_INTERVAL 300000          // Default diagnostics interval (ms) - 5 minutes
+#define DEFAULT_TIME_UPDATE_INTERVAL 3600000  // Default time sync interval (ms) - 1 hour
+#define DEFAULT_CONFIG_UPDATE_INTERVAL 300000 // Default remote configuration update interval (ms) - 5 minutes
+
+// Wind sensor specific settings
+#define WIND_AVERAGING_SAMPLE_INTERVAL_MS 10000 // (10s) Interval for samples within a larger averaging period
 
 // Watchdog settings
 #define WDT_TIMEOUT 120000 // Watchdog timeout in ms (120 seconds), was 30000
@@ -133,11 +139,11 @@
 #ifdef CONFIG_SERVER_HOST
 #define SERVER_HOST CONFIG_SERVER_HOST
 #else
-#define SERVER_HOST "1.1.1.1"
+#define SERVER_HOST "aiolos.resonect.cz"
 #endif
 
 #ifdef CONFIG_SERVER_PORT
-#define SERVER_PORT CONFIG_SERVER_PORT
+#define SERVER_PORT (uint16_t)CONFIG_SERVER_PORT
 #else
-#define SERVER_PORT 80
+#define SERVER_PORT (uint16_t)80
 #endif

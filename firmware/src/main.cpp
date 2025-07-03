@@ -38,17 +38,17 @@ bool otaActive = false;
 unsigned long lastOtaCheck = 0;
 bool isSamplingWind = false; // For wind data averaging
 
-// Dynamic interval settings (can be updated via remote config)
-unsigned long dynamicTempInterval = TEMP_INTERVAL;
-unsigned long dynamicWindInterval = WIND_INTERVAL;
-unsigned long dynamicDiagInterval = DIAG_INTERVAL;
-unsigned long dynamicTimeInterval = TIME_UPDATE_INTERVAL;
-unsigned long dynamicRestartInterval = RESTART_INTERVAL;
-int dynamicSleepStartHour = SLEEP_START_HOUR;
-int dynamicSleepEndHour = SLEEP_END_HOUR;
-int dynamicOtaHour = OTA_HOUR;
-int dynamicOtaMinute = OTA_MINUTE;
-int dynamicOtaDuration = OTA_DURATION;
+// Dynamic interval settings, initialized with defaults from Config.h
+unsigned long dynamicTempInterval = DEFAULT_TEMP_INTERVAL;
+unsigned long dynamicWindInterval = DEFAULT_WIND_INTERVAL;
+unsigned long dynamicDiagInterval = DEFAULT_DIAG_INTERVAL;
+unsigned long dynamicTimeInterval = DEFAULT_TIME_UPDATE_INTERVAL;
+unsigned long dynamicRestartInterval = DEFAULT_RESTART_INTERVAL;
+int dynamicSleepStartHour = DEFAULT_SLEEP_START_HOUR;
+int dynamicSleepEndHour = DEFAULT_SLEEP_END_HOUR;
+int dynamicOtaHour = DEFAULT_OTA_HOUR;
+int dynamicOtaMinute = DEFAULT_OTA_MINUTE;
+int dynamicOtaDuration = DEFAULT_OTA_DURATION;
 
 // Optional: Set to true to run wind vane calibration on startup
 const bool CALIBRATION_MODE = false;
@@ -252,6 +252,9 @@ void setup()
     if (windSensor.init(ANEMOMETER_PIN, WIND_VANE_PIN))
     {
         Logger.info(LOG_TAG_SYSTEM, "Wind sensor initialized successfully");
+
+        // Set the interval for taking samples during an averaging period
+        windSensor.setSampleInterval(WIND_AVERAGING_SAMPLE_INTERVAL_MS);
 
         // Run calibration if enabled
         if (CALIBRATION_MODE)
