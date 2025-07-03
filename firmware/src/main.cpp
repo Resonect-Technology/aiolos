@@ -14,7 +14,7 @@
 #include "config/Config.h"
 #include "core/Logger.h"
 #include "core/ModemManager.h"
-#include "core/HttpClient.h"
+#include "core/AiolosHttpClient.h"
 #include "core/DiagnosticsManager.h"
 #include "core/OtaManager.h"
 #include "utils/TemperatureSensor.h"
@@ -62,7 +62,8 @@ bool isSleepTime();
 void enterDeepSleepUntil(int hour, int minute);
 void testModemConnectivity();
 bool checkAndInitOta();
-bool checkAndInitRemoteOta(); // New function to check for remote OTA activation
+bool checkAndInitRemoteOta();
+void handleRemoteConfiguration(); // New function to handle remote config
 
 // Sensor instances
 TemperatureSensor externalTempSensor;
@@ -132,7 +133,7 @@ void setup()
     }
 
     // Initialize HTTP client
-    if (!httpClient.init(modemManager))
+    if (!httpClient.init(modemManager, SERVER_ADDRESS, SERVER_PORT))
     {
         Logger.error(LOG_TAG_SYSTEM, "Failed to initialize HTTP client. Continuing without HTTP...");
     }
@@ -151,104 +152,7 @@ void setup()
             lastConfigUpdate = millis();
 
             // Fetch initial configuration
-            Logger.info(LOG_TAG_SYSTEM, "Fetching initial remote configuration...");
-            unsigned long tempInterval, windInterval, diagInterval, timeInterval, restartInterval;
-            int sleepStartHour, sleepEndHour, otaHour, otaMinute, otaDuration;
-
-            if (httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
-                                              &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
-                                              &otaHour, &otaMinute, &otaDuration))
-            {
-                // Apply configuration if values are valid (non-zero)
-                if (tempInterval > 0)
-                {
-                    dynamicTempInterval = tempInterval;
-                    Logger.info(LOG_TAG_SYSTEM, "Set temperature interval to %lu ms", dynamicTempInterval);
-                }
-
-                if (windInterval > 0)
-                {
-                    dynamicWindInterval = windInterval;
-                    Logger.info(LOG_TAG_SYSTEM, "Set wind interval to %lu ms", dynamicWindInterval);
-                }
-
-                if (diagInterval > 0)
-                {
-                    dynamicDiagInterval = diagInterval;
-                    diagnosticsManager.setInterval(dynamicDiagInterval);
-                    Logger.info(LOG_TAG_SYSTEM, "Set diagnostics interval to %lu ms", dynamicDiagInterval);
-                }
-
-                if (timeInterval > 0)
-                {
-                    dynamicTimeInterval = timeInterval;
-                    Logger.info(LOG_TAG_SYSTEM, "Set time update interval to %lu ms", dynamicTimeInterval);
-                }
-
-                if (restartInterval > 0)
-                {
-                    dynamicRestartInterval = restartInterval;
-                    // Update the restart ticker with the new interval
-                    periodicRestartTicker.detach();
-                    periodicRestartTicker.attach(dynamicRestartInterval, periodicRestart);
-                    Logger.info(LOG_TAG_SYSTEM, "Set restart interval to %lu seconds", dynamicRestartInterval);
-                }
-
-                if (sleepStartHour >= 0 && sleepStartHour < 24)
-                {
-                    dynamicSleepStartHour = sleepStartHour;
-                    Logger.info(LOG_TAG_SYSTEM, "Set sleep start hour to %d", dynamicSleepStartHour);
-                }
-
-                if (sleepEndHour >= 0 && sleepEndHour < 24)
-                {
-                    dynamicSleepEndHour = sleepEndHour;
-                    Logger.info(LOG_TAG_SYSTEM, "Set sleep end hour to %d", dynamicSleepEndHour);
-                }
-
-                if (otaHour >= 0 && otaHour < 24)
-                {
-                    dynamicOtaHour = otaHour;
-                    Logger.info(LOG_TAG_SYSTEM, "Set OTA hour to %d", dynamicOtaHour);
-                }
-
-                if (otaMinute >= 0 && otaMinute < 60)
-                {
-                    dynamicOtaMinute = otaMinute;
-                    Logger.info(LOG_TAG_SYSTEM, "Set OTA minute to %d", dynamicOtaMinute);
-                }
-
-                if (otaDuration > 0)
-                {
-                    dynamicOtaDuration = otaDuration;
-                    Logger.info(LOG_TAG_SYSTEM, "Set OTA duration to %d minutes", dynamicOtaDuration);
-                }
-            }
-            else
-            {
-                Logger.warn(LOG_TAG_SYSTEM, "Failed to fetch initial remote configuration. Using default values.");
-            }
-
-            // Check for remote OTA flag after initial config
-            if (!otaActive)
-            {
-                bool remoteOtaRequested = false;
-                if (httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
-                                                  &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
-                                                  &otaHour, &otaMinute, &otaDuration, &remoteOtaRequested))
-                {
-                    if (remoteOtaRequested)
-                    {
-                        Logger.info(LOG_TAG_SYSTEM, "Remote OTA flag detected, attempting to start remote OTA...");
-                        if (checkAndInitRemoteOta())
-                        {
-                            // If OTA started successfully, confirm with the server to clear the flag
-                            Logger.info(LOG_TAG_SYSTEM, "Remote OTA started, confirming with server.");
-                            httpClient.confirmOtaStarted(DEVICE_ID);
-                        }
-                    }
-                }
-            }
+            handleRemoteConfiguration();
         }
         else
         {
@@ -393,106 +297,7 @@ void loop()
         if (currentMillis - lastConfigUpdate >= DEFAULT_CONFIG_UPDATE_INTERVAL)
         {
             lastConfigUpdate = currentMillis;
-
-            Logger.info(LOG_TAG_SYSTEM, "Fetching remote configuration...");
-            unsigned long tempInterval, windInterval, diagInterval, timeInterval, restartInterval;
-            int sleepStartHour, sleepEndHour, otaHour, otaMinute, otaDuration;
-            bool remoteOtaRequested = false;
-
-            if (httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
-                                              &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
-                                              &otaHour, &otaMinute, &otaDuration))
-            {
-                // Apply configuration if values are valid (non-zero)
-                if (tempInterval > 0)
-                {
-                    dynamicTempInterval = tempInterval;
-                    Logger.info(LOG_TAG_SYSTEM, "Updated temperature interval to %lu ms", dynamicTempInterval);
-                }
-
-                if (windInterval > 0)
-                {
-                    dynamicWindInterval = windInterval;
-                    Logger.info(LOG_TAG_SYSTEM, "Updated wind interval to %lu ms", dynamicWindInterval);
-                }
-
-                if (diagInterval > 0)
-                {
-                    dynamicDiagInterval = diagInterval;
-                    diagnosticsManager.setInterval(dynamicDiagInterval);
-                    Logger.info(LOG_TAG_SYSTEM, "Updated diagnostics interval to %lu ms", dynamicDiagInterval);
-                }
-
-                if (timeInterval > 0)
-                {
-                    dynamicTimeInterval = timeInterval;
-                    Logger.info(LOG_TAG_SYSTEM, "Updated time update interval to %lu ms", dynamicTimeInterval);
-                }
-
-                if (restartInterval > 0)
-                {
-                    dynamicRestartInterval = restartInterval;
-                    // Update the restart ticker with the new interval
-                    periodicRestartTicker.detach();
-                    periodicRestartTicker.attach(dynamicRestartInterval, periodicRestart);
-                    Logger.info(LOG_TAG_SYSTEM, "Updated restart interval to %lu seconds", dynamicRestartInterval);
-                }
-
-                if (sleepStartHour >= 0 && sleepStartHour < 24)
-                {
-                    dynamicSleepStartHour = sleepStartHour;
-                    Logger.info(LOG_TAG_SYSTEM, "Updated sleep start hour to %d", dynamicSleepStartHour);
-                }
-
-                if (sleepEndHour >= 0 && sleepEndHour < 24)
-                {
-                    dynamicSleepEndHour = sleepEndHour;
-                    Logger.info(LOG_TAG_SYSTEM, "Updated sleep end hour to %d", dynamicSleepEndHour);
-                }
-
-                if (otaHour >= 0 && otaHour < 24)
-                {
-                    dynamicOtaHour = otaHour;
-                    Logger.info(LOG_TAG_SYSTEM, "Updated OTA hour to %d", dynamicOtaHour);
-                }
-
-                if (otaMinute >= 0 && otaMinute < 60)
-                {
-                    dynamicOtaMinute = otaMinute;
-                    Logger.info(LOG_TAG_SYSTEM, "Updated OTA minute to %d", dynamicOtaMinute);
-                }
-
-                if (otaDuration > 0)
-                {
-                    dynamicOtaDuration = otaDuration;
-                    Logger.info(LOG_TAG_SYSTEM, "Updated OTA duration to %d minutes", dynamicOtaDuration);
-                }
-            }
-            else
-            {
-                Logger.warn(LOG_TAG_SYSTEM, "Failed to fetch remote configuration. Using default values.");
-            }
-
-            // Check for remote OTA flag after config update
-            if (!otaActive)
-            {
-                bool remoteOtaRequested = false;
-                if (httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
-                                                  &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
-                                                  &otaHour, &otaMinute, &otaDuration, &remoteOtaRequested))
-                {
-                    if (remoteOtaRequested)
-                    {
-                        Logger.info(LOG_TAG_SYSTEM, "Remote OTA flag detected, attempting to start remote OTA...");
-                        if (checkAndInitRemoteOta())
-                        {
-                            // If OTA started successfully, confirm with the server to clear the flag
-                            Logger.info(LOG_TAG_SYSTEM, "Remote OTA started, confirming with server.");
-                            httpClient.confirmOtaStarted(DEVICE_ID);
-                        }
-                    }
-                }
-            }
+            handleRemoteConfiguration();
         }
 
         // --- Wind Data Task (Dual Mode: Livestream vs. Averaged) ---
@@ -595,6 +400,107 @@ void loop()
 
     // Small delay to prevent excessive looping
     delay(100);
+}
+
+/**
+ * @brief Fetches and applies remote configuration and handles remote OTA requests.
+ *
+ * This function centralizes the logic for updating the device's configuration
+ * from the remote server. It also checks for a remote OTA flag and initiates
+ * the OTA process if requested.
+ */
+void handleRemoteConfiguration()
+{
+    Logger.info(LOG_TAG_SYSTEM, "Fetching remote configuration...");
+    unsigned long tempInterval, windInterval, diagInterval, timeInterval, restartInterval;
+    int sleepStartHour, sleepEndHour, otaHour, otaMinute, otaDuration;
+    bool remoteOtaRequested = false; // Flag to check for remote OTA
+
+    if (httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
+                                      &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
+                                      &otaHour, &otaMinute, &otaDuration, &remoteOtaRequested))
+    {
+        // Apply configuration if values are valid (non-zero)
+        if (tempInterval > 0)
+        {
+            dynamicTempInterval = tempInterval;
+            Logger.info(LOG_TAG_SYSTEM, "Updated temperature interval to %lu ms", dynamicTempInterval);
+        }
+
+        if (windInterval > 0)
+        {
+            dynamicWindInterval = windInterval;
+            Logger.info(LOG_TAG_SYSTEM, "Updated wind interval to %lu ms", dynamicWindInterval);
+        }
+
+        if (diagInterval > 0)
+        {
+            dynamicDiagInterval = diagInterval;
+            diagnosticsManager.setInterval(dynamicDiagInterval);
+            Logger.info(LOG_TAG_SYSTEM, "Updated diagnostics interval to %lu ms", dynamicDiagInterval);
+        }
+
+        if (timeInterval > 0)
+        {
+            dynamicTimeInterval = timeInterval;
+            Logger.info(LOG_TAG_SYSTEM, "Updated time update interval to %lu ms", dynamicTimeInterval);
+        }
+
+        if (restartInterval > 0)
+        {
+            dynamicRestartInterval = restartInterval;
+            // Update the restart ticker with the new interval
+            periodicRestartTicker.detach();
+            periodicRestartTicker.attach(dynamicRestartInterval, periodicRestart);
+            Logger.info(LOG_TAG_SYSTEM, "Updated restart interval to %lu seconds", dynamicRestartInterval);
+        }
+
+        if (sleepStartHour >= 0 && sleepStartHour < 24)
+        {
+            dynamicSleepStartHour = sleepStartHour;
+            Logger.info(LOG_TAG_SYSTEM, "Updated sleep start hour to %d", dynamicSleepStartHour);
+        }
+
+        if (sleepEndHour >= 0 && sleepEndHour < 24)
+        {
+            dynamicSleepEndHour = sleepEndHour;
+            Logger.info(LOG_TAG_SYSTEM, "Updated sleep end hour to %d", dynamicSleepEndHour);
+        }
+
+        if (otaHour >= 0 && otaHour < 24)
+        {
+            dynamicOtaHour = otaHour;
+            Logger.info(LOG_TAG_SYSTEM, "Updated OTA hour to %d", dynamicOtaHour);
+        }
+
+        if (otaMinute >= 0 && otaMinute < 60)
+        {
+            dynamicOtaMinute = otaMinute;
+            Logger.info(LOG_TAG_SYSTEM, "Updated OTA minute to %d", otaMinute);
+        }
+
+        if (otaDuration > 0)
+        {
+            dynamicOtaDuration = otaDuration;
+            Logger.info(LOG_TAG_SYSTEM, "Updated OTA duration to %d minutes", dynamicOtaDuration);
+        }
+
+        // Check for remote OTA flag after config update
+        if (!otaActive && remoteOtaRequested)
+        {
+            Logger.info(LOG_TAG_SYSTEM, "Remote OTA flag detected, attempting to start remote OTA...");
+            if (checkAndInitRemoteOta())
+            {
+                // If OTA started successfully, confirm with the server to clear the flag
+                Logger.info(LOG_TAG_SYSTEM, "Remote OTA started, confirming with server.");
+                httpClient.confirmOtaStarted(DEVICE_ID);
+            }
+        }
+    }
+    else
+    {
+        Logger.warn(LOG_TAG_SYSTEM, "Failed to fetch remote configuration. Using default values.");
+    }
 }
 
 /**

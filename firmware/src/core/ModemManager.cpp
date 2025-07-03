@@ -105,8 +105,37 @@ bool ModemManager::init()
     }
 
     // Set network modes - simplified
-    _modem.setPreferredMode(3); // CAT-M and NB-IoT
-    _modem.setNetworkMode(2);   // Automatic
+    // _modem.setPreferredMode(3); // CAT-M and NB-IoT
+    // _modem.setNetworkMode(2);   // Automatic
+
+    // Set network modes as per reference code for better reliability
+    Logger.info(LOG_TAG_MODEM, "Configuring network modes...");
+
+    _modem.sendAT("+CFUN=0");
+    if (_modem.waitResponse(10000L) != 1)
+    {
+        Logger.warn(LOG_TAG_MODEM, "Failed to set CFUN=0");
+    }
+    delay(200);
+
+    if (!_modem.setNetworkMode(2)) // Automatic
+    {
+        Logger.warn(LOG_TAG_MODEM, "Failed to set network mode");
+    }
+    delay(200);
+
+    if (!_modem.setPreferredMode(3)) // CAT-M and NB-IoT
+    {
+        Logger.warn(LOG_TAG_MODEM, "Failed to set preferred mode");
+    }
+    delay(200);
+
+    _modem.sendAT("+CFUN=1");
+    if (_modem.waitResponse(10000L) != 1)
+    {
+        Logger.warn(LOG_TAG_MODEM, "Failed to set CFUN=1");
+    }
+    delay(200);
 
     Logger.info(LOG_TAG_MODEM, "Modem initialized successfully");
     return true;

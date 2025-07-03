@@ -1,36 +1,38 @@
 /**
- * @file HttpClient.h
+ * @file AiolosHttpClient.h
  * @brief Handles HTTP requests to the server
  *
  * Provides functionality to send sensor readings and diagnostics
  * data to the Aiolos backend server.
  */
 
+#define TINY_GSM_MODEM_SIM7000
+
 #pragma once
 
 #include <Arduino.h>
 #include <ArduinoHttpClient.h>
-#include "ModemManager.h"
-#include "../config/Config.h"
+#include <TinyGsmClient.h>
 
-#define BASE_BACKOFF_DELAY_MS 5000  // 5 seconds
-#define MAX_BACKOFF_DELAY_MS 900000 // 15 minutes
-#define RESPONSE_TIMEOUT_MS 10000   // 10 seconds
+// Forward declarations
+class ModemManager;
 
-// Create a type alias to avoid name collision with the library's HttpClient
-using ArduinoHttpClient_t = ::HttpClient;
-
-class HttpClient
+class AiolosHttpClient
 {
 public:
+    AiolosHttpClient();  // Constructor
+    ~AiolosHttpClient(); // Destructor to clean up the client
+
     /**
      * @brief Initialize the HTTP client
      *
      * @param modemManager Reference to the ModemManager instance
+     * @param serverAddress The address of the server to connect to.
+     * @param serverPort The port of the server to connect to.
      * @return true if initialization successful
      * @return false if initialization failed
      */
-    bool init(ModemManager &modemManager);
+    bool init(ModemManager &modemManager, const char *serverAddress, uint16_t serverPort);
 
     /**
      * @brief Send diagnostics data to the server
@@ -109,20 +111,29 @@ public:
     bool confirmOtaStarted(const char *stationId);
 
 private:
+    // Backoff constants
+    static const unsigned long BASE_BACKOFF_DELAY_MS = 5000;  // 5 seconds
+    static const unsigned long MAX_BACKOFF_DELAY_MS = 300000; // 5 minutes
+
+    // Arduino HTTP Client instance (as a pointer)
+    HttpClient *_arduinoClient = nullptr;
+
+    // Server details
+    const char *_serverAddress;
+    uint16_t _serverPort;
+
+    // Modem and network client
     ModemManager *_modemManager = nullptr;
     TinyGsmClient *_client = nullptr;
-    ArduinoHttpClient_t *_httpClient = nullptr; // Use the new alias
 
-    // Server connection details
-    const char *_serverHost = SERVER_HOST;
-    uint16_t _serverPort = SERVER_PORT;
-
-    unsigned long _backoffDelay = BASE_BACKOFF_DELAY_MS;
+    // Backoff mechanism state
+    unsigned long _backoffDelay = 0;
     unsigned long _lastAttemptTime = 0;
     uint8_t _failedAttempts = 0;
+
     void _handleHttpFailure();
     void _resetBackoff();
     int _performRequest(const char *method, const char *path, const char *body, String &responseBody);
 };
 
-extern HttpClient httpClient;
+extern AiolosHttpClient httpClient;

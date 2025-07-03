@@ -14,7 +14,7 @@ DiagnosticsManager diagnosticsManager;
 /**
  * @brief Initialize the DiagnosticsManager
  */
-bool DiagnosticsManager::init(ModemManager &modemManager, HttpClient &httpClient, unsigned long interval)
+bool DiagnosticsManager::init(ModemManager &modemManager, AiolosHttpClient &httpClient, unsigned long interval)
 {
     _modemManager = &modemManager;
     _httpClient = &httpClient;

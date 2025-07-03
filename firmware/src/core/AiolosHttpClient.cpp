@@ -1,24 +1,36 @@
 /**
- * @file HttpClient.cpp
+ * @file AiolosHttpClient.cpp
  * @brief Implementation of the HTTP client for the Aiolos Weather Station
  */
 
-#include "HttpClient.h"
+#include "AiolosHttpClient.h"
 #include "Logger.h"
 #include <ArduinoJson.h> // Use ArduinoJson for robust parsing
 #include "esp_task_wdt.h"
+#include "core/ModemManager.h"
 
 #define LOG_TAG_HTTP "HTTP"
 
 // Global instance
-HttpClient httpClient;
+AiolosHttpClient httpClient;
+
+AiolosHttpClient::AiolosHttpClient()
+{
+    // Constructor is intentionally empty. Initialization is done in init().
+}
+
+AiolosHttpClient::~AiolosHttpClient()
+{
+    // Clean up the dynamically allocated client
+    delete _arduinoClient;
+}
 
 // --- Backoff Mechanism Implementation ---
 
 /**
  * @brief Handles the logic for a failed HTTP request, incrementing the backoff timer.
  */
-void HttpClient::_handleHttpFailure()
+void AiolosHttpClient::_handleHttpFailure()
 {
     _lastAttemptTime = millis();
     if (_failedAttempts < 255)
@@ -41,7 +53,7 @@ void HttpClient::_handleHttpFailure()
 /**
  * @brief Resets the backoff state after a successful request.
  */
-void HttpClient::_resetBackoff()
+void AiolosHttpClient::_resetBackoff()
 {
     if (_failedAttempts > 0)
     {
@@ -54,7 +66,7 @@ void HttpClient::_resetBackoff()
 /**
  * @brief Checks if the HTTP client is currently in a backoff period.
  */
-bool HttpClient::isConnectionThrottled()
+bool AiolosHttpClient::isConnectionThrottled()
 {
     if (_failedAttempts == 0)
     {
@@ -76,9 +88,12 @@ bool HttpClient::isConnectionThrottled()
 /**
  * @brief Initialize the HTTP client
  */
-bool HttpClient::init(ModemManager &modemManager)
+bool AiolosHttpClient::init(ModemManager &modemManager, const char *serverAddress, uint16_t serverPort)
 {
     _modemManager = &modemManager;
+    _serverAddress = serverAddress;
+    _serverPort = serverPort;
+
     _client = _modemManager->getClient();
 
     if (!_client)
@@ -87,17 +102,13 @@ bool HttpClient::init(ModemManager &modemManager)
         return false;
     }
 
-    // Initialize the ArduinoHttpClient
-    _httpClient = new ArduinoHttpClient_t(*_client, _serverHost, _serverPort);
-    if (!_httpClient)
-    {
-        Logger.error(LOG_TAG_HTTP, "Failed to create ArduinoHttpClient instance");
-        return false;
-    }
-    // Set the connection timeout. This is important for cellular connections.
-    _httpClient->setTimeout(30000L); // 30 seconds
+    // Initialize the ArduinoHttpClient as a pointer
+    _arduinoClient = new HttpClient(*_client, _serverAddress, _serverPort);
 
-    Logger.info(LOG_TAG_HTTP, "HTTP client initialized for server %s:%u", _serverHost, _serverPort);
+    // Set the connection timeout. This is important for cellular connections.
+    _arduinoClient->setTimeout(30000L); // 30 seconds
+
+    Logger.info(LOG_TAG_HTTP, "HTTP client initialized for server %s:%u", _serverAddress, _serverPort);
     return true;
 }
 
@@ -109,14 +120,14 @@ bool HttpClient::init(ModemManager &modemManager)
  * @param responseBody A String reference to store the response body.
  * @return The HTTP status code, or 0 on failure before sending.
  */
-int HttpClient::_performRequest(const char *method, const char *path, const char *body, String &responseBody)
+int AiolosHttpClient::_performRequest(const char *method, const char *path, const char *body, String &responseBody)
 {
     if (this->isConnectionThrottled())
     {
         return 0; // Throttled, do not attempt
     }
 
-    if (!_modemManager || !_httpClient)
+    if (!_modemManager)
     {
         Logger.error(LOG_TAG_HTTP, "HTTP client not initialized");
         return 0; // 0 as an error indicator
@@ -136,17 +147,17 @@ int HttpClient::_performRequest(const char *method, const char *path, const char
     if (strcmp(method, "POST") == 0)
     {
         // For POST, we include the content type and body in the call.
-        _httpClient->post(path, "application/json", body);
+        _arduinoClient->post(path, "application/json", body);
     }
     else
     {
         // For GET, it's simpler.
-        _httpClient->get(path);
+        _arduinoClient->get(path);
     }
 
     // After the request is sent, we can get the status and response.
-    statusCode = _httpClient->responseStatusCode();
-    responseBody = _httpClient->responseBody(); // Always get the body for logging
+    statusCode = _arduinoClient->responseStatusCode();
+    responseBody = _arduinoClient->responseBody(); // Always get the body for logging
 
     Logger.debug(LOG_TAG_HTTP, "HTTP Status: %d", statusCode);
     if (responseBody.length() > 0)
@@ -174,7 +185,7 @@ int HttpClient::_performRequest(const char *method, const char *path, const char
 /**
  * @brief Send diagnostics data to the server
  */
-bool HttpClient::sendDiagnostics(const char *stationId, float batteryVoltage, float solarVoltage, float internalTemp, int signalQuality, unsigned long uptime)
+bool AiolosHttpClient::sendDiagnostics(const char *stationId, float batteryVoltage, float solarVoltage, float internalTemp, int signalQuality, unsigned long uptime)
 {
     Logger.info(LOG_TAG_HTTP, "Sending diagnostics data for station %s", stationId);
 
@@ -211,10 +222,10 @@ bool HttpClient::sendDiagnostics(const char *stationId, float batteryVoltage, fl
 /**
  * @brief Fetch configuration from the server
  */
-bool HttpClient::fetchConfiguration(const char *stationId, unsigned long *tempInterval, unsigned long *windInterval,
-                                    unsigned long *diagInterval, unsigned long *timeInterval,
-                                    unsigned long *restartInterval, int *sleepStartHour, int *sleepEndHour,
-                                    int *otaHour, int *otaMinute, int *otaDuration, bool *remoteOta)
+bool AiolosHttpClient::fetchConfiguration(const char *stationId, unsigned long *tempInterval, unsigned long *windInterval,
+                                          unsigned long *diagInterval, unsigned long *timeInterval,
+                                          unsigned long *restartInterval, int *sleepStartHour, int *sleepEndHour,
+                                          int *otaHour, int *otaMinute, int *otaDuration, bool *remoteOta)
 {
     Logger.info(LOG_TAG_HTTP, "Fetching configuration for station %s", stationId);
 
@@ -298,7 +309,7 @@ bool HttpClient::fetchConfiguration(const char *stationId, unsigned long *tempIn
 /**
  * @brief Send wind data to the server
  */
-bool HttpClient::sendWindData(const char *stationId, float windSpeed, float windDirection)
+bool AiolosHttpClient::sendWindData(const char *stationId, float windSpeed, float windDirection)
 {
     Logger.info(LOG_TAG_HTTP, "Sending wind data for station %s", stationId);
 
@@ -332,7 +343,7 @@ bool HttpClient::sendWindData(const char *stationId, float windSpeed, float wind
 /**
  * @brief Send temperature data to the server
  */
-bool HttpClient::sendTemperatureData(const char *stationId, float internalTemp, float externalTemp)
+bool AiolosHttpClient::sendTemperatureData(const char *stationId, float internalTemp, float externalTemp)
 {
     Logger.info(LOG_TAG_HTTP, "Sending temperature data for station %s", stationId);
 
@@ -365,7 +376,7 @@ bool HttpClient::sendTemperatureData(const char *stationId, float internalTemp, 
 /**
  * @brief Confirms to the server that OTA has been initiated
  */
-bool HttpClient::confirmOtaStarted(const char *stationId)
+bool AiolosHttpClient::confirmOtaStarted(const char *stationId)
 {
     Logger.info(LOG_TAG_HTTP, "Confirming OTA start for station %s", stationId);
 

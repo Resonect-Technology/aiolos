@@ -47,6 +47,8 @@
 
 #define UART_BAUD 115200
 
+// Server settings are now defined at the end of the file with Kconfig support
+
 // --- Default Timing and Scheduling --- //
 // These values are used as fallbacks if remote configuration is unavailable.
 
@@ -137,9 +139,9 @@
 
 // Server settings
 #ifdef CONFIG_SERVER_HOST
-#define SERVER_HOST CONFIG_SERVER_HOST
+#define SERVER_ADDRESS CONFIG_SERVER_HOST
 #else
-#define SERVER_HOST "aiolos.resonect.cz"
+#define SERVER_ADDRESS "aiolos.resonect.cz"
 #endif
 
 #ifdef CONFIG_SERVER_PORT

@@ -10,10 +10,13 @@
 
 #include <Arduino.h>
 #include "ModemManager.h"
-#include "HttpClient.h"
-#include "Logger.h"
-#include "../utils/BatteryUtils.h"
-#include "../utils/TemperatureSensor.h"
+#include "utils/TemperatureSensor.h"
+#include "utils/BatteryUtils.h"
+#include "core/AiolosHttpClient.h" // Use the new HTTP client
+
+// Forward declarations
+class ModemManager;
+// class AiolosHttpClient; // No longer needed, included above
 
 class DiagnosticsManager
 {
@@ -27,7 +30,7 @@ public:
      * @return true if initialization successful
      * @return false if initialization failed
      */
-    bool init(ModemManager &modemManager, HttpClient &httpClient, unsigned long interval = 300000);
+    bool init(ModemManager &modemManager, AiolosHttpClient &httpClient, unsigned long interval = 300000);
 
     /**
      * @brief Send current diagnostics data to the server
@@ -70,9 +73,9 @@ public:
 
 private:
     ModemManager *_modemManager = nullptr;
-    HttpClient *_httpClient = nullptr;
+    AiolosHttpClient *_httpClient = nullptr;
+    unsigned long _interval = 0;
     bool _initialized = false;
-    unsigned long _interval = 300000; // Default interval is 5 minutes
     TemperatureSensor _internalTempSensor;
     TemperatureSensor _externalTempSensor;
 
