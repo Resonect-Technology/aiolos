@@ -18,6 +18,7 @@
 #include "core/DiagnosticsManager.h"
 #include "core/OtaManager.h"
 #include "utils/TemperatureSensor.h"
+#include "utils/BatteryUtils.h" // For calibrated battery readings
 #include "sensors/WindSensor.h"
 #include <Ticker.h>
 #include <WiFi.h>
@@ -77,6 +78,9 @@ void setup()
     Logger.init();
     Logger.info(LOG_TAG_SYSTEM, "Aiolos Weather Station starting...");
     Logger.info(LOG_TAG_SYSTEM, "Firmware version: " FIRMWARE_VERSION);
+
+    // Initialize battery reading utility
+    BatteryUtils::init();
 
     // Set up LED
     pinMode(LED_PIN, OUTPUT);
