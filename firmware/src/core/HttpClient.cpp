@@ -543,7 +543,7 @@ bool HttpClient::sendTemperatureData(const char *stationId, float internalTemp, 
     // Create JSON payload with only external temperature data (internal temp is sent in diagnostics)
     char jsonBuffer[256];
     snprintf(jsonBuffer, sizeof(jsonBuffer),
-             "{\"type\":\"temperature\",\"temperature\":%.2f}",
+             "{\"temperature\":%.2f}",
              externalTemp);
 
     // Calculate content length
@@ -559,7 +559,7 @@ bool HttpClient::sendTemperatureData(const char *stationId, float internalTemp, 
 
     // Build the URL path with the station ID
     char urlPath[64];
-    snprintf(urlPath, sizeof(urlPath), "/stations/%s/readings", stationId);
+    snprintf(urlPath, sizeof(urlPath), "/stations/%s/temperature", stationId);
 
     // Send HTTP POST request
     Logger.debug(LOG_TAG_HTTP, "Sending POST request to %s", urlPath);
