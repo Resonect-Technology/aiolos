@@ -382,7 +382,7 @@ void loop()
         }
 
         // Fetch remote configuration periodically
-        if (currentMillis - lastConfigUpdate >= CONFIG_UPDATE_INTERVAL)
+        if (currentMillis - lastConfigUpdate >= DEFAULT_CONFIG_UPDATE_INTERVAL)
         {
             lastConfigUpdate = currentMillis;
 
