@@ -274,3 +274,88 @@ void WindSensor::calibrateWindVane(unsigned long durationMs)
 
     Logger.info(LOG_TAG_WIND, "Wind vane readings complete.");
 }
+
+void WindSensor::setSampleInterval(unsigned long intervalMs)
+{
+    _sampleIntervalMs = intervalMs;
+    Logger.info(LOG_TAG_WIND, "Wind sample interval set to %lu ms", intervalMs);
+}
+
+void WindSensor::startSamplingPeriod()
+{
+    _samplingStartTime = millis();
+    _lastSampleTime = _samplingStartTime;
+    _directionSumX = 0.0;
+    _directionSumY = 0.0;
+    _directionSampleCount = 0;
+
+    // Reset pulse counter for this sampling period
+    noInterrupts();
+    _totalPulseCount = 0;
+    _pulseCount = 0;
+    interrupts();
+
+    Logger.debug(LOG_TAG_WIND, "Started wind sampling period (sample interval: %lu ms)", _sampleIntervalMs);
+}
+
+bool WindSensor::getAveragedWindData(unsigned long samplingPeriodMs, float &avgSpeed, float &avgDirection)
+{
+    unsigned long currentTime = millis();
+    unsigned long elapsedTime = currentTime - _samplingStartTime;
+
+    // Check if it's time to take a new sample (based on configured interval)
+    if (currentTime - _lastSampleTime >= _sampleIntervalMs)
+    {
+        // Time for a new sample
+        float currentDirection = getWindDirection();
+
+        // Convert direction to X,Y components for vector averaging
+        float radians = currentDirection * PI / 180.0;
+        _directionSumX += cos(radians);
+        _directionSumY += sin(radians);
+        _directionSampleCount++;
+
+        // Accumulate pulse count
+        noInterrupts();
+        _totalPulseCount += _pulseCount;
+        _pulseCount = 0; // Reset for next sample
+        interrupts();
+
+        _lastSampleTime = currentTime;
+
+        Logger.debug(LOG_TAG_WIND, "Wind sample taken: Dir=%.1f°, Samples=%d", currentDirection, _directionSampleCount);
+    }
+
+    // Check if sampling period is complete
+    if (elapsedTime < samplingPeriodMs)
+    {
+        return false; // Sampling not complete yet
+    }
+
+    // Sampling period complete - calculate averages
+    if (_directionSampleCount == 0)
+    {
+        Logger.error(LOG_TAG_WIND, "No direction samples collected during sampling period");
+        avgSpeed = 0.0;
+        avgDirection = 0.0;
+        return false;
+    }
+
+    // Calculate averaged wind direction using vector averaging
+    float avgX = _directionSumX / _directionSampleCount;
+    float avgY = _directionSumY / _directionSampleCount;
+    avgDirection = atan2(avgY, avgX) * 180.0 / PI;
+
+    // Ensure direction is in 0-360 range
+    if (avgDirection < 0)
+        avgDirection += 360.0;
+
+    // Calculate averaged wind speed
+    float frequency = (float)_totalPulseCount * 1000.0 / elapsedTime;
+    avgSpeed = frequency * ANEMOMETER_FACTOR;
+
+    Logger.info(LOG_TAG_WIND, "Sampling complete: Avg Speed: %.2f m/s, Avg Direction: %.1f° (Samples: %d, Pulses: %lu)",
+                avgSpeed, avgDirection, _directionSampleCount, _totalPulseCount);
+
+    return true; // Sampling complete
+}

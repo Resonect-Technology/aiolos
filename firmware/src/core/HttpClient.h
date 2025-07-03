@@ -53,6 +53,7 @@ public:
      * @param otaMinute Pointer to store retrieved OTA minute
      * @param otaDuration Pointer to store retrieved OTA duration in minutes
      * @param remoteOta Pointer to store retrieved remote OTA flag
+     * @param windSampleInterval Pointer to store retrieved wind sampling interval in milliseconds
      * @return true if successful
      * @return false if failed
      */
@@ -60,7 +61,8 @@ public:
                             unsigned long *diagInterval, unsigned long *timeInterval = nullptr,
                             unsigned long *restartInterval = nullptr, int *sleepStartHour = nullptr,
                             int *sleepEndHour = nullptr, int *otaHour = nullptr,
-                            int *otaMinute = nullptr, int *otaDuration = nullptr, bool *remoteOta = nullptr);
+                            int *otaMinute = nullptr, int *otaDuration = nullptr, bool *remoteOta = nullptr,
+                            unsigned long *windSampleInterval = nullptr);
 
     // Remote OTA flag is now handled through the fetchConfiguration method
 

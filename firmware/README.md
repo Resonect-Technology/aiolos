@@ -148,6 +148,34 @@ As of June 27, 2025, the wind measurement system has been updated with the follo
 
 The current implementation combines the reliability of the proven direction calculation from the original code with the more modular and maintainable structure of the new code.
 
+### Recommended Operational Settings
+
+The wind measurement system supports configurable sampling and reporting intervals for different operational modes:
+
+#### Live Mode (Daytime/High Activity)
+- **Wind Sampling Interval**: 30 seconds
+- **Wind Reporting Interval**: 2 minutes
+- **Temperature Reporting**: 5 minutes
+- **Diagnostics Reporting**: 5 minutes
+- **Use Case**: Active monitoring periods when real-time data is important
+
+#### Power-Saving Mode (Nighttime/Low Activity)
+- **Wind Sampling Interval**: 2 minutes
+- **Wind Reporting Interval**: 10 minutes
+- **Temperature Reporting**: 15 minutes
+- **Diagnostics Reporting**: 15 minutes
+- **Use Case**: Extended battery operation during low-activity periods
+
+#### Configuration Methods
+- **Local Configuration**: Set via `Config.h` constants
+- **Remote Configuration**: Configurable via HTTP API endpoint `/stations/{stationId}/configuration`
+- **Runtime Adjustment**: Sampling intervals can be updated without firmware reflashing
+
+#### Backend Integration
+- Wind data sent to `/stations/{stationId}/wind` endpoint
+- Configuration fetched from `/stations/{stationId}/configuration`
+- Support for dynamic interval adjustment based on weather conditions or time of day
+
 ## Diagnostics System
 
 The Aiolos Weather Station includes a comprehensive diagnostics system that monitors the health and status of the device:

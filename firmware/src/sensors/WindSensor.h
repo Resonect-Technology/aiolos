@@ -63,6 +63,33 @@ public:
      */
     void calibrateWindVane(unsigned long durationMs = 30000);
 
+    /**
+     * @brief Start a new wind sampling period
+     *
+     * Resets counters and starts collecting wind data for averaging
+     */
+    void startSamplingPeriod();
+
+    /**
+     * @brief Get averaged wind data over the sampling period
+     *
+     * @param samplingPeriodMs The duration in milliseconds to sample over
+     * @param avgSpeed Reference to store the averaged wind speed (m/s)
+     * @param avgDirection Reference to store the averaged wind direction (degrees)
+     * @return true if sampling period is complete and data is valid
+     */
+    bool getAveragedWindData(unsigned long samplingPeriodMs, float &avgSpeed, float &avgDirection);
+
+    /**
+     * @brief Set the internal sampling interval for wind readings
+     *
+     * Controls how often wind direction readings are taken during the averaging period.
+     * This can be configured remotely from the backend.
+     *
+     * @param intervalMs Interval between individual samples in milliseconds (default: 2000ms)
+     */
+    void setSampleInterval(unsigned long intervalMs);
+
 private:
     uint8_t _anemometerPin = 0;
     uint8_t _windVanePin = 0;
@@ -74,6 +101,15 @@ private:
     unsigned long _directionChangeTime = 0;
     static const unsigned long DIRECTION_CHANGE_DELAY_MS = 1000; // 1 second minimum
     static const int ADC_SAMPLE_COUNT = 5;                       // Number of samples to average
+
+    // Wind sampling/averaging variables
+    unsigned long _samplingStartTime = 0;
+    float _directionSumX = 0.0; // X component sum for vector averaging
+    float _directionSumY = 0.0; // Y component sum for vector averaging
+    unsigned int _directionSampleCount = 0;
+    unsigned long _totalPulseCount = 0;     // Total pulses during sampling period
+    unsigned long _lastSampleTime = 0;      // For internal sampling rate control
+    unsigned long _sampleIntervalMs = 2000; // Default: take a sample every 2 seconds
 
     // Constants for anemometer calibration
     // From datasheet: 2.4 km/h causes the switch to close once per second
