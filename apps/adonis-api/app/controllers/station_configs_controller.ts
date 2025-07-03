@@ -22,7 +22,8 @@ export default class StationConfigsController {
                 return {
                     station_id: stationId,
                     temp_interval: null,
-                    wind_interval: null,
+                    wind_send_interval: null,
+                    wind_sample_interval: null,
                     diag_interval: null,
                     time_interval: null,
                     restart_interval: null,
@@ -65,7 +66,7 @@ export default class StationConfigsController {
 
             // Only include fields that are provided and are valid numbers
             const configFields = [
-                'temp_interval', 'wind_interval', 'diag_interval',
+                'temp_interval', 'wind_send_interval', 'wind_sample_interval', 'diag_interval',
                 'time_interval', 'restart_interval',
                 'sleep_start_hour', 'sleep_end_hour',
                 'ota_hour', 'ota_minute', 'ota_duration'

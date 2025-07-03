@@ -1,0 +1,33 @@
+meta {
+  name: Set station config
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{base_url}}/api/stations/{{station_id}}/config
+  body: json
+  auth: inherit
+}
+
+headers {
+  content-type: application/json
+  X-API-Key: {{admin_api_key}}
+}
+
+body:json {
+  {
+    "temp_interval": 300000,
+    "wind_send_interval": 120000,
+    "wind_sample_interval": 30000,
+    "diag_interval": 300000,
+    "time_interval": 3600000,
+    "restart_interval": 21600,
+    "sleep_start_hour": 22,
+    "sleep_end_hour": 9,
+    "ota_hour": 10,
+    "ota_minute": 0,
+    "ota_duration": 60,
+    "remote_ota": false
+  }
+}

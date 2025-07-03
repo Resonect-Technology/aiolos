@@ -39,6 +39,17 @@ public:
     bool sendDiagnostics(const char *stationId, float batteryVoltage, float solarVoltage, float internalTemp, int signalQuality, unsigned long uptime);
 
     /**
+     * @brief Send wind data to the server
+     *
+     * @param stationId Station identifier
+     * @param windSpeed Wind speed in m/s
+     * @param windDirection Wind direction in degrees (0-360)
+     * @return true if successful
+     * @return false if failed
+     */
+    bool sendWindData(const char *stationId, float windSpeed, float windDirection);
+
+    /**
      * @brief Fetch configuration from the server
      *
      * @param stationId Station identifier
@@ -53,7 +64,6 @@ public:
      * @param otaMinute Pointer to store retrieved OTA minute
      * @param otaDuration Pointer to store retrieved OTA duration in minutes
      * @param remoteOta Pointer to store retrieved remote OTA flag
-     * @param windSampleInterval Pointer to store retrieved wind sampling interval in milliseconds
      * @return true if successful
      * @return false if failed
      */
@@ -61,8 +71,7 @@ public:
                             unsigned long *diagInterval, unsigned long *timeInterval = nullptr,
                             unsigned long *restartInterval = nullptr, int *sleepStartHour = nullptr,
                             int *sleepEndHour = nullptr, int *otaHour = nullptr,
-                            int *otaMinute = nullptr, int *otaDuration = nullptr, bool *remoteOta = nullptr,
-                            unsigned long *windSampleInterval = nullptr);
+                            int *otaMinute = nullptr, int *otaDuration = nullptr, bool *remoteOta = nullptr);
 
     // Remote OTA flag is now handled through the fetchConfiguration method
 
