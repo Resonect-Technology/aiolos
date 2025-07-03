@@ -17,6 +17,7 @@
 #include "core/HttpClient.h"
 #include "core/DiagnosticsManager.h"
 #include "core/OtaManager.h"
+#include "utils/TemperatureSensor.h"
 #include "sensors/WindSensor.h"
 #include <Ticker.h>
 #include <WiFi.h>
@@ -26,6 +27,7 @@ Ticker periodicRestartTicker;
 unsigned long lastTimeUpdate = 0;
 unsigned long lastDiagnosticsUpdate = 0;
 unsigned long lastWindUpdate = 0;
+unsigned long lastTemperatureUpdate = 0;
 unsigned long lastConfigUpdate = 0;
 int currentHour = 0, currentMinute = 0, currentSecond = 0;
 bool otaActive = false;
@@ -56,6 +58,9 @@ void enterDeepSleepUntil(int hour, int minute);
 void testModemConnectivity();
 bool checkAndInitOta();
 bool checkAndInitRemoteOta(); // New function to check for remote OTA activation
+
+// Sensor instances
+TemperatureSensor externalTempSensor;
 
 /**
  * @brief Initial setup function
@@ -275,6 +280,25 @@ void setup()
     else
     {
         Logger.error(LOG_TAG_SYSTEM, "Failed to initialize wind sensor");
+    }
+
+    // Initialize external temperature sensor
+    if (externalTempSensor.init(TEMP_BUS_EXT, "External"))
+    {
+        Logger.info(LOG_TAG_SYSTEM, "External temperature sensor initialized successfully");
+        float temp = externalTempSensor.readTemperature();
+        if (temp != DEVICE_DISCONNECTED_C)
+        {
+            Logger.info(LOG_TAG_SYSTEM, "Initial external temperature: %.2f°C", temp);
+        }
+        else
+        {
+            Logger.warn(LOG_TAG_SYSTEM, "Could not read from external temperature sensor");
+        }
+    }
+    else
+    {
+        Logger.warning(LOG_TAG_SYSTEM, "Failed to initialize external temperature sensor (optional)");
     }
 
     // Schedule periodic restart
@@ -511,6 +535,36 @@ void loop()
         else
         {
             Logger.warn(LOG_TAG_SYSTEM, "Failed to send wind data");
+        }
+    }
+
+    // Measure and send temperature data periodically
+    if (currentMillis - lastTemperatureUpdate >= dynamicTempInterval)
+    {
+        lastTemperatureUpdate = currentMillis;
+
+        // Get internal temperature from diagnostics manager
+        float internalTemp = diagnosticsManager.readInternalTemperature();
+
+        // Get external temperature from dedicated sensor
+        float externalTemp = externalTempSensor.readTemperature();
+        if (externalTemp == DEVICE_DISCONNECTED_C)
+        {
+            externalTemp = -127.0; // Use -127 as an indicator of no reading
+            Logger.warn(LOG_TAG_SYSTEM, "Failed to read external temperature");
+        }
+
+        Logger.info(LOG_TAG_SYSTEM, "Temperature readings - Internal: %.2f°C, External: %.2f°C",
+                    internalTemp, externalTemp);
+
+        // Send external temperature data to server (internal temp is sent in diagnostics)
+        if (httpClient.sendTemperatureData(DEVICE_ID, internalTemp, externalTemp))
+        {
+            Logger.info(LOG_TAG_SYSTEM, "Temperature data sent successfully");
+        }
+        else
+        {
+            Logger.warn(LOG_TAG_SYSTEM, "Failed to send temperature data");
         }
     }
 

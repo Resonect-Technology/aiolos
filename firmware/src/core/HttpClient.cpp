@@ -520,3 +520,103 @@ bool HttpClient::sendWindData(const char *stationId, float windSpeed, float wind
         return false;
     }
 }
+
+/**
+ * @brief Send temperature data to the server
+ */
+bool HttpClient::sendTemperatureData(const char *stationId, float internalTemp, float externalTemp)
+{
+    if (!_modemManager || !_client)
+    {
+        Logger.error(LOG_TAG_HTTP, "HTTP client not initialized");
+        return false;
+    }
+
+    if (!_modemManager->isNetworkConnected() || !_modemManager->isGprsConnected())
+    {
+        Logger.error(LOG_TAG_HTTP, "Network not connected, cannot send temperature data");
+        return false;
+    }
+
+    Logger.info(LOG_TAG_HTTP, "Sending temperature data for station %s", stationId);
+
+    // Create JSON payload with only external temperature data (internal temp is sent in diagnostics)
+    char jsonBuffer[256];
+    snprintf(jsonBuffer, sizeof(jsonBuffer),
+             "{\"type\":\"temperature\",\"temperature\":%.2f}",
+             externalTemp);
+
+    // Calculate content length
+    size_t contentLength = strlen(jsonBuffer);
+
+    // Connect to server
+    Logger.debug(LOG_TAG_HTTP, "Connecting to %s:%d", _serverHost, _serverPort);
+    if (!_client->connect(_serverHost, _serverPort))
+    {
+        Logger.error(LOG_TAG_HTTP, "Failed to connect to server");
+        return false;
+    }
+
+    // Build the URL path with the station ID
+    char urlPath[64];
+    snprintf(urlPath, sizeof(urlPath), "/stations/%s/readings", stationId);
+
+    // Send HTTP POST request
+    Logger.debug(LOG_TAG_HTTP, "Sending POST request to %s", urlPath);
+    _client->print(F("POST "));
+    _client->print(urlPath);
+    _client->println(F(" HTTP/1.1"));
+
+    // Request headers
+    _client->print(F("Host: "));
+    _client->println(_serverHost);
+    _client->println(F("User-Agent: AiolosWeatherStation/1.0"));
+    _client->println(F("Content-Type: application/json"));
+    _client->print(F("Content-Length: "));
+    _client->println(contentLength);
+    _client->println(F("Connection: close"));
+    _client->println();
+
+    // Request body
+    _client->println(jsonBuffer);
+
+    // Wait for server response with timeout
+    unsigned long timeout = millis();
+    while (_client->connected() && millis() - timeout < 10000L)
+    {
+        // Wait for data to be available
+        while (_client->available())
+        {
+            char c = _client->read();
+            timeout = millis();
+        }
+    }
+
+    // Parse status code from response
+    int statusCode = 0;
+    bool success = false;
+
+    if (_client->find("HTTP/1.1 "))
+    {
+        statusCode = _client->parseInt();
+        Logger.debug(LOG_TAG_HTTP, "HTTP response status code: %d", statusCode);
+
+        // Check if status code indicates success (2xx)
+        success = (statusCode >= 200 && statusCode < 300);
+    }
+
+    // Close connection
+    _client->stop();
+    Logger.debug(LOG_TAG_HTTP, "Connection closed");
+
+    if (success)
+    {
+        Logger.info(LOG_TAG_HTTP, "Temperature data sent successfully");
+        return true;
+    }
+    else
+    {
+        Logger.error(LOG_TAG_HTTP, "Failed to send temperature data, status code: %d", statusCode);
+        return false;
+    }
+}

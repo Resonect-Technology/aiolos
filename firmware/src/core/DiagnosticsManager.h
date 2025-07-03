@@ -54,6 +54,20 @@ public:
      */
     unsigned long getInterval() const { return _interval; }
 
+    /**
+     * @brief Read the internal temperature sensor
+     *
+     * @return float Temperature in Celsius
+     */
+    float readInternalTemperature();
+
+    /**
+     * @brief Read the external temperature sensor
+     *
+     * @return float Temperature in Celsius
+     */
+    float readExternalTemperature();
+
 private:
     ModemManager *_modemManager = nullptr;
     HttpClient *_httpClient = nullptr;
@@ -75,20 +89,6 @@ private:
      * @return float Solar panel voltage in volts
      */
     float readSolarVoltage();
-
-    /**
-     * @brief Read the internal temperature sensor
-     *
-     * @return float Temperature in Celsius
-     */
-    float readInternalTemperature();
-
-    /**
-     * @brief Read the external temperature sensor
-     *
-     * @return float Temperature in Celsius
-     */
-    float readExternalTemperature();
 };
 
 extern DiagnosticsManager diagnosticsManager;
