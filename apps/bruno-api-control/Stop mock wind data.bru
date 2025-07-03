@@ -1,0 +1,28 @@
+meta {
+  name: Stop Mock Wind Data
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{base_url}}/api/stations/{{station_id}}/live/wind/mock/stop
+  body: {}
+  auth: none
+}
+
+vars:pre-request {
+  
+}
+
+assert {
+  
+}
+
+vars:post-response {
+  
+}
+
+docs {
+  title: "Stop Mock Wind Data"
+  description: "Stops the generation of mock wind data"
+}
