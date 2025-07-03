@@ -19,10 +19,10 @@
 #define PIN_RX 26
 #define PWR_PIN 4
 #define LED_PIN 12
-#define ANEMOMETER_PIN 14  // GPIO14 for anemometer (matched with old code)
-#define WIND_VANE_PIN 2    // GPIO2 for wind vane (ADC2_CH2) (matched with old code)
-#define TEMP_BUS_INT 13    // OneWire bus for internal temperature sensor
-#define TEMP_BUS_EXT 15    // OneWire bus for external temperature sensor
+#define ANEMOMETER_PIN 33  // GPIO33 for anemometer (was 14)
+#define WIND_VANE_PIN 32   // GPIO32 for wind vane (ADC1_CH4) (was 2)
+#define TEMP_BUS_INT 18    // OneWire bus for internal temperature sensor (was 13)
+#define TEMP_BUS_EXT 19    // OneWire bus for external temperature sensor (was 15)
 #define ADC_BATTERY_PIN 35 // ADC pin for battery voltage
 #define ADC_SOLAR_PIN 36   // ADC pin for solar panel voltage
 
