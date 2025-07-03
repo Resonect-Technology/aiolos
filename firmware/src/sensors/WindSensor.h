@@ -69,6 +69,12 @@ private:
     volatile unsigned long _pulseCount = 0;
     unsigned long _lastMeasurementTime = 0;
 
+    // Wind direction stability variables
+    float _lastStableDirection = 0.0;
+    unsigned long _directionChangeTime = 0;
+    static const unsigned long DIRECTION_CHANGE_DELAY_MS = 1000; // 1 second minimum
+    static const int ADC_SAMPLE_COUNT = 5;                       // Number of samples to average
+
     // Constants for anemometer calibration
     // From datasheet: 2.4 km/h causes the switch to close once per second
     // 2.4 km/h = 2.4 * (1000/3600) = 0.6667 m/s per Hz
@@ -111,6 +117,15 @@ private:
      * @return float Wind direction in degrees (0-359)
      */
     float voltageToDirection(float voltage);
+
+    /**
+     * @brief Get averaged ADC reading for wind vane
+     *
+     * Takes multiple ADC samples and returns the average to reduce noise
+     *
+     * @return int Averaged ADC value
+     */
+    int getAveragedAdcReading();
 };
 
 // Global instance for the interrupt handler

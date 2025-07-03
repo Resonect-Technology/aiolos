@@ -70,10 +70,24 @@ bool WindSensor::init(uint8_t anemometerPin, uint8_t windVanePin)
     return true;
 }
 
+int WindSensor::getAveragedAdcReading()
+{
+    int total = 0;
+
+    // Take multiple ADC readings and average them
+    for (int i = 0; i < ADC_SAMPLE_COUNT; i++)
+    {
+        total += analogRead(_windVanePin);
+        delay(2); // Small delay between readings
+    }
+
+    return total / ADC_SAMPLE_COUNT;
+}
+
 float WindSensor::getWindDirection()
 {
-    // Read analog value from wind vane
-    int adcValue = analogRead(_windVanePin);
+    // Get averaged ADC value to reduce noise
+    int adcValue = getAveragedAdcReading();
 
     // Use direct ADC value mapping from the old working code
     float direction;
@@ -122,8 +136,43 @@ float WindSensor::getWindDirection()
     if (direction < 0)
         direction += 360;
 
+    // Implement minimum change time to prevent rapid direction bouncing
+    unsigned long currentTime = millis();
+
+    // Check if this is a significant direction change
+    float directionDifference = abs(direction - _lastStableDirection);
+    if (directionDifference > 180)
+    {
+        // Handle wrap-around (e.g., 350° to 10° is only 20° difference)
+        directionDifference = 360 - directionDifference;
+    }
+
+    // If direction has changed significantly
+    if (directionDifference > 11.25)
+    { // Half of 22.5° (minimum meaningful change)
+        if (_directionChangeTime == 0)
+        {
+            // First time seeing this new direction, start the timer
+            _directionChangeTime = currentTime;
+        }
+        else if (currentTime - _directionChangeTime >= DIRECTION_CHANGE_DELAY_MS)
+        {
+            // Direction has been stable for the required time, accept the change
+            _lastStableDirection = direction;
+            _directionChangeTime = 0;
+        }
+        // Return the last stable direction until the change is confirmed
+        direction = _lastStableDirection;
+    }
+    else
+    {
+        // Direction hasn't changed significantly, reset the change timer
+        _directionChangeTime = 0;
+        _lastStableDirection = direction;
+    }
+
     // For debugging
-    Logger.debug(LOG_TAG_WIND, "Wind direction: %.1f°", direction);
+    Logger.debug(LOG_TAG_WIND, "Wind direction: %.1f° (ADC: %d)", direction, adcValue);
 
     return direction;
 }
