@@ -1,0 +1,22 @@
+meta {
+  name: Send wind data
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{base_url}}/api/stations/{{station_id}}/wind
+  body: json
+  auth: inherit
+}
+
+headers {
+  content-type: application/json
+}
+
+body:json {
+  {
+    "wind_speed": 12.5,
+    "wind_direction": 245.0
+  }
+}
