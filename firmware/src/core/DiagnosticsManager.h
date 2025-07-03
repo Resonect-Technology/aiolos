@@ -9,12 +9,11 @@
 #pragma once
 
 #include <Arduino.h>
-#include <OneWire.h>
-#include <DallasTemperature.h>
 #include "ModemManager.h"
 #include "HttpClient.h"
 #include "Logger.h"
 #include "../utils/BatteryUtils.h"
+#include "../utils/TemperatureSensor.h"
 
 class DiagnosticsManager
 {
@@ -60,8 +59,8 @@ private:
     HttpClient *_httpClient = nullptr;
     bool _initialized = false;
     unsigned long _interval = 300000; // Default interval is 5 minutes
-    OneWire *_oneWireInternal = nullptr;
-    DallasTemperature *_tempSensors = nullptr;
+    TemperatureSensor _internalTempSensor;
+    TemperatureSensor _externalTempSensor;
 
     /**
      * @brief Read the battery voltage from ADC
@@ -83,6 +82,13 @@ private:
      * @return float Temperature in Celsius
      */
     float readInternalTemperature();
+
+    /**
+     * @brief Read the external temperature sensor
+     *
+     * @return float Temperature in Celsius
+     */
+    float readExternalTemperature();
 };
 
 extern DiagnosticsManager diagnosticsManager;

@@ -20,24 +20,19 @@ bool DiagnosticsManager::init(ModemManager &modemManager, HttpClient &httpClient
     _httpClient = &httpClient;
     _interval = interval;
 
-    // Initialize OneWire and Dallas Temperature sensors
-    _oneWireInternal = new OneWire(TEMP_BUS_INT);
-    if (!_oneWireInternal)
+    // Initialize internal temperature sensor
+    if (!_internalTempSensor.init(TEMP_BUS_INT, 0))
     {
-        Logger.error(LOG_TAG_DIAG, "Failed to initialize OneWire for internal temperature");
+        Logger.error(LOG_TAG_DIAG, "Failed to initialize internal temperature sensor");
         return false;
     }
 
-    _tempSensors = new DallasTemperature(_oneWireInternal);
-    if (!_tempSensors)
+    // Initialize external temperature sensor
+    if (!_externalTempSensor.init(TEMP_BUS_EXT, 0))
     {
-        Logger.error(LOG_TAG_DIAG, "Failed to initialize DallasTemperature");
-        delete _oneWireInternal;
-        _oneWireInternal = nullptr;
-        return false;
+        Logger.warning(LOG_TAG_DIAG, "Failed to initialize external temperature sensor (optional)");
+        // Continue initialization even if external sensor fails
     }
-
-    _tempSensors->begin();
 
     _initialized = true;
 
@@ -77,6 +72,9 @@ bool DiagnosticsManager::sendDiagnostics()
     // Read internal temperature
     float internalTemp = readInternalTemperature();
 
+    // Read external temperature (optional)
+    float externalTemp = readExternalTemperature();
+
     // Get system uptime in seconds
     unsigned long uptime = millis() / 1000;
 
@@ -86,6 +84,7 @@ bool DiagnosticsManager::sendDiagnostics()
     if (success)
     {
         Logger.info(LOG_TAG_DIAG, "Diagnostics data sent successfully");
+        Logger.info(LOG_TAG_DIAG, "Internal temp: %.1f°C, External temp: %.1f°C", internalTemp, externalTemp);
     }
     else
     {
@@ -142,17 +141,7 @@ float DiagnosticsManager::readSolarVoltage()
  */
 float DiagnosticsManager::readInternalTemperature()
 {
-    if (!_tempSensors)
-    {
-        Logger.error(LOG_TAG_DIAG, "Temperature sensors not initialized");
-        return -127.0; // DEVICE_DISCONNECTED_C value
-    }
-
-    // Request temperature readings from all sensors
-    _tempSensors->requestTemperatures();
-
-    // Read temperature from the first sensor on the bus
-    float temp = _tempSensors->getTempCByIndex(0);
+    float temp = _internalTempSensor.readTemperature();
 
     if (temp == DEVICE_DISCONNECTED_C)
     {
@@ -161,5 +150,22 @@ float DiagnosticsManager::readInternalTemperature()
     }
 
     Logger.debug(LOG_TAG_DIAG, "Internal temperature: %.2f°C", temp);
+    return temp;
+}
+
+/**
+ * @brief Read the external temperature sensor
+ */
+float DiagnosticsManager::readExternalTemperature()
+{
+    float temp = _externalTempSensor.readTemperature();
+
+    if (temp == DEVICE_DISCONNECTED_C)
+    {
+        Logger.debug(LOG_TAG_DIAG, "External temperature sensor not available");
+        return -127.0;
+    }
+
+    Logger.debug(LOG_TAG_DIAG, "External temperature: %.2f°C", temp);
     return temp;
 }

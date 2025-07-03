@@ -268,6 +268,9 @@ void setup()
 
         // Just print a single wind reading at initialization
         windSensor.printWindReading();
+
+        // Start initial wind sampling period
+        windSensor.startSamplingPeriod();
     }
     else
     {
@@ -489,13 +492,26 @@ void loop()
         }
     }
 
-    // Measure and print wind data periodically
+    // Measure and send wind data periodically
     if (currentMillis - lastWindUpdate >= dynamicWindInterval)
     {
         lastWindUpdate = currentMillis;
 
-        // Read and print wind data
-        windSensor.printWindReading(dynamicWindInterval);
+        // Get wind data (using a simple fixed sampling period for now)
+        float windSpeed = windSensor.getWindSpeed();
+        float windDirection = windSensor.getWindDirection();
+
+        Logger.info(LOG_TAG_SYSTEM, "Wind: %.1f m/s at %.0f°", windSpeed, windDirection);
+
+        // Send wind data to server
+        if (httpClient.sendWindData(DEVICE_ID, windSpeed, windDirection))
+        {
+            Logger.info(LOG_TAG_SYSTEM, "Wind data sent successfully");
+        }
+        else
+        {
+            Logger.warn(LOG_TAG_SYSTEM, "Failed to send wind data");
+        }
     }
 
     // Small delay to prevent excessive looping
