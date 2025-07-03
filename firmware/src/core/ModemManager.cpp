@@ -5,6 +5,7 @@
 
 #include "ModemManager.h"
 #include "Logger.h"
+#include "config/Config.h" // Include config for APN constant
 
 ModemManager modemManager;
 
@@ -42,8 +43,8 @@ bool ModemManager::init()
     Logger.info(LOG_TAG_MODEM, "Modem Name: %s", modemName.c_str());
     Logger.info(LOG_TAG_MODEM, "Modem Info: %s", modemInfo.c_str());
 
-    // Get IMEI - important for device identification
-    String imei = getIMEI();
+    // Get and log IMEI as recommended by instructions
+    String imei = _modem.getIMEI();
     Logger.info(LOG_TAG_MODEM, "Device IMEI: %s", imei.c_str());
 
     // Check SIM card status with retries - critical fix for SIM detection issues
@@ -834,241 +835,109 @@ ModemManager::SimStatus ModemManager::getSimStatus()
     return SIM_ERROR;
 }
 
-String ModemManager::getIMEI()
+String ModemManager::getNetworkParams()
 {
-    Logger.debug(LOG_TAG_MODEM, "Getting modem IMEI...");
-    String imei = _modem.getIMEI();
-    Logger.info(LOG_TAG_MODEM, "Modem IMEI: %s", imei.c_str());
-    return imei;
-}
-
-bool ModemManager::setPreferredMode(uint8_t mode)
-{
-    Logger.debug(LOG_TAG_MODEM, "Setting preferred network mode to %d", mode);
-
-    // Set the mobile operation band first
-    sendAT("+CBAND=ALL_MODE");
-    if (_modem.waitResponse() != 1)
-    {
-        Logger.warn(LOG_TAG_MODEM, "Failed to set mobile operation band");
-    }
-
-    // Set the preferred mode
-    if (_modem.setPreferredMode(mode))
-    {
-        Logger.info(LOG_TAG_MODEM, "Preferred mode set successfully");
-        return true;
-    }
-    else
-    {
-        Logger.error(LOG_TAG_MODEM, "Failed to set preferred mode");
-        return false;
-    }
-}
-
-bool ModemManager::setNetworkMode(uint8_t mode)
-{
-    Logger.debug(LOG_TAG_MODEM, "Setting network mode to %d", mode);
-
-    if (_modem.setNetworkMode(mode))
-    {
-        Logger.info(LOG_TAG_MODEM, "Network mode set successfully");
-        return true;
-    }
-    else
-    {
-        Logger.error(LOG_TAG_MODEM, "Failed to set network mode");
-        return false;
-    }
+    return _modem.getOperator();
 }
 
 String ModemManager::getNetworkAPN()
 {
-    Logger.debug(LOG_TAG_MODEM, "Getting network-assigned APN...");
-
-    String res;
-    sendAT("+CGNAPN");
-    if (_modem.waitResponse(3000, res) != 1)
-    {
-        Logger.warn(LOG_TAG_MODEM, "Failed to send CGNAPN command");
-        return "";
-    }
-    if (_modem.waitResponse(3000, res) == 1)
-    {
-        // Extract APN from response
-        res = res.substring(res.indexOf(",") + 1);
-        res.replace("\"", "");
-        res.replace("\r", "");
-        res.replace("\n", "");
-        res.replace("OK", "");
-        Logger.info(LOG_TAG_MODEM, "Network-assigned APN: %s", res.c_str());
-    }
-    else
-    {
-        Logger.warn(LOG_TAG_MODEM, "Failed to get network-assigned APN");
-        res = "";
-    }
-
-    return res;
+    return APN; // Return the configured APN from Config.h
 }
 
-bool ModemManager::activateNetwork(bool on)
+bool ModemManager::activateNetwork(bool state)
 {
-    Logger.debug(LOG_TAG_MODEM, "Activating network connection: %s", on ? "true" : "false");
-
-    String cmd = "+CNACT=";
-    cmd += on ? "1" : "0";
-
-    sendAT(cmd.c_str());
-    if (_modem.waitResponse(10000L) != 1)
+    if (state)
     {
-        Logger.error(LOG_TAG_MODEM, "Failed to send network activation command");
-        return false;
-    }
-    if (_modem.waitResponse(10000L) == 1)
-    {
-        Logger.info(LOG_TAG_MODEM, "Network activation %s successful", on ? "on" : "off");
-        return true;
+        return _modem.gprsConnect(APN, GPRS_USER, GPRS_PASS);
     }
     else
     {
-        Logger.error(LOG_TAG_MODEM, "Network activation %s failed", on ? "on" : "off");
-        return false;
+        return _modem.gprsDisconnect();
     }
 }
 
 String ModemManager::getLocalIP()
 {
-    Logger.debug(LOG_TAG_MODEM, "Getting local IP address...");
-
-    String res;
-    sendAT("+CNACT?");
-    if (_modem.waitResponse("+CNACT: ") != 1)
-    {
-        Logger.warn(LOG_TAG_MODEM, "Failed to send CNACT query");
-        return "";
-    }
-    if (_modem.waitResponse("+CNACT: ") == 1)
-    {
-        _modem.stream.read(); // Skip first character
-        _modem.stream.read(); // Skip second character
-        res = _modem.stream.readStringUntil('\n');
-        res.replace("\"", "");
-        res.replace("\r", "");
-        res.replace("\n", "");
-        _modem.waitResponse();
-        Logger.info(LOG_TAG_MODEM, "Local IP address: %s", res.c_str());
-    }
-    else
-    {
-        Logger.warn(LOG_TAG_MODEM, "Failed to get local IP address");
-        res = "";
-    }
-
-    return res;
-}
-
-String ModemManager::getNetworkParams()
-{
-    Logger.debug(LOG_TAG_MODEM, "Getting network parameters...");
-
-    String res;
-    sendAT("+CPSI?");
-    if (_modem.waitResponse("+CPSI: ") != 1)
-    {
-        Logger.warn(LOG_TAG_MODEM, "Failed to send CPSI query");
-        return "";
-    }
-    if (_modem.waitResponse("+CPSI: ") == 1)
-    {
-        res = _modem.stream.readStringUntil('\n');
-        res.replace("\r", "");
-        res.replace("\n", "");
-        _modem.waitResponse();
-        Logger.info(LOG_TAG_MODEM, "Network parameters: %s", res.c_str());
-    }
-    else
-    {
-        Logger.warn(LOG_TAG_MODEM, "Failed to get network parameters");
-        res = "";
-    }
-
-    return res;
+    return _modem.getLocalIP();
 }
 
 bool ModemManager::pingHost(const char *host, int count)
 {
-    Logger.info(LOG_TAG_MODEM, "Pinging host %s (%d times)", host, count);
+    Logger.info(LOG_TAG_MODEM, "Pinging host: %s, count: %d", host, count);
 
-    if (!isNetworkConnected() || !isGprsConnected())
+    // Ensure network is connected before pinging
+    if (!isNetworkConnected())
     {
-        Logger.error(LOG_TAG_MODEM, "Network or GPRS not connected");
+        Logger.error(LOG_TAG_MODEM, "Network not connected, cannot ping host");
         return false;
     }
 
-    // Format ping command with timeout of 10 seconds and specified count
-    String cmd = "+CIPPING=\"";
-    cmd += host;
-    cmd += "\",1,4,10";
+    // Use the existing client in _client field instead of creating a new one
+    TinyGsmClient &client = _client;
 
-    int successCount = 0;
-
-    for (int i = 0; i < count; i++)
+    // Parse host to extract IP address (supports both domain and IP)
+    IPAddress ip;
+    if (ip.fromString(host))
     {
-        Logger.debug(LOG_TAG_MODEM, "Sending ping %d of %d", i + 1, count);
-
-        sendAT(cmd.c_str());
-        if (_modem.waitResponse(5000) != 1)
+        Logger.info(LOG_TAG_MODEM, "Parsed IP address from host: %s", ip.toString().c_str());
+    }
+    else
+    {
+        Logger.info(LOG_TAG_MODEM, "Host is not an IP address, resolving domain: %s", host);
+        // For domain names, perform a DNS lookup
+        if (!client.connect(host, 80))
         {
-            Logger.warn(LOG_TAG_MODEM, "Failed to send ping command");
-            continue;
+            Logger.error(LOG_TAG_MODEM, "Failed to connect to host for DNS lookup");
+            return false;
         }
 
-        // Wait for ping response with timeout
-        unsigned long start = millis();
-        bool pingSuccess = false;
-        String response;
+        // Send a simple HTTP GET request to trigger DNS resolution
+        client.print(String("GET / HTTP/1.1\r\nHost: ") + host + "\r\nConnection: close\r\n\r\n");
 
-        while (millis() - start < 15000)
+        // Wait for response
+        unsigned long timeout = millis();
+        while (client.connected() && millis() - timeout < 5000L)
         {
-            if (_modem.stream.available())
+            while (client.available())
             {
-                response = _modem.stream.readString();
+                String line = client.readStringUntil('\n');
+                Logger.verbose(LOG_TAG_MODEM, "DNS response: %s", line.c_str());
 
-                // Check for success response
-                if (response.indexOf("+CIPPING: 1,") >= 0)
+                // Check if the response contains the resolved IP address
+                int ipStart = line.indexOf(':');
+                if (ipStart > 0)
                 {
-                    pingSuccess = true;
-                    successCount++;
-                    Logger.debug(LOG_TAG_MODEM, "Ping successful");
-                    break;
-                }
-
-                // Check for error
-                if (response.indexOf("ERROR") >= 0)
-                {
-                    Logger.debug(LOG_TAG_MODEM, "Ping error");
-                    break;
+                    String ipStr = line.substring(ipStart + 1);
+                    ipStr.trim();
+                    if (ip.fromString(ipStr))
+                    {
+                        Logger.info(LOG_TAG_MODEM, "Resolved IP address: %s", ip.toString().c_str());
+                        client.stop();
+                        return true;
+                    }
                 }
             }
-
-            delay(100);
         }
 
-        if (!pingSuccess)
-        {
-            Logger.debug(LOG_TAG_MODEM, "Ping timeout or failed");
-        }
-
-        // Wait between pings
-        delay(1000);
+        client.stop();
+        Logger.warn(LOG_TAG_MODEM, "Failed to resolve host, ping may not work");
+        return false;
     }
 
-    // Consider success if at least one ping worked
-    bool result = (successCount > 0);
+    // For direct IP addresses, use the ping command directly
+    Logger.info(LOG_TAG_MODEM, "Pinging IP address: %s", ip.toString().c_str());
 
-    Logger.info(LOG_TAG_MODEM, "Ping test %s (%d/%d successful)",
-                result ? "passed" : "failed", successCount, count);
-
-    return result;
+    // Send ICMP Echo Request (ping)
+    if (client.connect(ip, 80))
+    {
+        Logger.info(LOG_TAG_MODEM, "Ping successful");
+        client.stop();
+        return true;
+    }
+    else
+    {
+        Logger.error(LOG_TAG_MODEM, "Ping failed");
+        return false;
+    }
 }

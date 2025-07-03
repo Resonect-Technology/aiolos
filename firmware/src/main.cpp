@@ -92,23 +92,9 @@ void setup()
         return;
     }
 
-    Logger.info(LOG_TAG_SYSTEM, "Connecting to network...");
-    if (!modemManager.connectNetwork())
-    {
-        Logger.error(LOG_TAG_SYSTEM, "Failed to connect to network. Restarting...");
-        delay(5000);
-        ESP.restart();
-        return;
-    }
-
-    Logger.info(LOG_TAG_SYSTEM, "Connecting to GPRS...");
-    if (!modemManager.connectGprs())
-    {
-        Logger.error(LOG_TAG_SYSTEM, "Failed to connect to GPRS. Restarting...");
-        delay(5000);
-        ESP.restart();
-        return;
-    }
+    // Establish initial network and GPRS connection
+    Logger.info(LOG_TAG_SYSTEM, "Establishing initial connection...");
+    modemManager.maintainConnection(true);
 
     // Re-enable watchdog after modem initialization
     Logger.debug(LOG_TAG_SYSTEM, "Re-enabling watchdog after modem initialization");
@@ -372,200 +358,184 @@ void loop()
         }
     }
 
-    // Check network connectivity
-    if (!modemManager.isNetworkConnected() || !modemManager.isGprsConnected())
+    // Maintain the connection, ensuring GPRS is active for data transmission.
+    modemManager.maintainConnection(true);
+
+    // Only proceed with network operations if GPRS is connected
+    if (modemManager.isGprsConnected())
     {
-        Logger.warn(LOG_TAG_SYSTEM, "Network connection lost. Reconnecting...");
-
-        // Temporarily disable watchdog for reconnection
-        Logger.debug(LOG_TAG_SYSTEM, "Temporarily disabling watchdog for network reconnection");
-        esp_task_wdt_deinit();
-
-        if (!modemManager.connectNetwork() || !modemManager.connectGprs())
+        // Send diagnostics data periodically
+        if (currentMillis - lastDiagnosticsUpdate >= dynamicDiagInterval)
         {
-            Logger.error(LOG_TAG_SYSTEM, "Failed to reconnect. Restarting modem...");
-            modemManager.powerOff();
-            delay(1000);
-            modemManager.powerOn();
-
-            if (!modemManager.connectNetwork() || !modemManager.connectGprs())
-            {
-                Logger.error(LOG_TAG_SYSTEM, "Failed to reconnect after modem restart. Rebooting...");
-                delay(5000);
-                ESP.restart();
-                return;
-            }
+            lastDiagnosticsUpdate = currentMillis;
+            diagnosticsManager.sendDiagnostics();
         }
 
-        // Re-enable watchdog after reconnection
-        Logger.debug(LOG_TAG_SYSTEM, "Re-enabling watchdog after network reconnection");
-        setupWatchdog();
-    }
-
-    // Send diagnostics data periodically
-    if (currentMillis - lastDiagnosticsUpdate >= dynamicDiagInterval)
-    {
-        lastDiagnosticsUpdate = currentMillis;
-        diagnosticsManager.sendDiagnostics();
-    }
-
-    // Fetch remote configuration periodically
-    if (currentMillis - lastConfigUpdate >= CONFIG_UPDATE_INTERVAL)
-    {
-        lastConfigUpdate = currentMillis;
-
-        Logger.info(LOG_TAG_SYSTEM, "Fetching remote configuration...");
-        unsigned long tempInterval, windInterval, diagInterval, timeInterval, restartInterval;
-        int sleepStartHour, sleepEndHour, otaHour, otaMinute, otaDuration;
-        bool remoteOtaRequested = false;
-
-        if (httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
-                                          &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
-                                          &otaHour, &otaMinute, &otaDuration))
+        // Fetch remote configuration periodically
+        if (currentMillis - lastConfigUpdate >= CONFIG_UPDATE_INTERVAL)
         {
-            // Apply configuration if values are valid (non-zero)
-            if (tempInterval > 0)
-            {
-                dynamicTempInterval = tempInterval;
-                Logger.info(LOG_TAG_SYSTEM, "Updated temperature interval to %lu ms", dynamicTempInterval);
-            }
+            lastConfigUpdate = currentMillis;
 
-            if (windInterval > 0)
-            {
-                dynamicWindInterval = windInterval;
-                Logger.info(LOG_TAG_SYSTEM, "Updated wind interval to %lu ms", dynamicWindInterval);
-            }
-
-            if (diagInterval > 0)
-            {
-                dynamicDiagInterval = diagInterval;
-                diagnosticsManager.setInterval(dynamicDiagInterval);
-                Logger.info(LOG_TAG_SYSTEM, "Updated diagnostics interval to %lu ms", dynamicDiagInterval);
-            }
-
-            if (timeInterval > 0)
-            {
-                dynamicTimeInterval = timeInterval;
-                Logger.info(LOG_TAG_SYSTEM, "Updated time update interval to %lu ms", dynamicTimeInterval);
-            }
-
-            if (restartInterval > 0)
-            {
-                dynamicRestartInterval = restartInterval;
-                // Update the restart ticker with the new interval
-                periodicRestartTicker.detach();
-                periodicRestartTicker.attach(dynamicRestartInterval, periodicRestart);
-                Logger.info(LOG_TAG_SYSTEM, "Updated restart interval to %lu seconds", dynamicRestartInterval);
-            }
-
-            if (sleepStartHour >= 0 && sleepStartHour < 24)
-            {
-                dynamicSleepStartHour = sleepStartHour;
-                Logger.info(LOG_TAG_SYSTEM, "Updated sleep start hour to %d", dynamicSleepStartHour);
-            }
-
-            if (sleepEndHour >= 0 && sleepEndHour < 24)
-            {
-                dynamicSleepEndHour = sleepEndHour;
-                Logger.info(LOG_TAG_SYSTEM, "Updated sleep end hour to %d", dynamicSleepEndHour);
-            }
-
-            if (otaHour >= 0 && otaHour < 24)
-            {
-                dynamicOtaHour = otaHour;
-                Logger.info(LOG_TAG_SYSTEM, "Updated OTA hour to %d", dynamicOtaHour);
-            }
-
-            if (otaMinute >= 0 && otaMinute < 60)
-            {
-                dynamicOtaMinute = otaMinute;
-                Logger.info(LOG_TAG_SYSTEM, "Updated OTA minute to %d", dynamicOtaMinute);
-            }
-
-            if (otaDuration > 0)
-            {
-                dynamicOtaDuration = otaDuration;
-                Logger.info(LOG_TAG_SYSTEM, "Updated OTA duration to %d minutes", dynamicOtaDuration);
-            }
-        }
-        else
-        {
-            Logger.warn(LOG_TAG_SYSTEM, "Failed to fetch remote configuration. Using default values.");
-        }
-
-        // Check for remote OTA flag after config update
-        if (!otaActive)
-        {
+            Logger.info(LOG_TAG_SYSTEM, "Fetching remote configuration...");
+            unsigned long tempInterval, windInterval, diagInterval, timeInterval, restartInterval;
+            int sleepStartHour, sleepEndHour, otaHour, otaMinute, otaDuration;
             bool remoteOtaRequested = false;
+
             if (httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
                                               &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
-                                              &otaHour, &otaMinute, &otaDuration, &remoteOtaRequested))
+                                              &otaHour, &otaMinute, &otaDuration))
             {
-                if (remoteOtaRequested)
+                // Apply configuration if values are valid (non-zero)
+                if (tempInterval > 0)
                 {
-                    Logger.info(LOG_TAG_SYSTEM, "Remote OTA flag detected during configuration check");
-                    checkAndInitRemoteOta();
+                    dynamicTempInterval = tempInterval;
+                    Logger.info(LOG_TAG_SYSTEM, "Updated temperature interval to %lu ms", dynamicTempInterval);
+                }
 
-                    // Clear the flag after activation attempt
-                    remoteOtaRequested = false;
-                    httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
+                if (windInterval > 0)
+                {
+                    dynamicWindInterval = windInterval;
+                    Logger.info(LOG_TAG_SYSTEM, "Updated wind interval to %lu ms", dynamicWindInterval);
+                }
+
+                if (diagInterval > 0)
+                {
+                    dynamicDiagInterval = diagInterval;
+                    diagnosticsManager.setInterval(dynamicDiagInterval);
+                    Logger.info(LOG_TAG_SYSTEM, "Updated diagnostics interval to %lu ms", dynamicDiagInterval);
+                }
+
+                if (timeInterval > 0)
+                {
+                    dynamicTimeInterval = timeInterval;
+                    Logger.info(LOG_TAG_SYSTEM, "Updated time update interval to %lu ms", dynamicTimeInterval);
+                }
+
+                if (restartInterval > 0)
+                {
+                    dynamicRestartInterval = restartInterval;
+                    // Update the restart ticker with the new interval
+                    periodicRestartTicker.detach();
+                    periodicRestartTicker.attach(dynamicRestartInterval, periodicRestart);
+                    Logger.info(LOG_TAG_SYSTEM, "Updated restart interval to %lu seconds", dynamicRestartInterval);
+                }
+
+                if (sleepStartHour >= 0 && sleepStartHour < 24)
+                {
+                    dynamicSleepStartHour = sleepStartHour;
+                    Logger.info(LOG_TAG_SYSTEM, "Updated sleep start hour to %d", dynamicSleepStartHour);
+                }
+
+                if (sleepEndHour >= 0 && sleepEndHour < 24)
+                {
+                    dynamicSleepEndHour = sleepEndHour;
+                    Logger.info(LOG_TAG_SYSTEM, "Updated sleep end hour to %d", dynamicSleepEndHour);
+                }
+
+                if (otaHour >= 0 && otaHour < 24)
+                {
+                    dynamicOtaHour = otaHour;
+                    Logger.info(LOG_TAG_SYSTEM, "Updated OTA hour to %d", dynamicOtaHour);
+                }
+
+                if (otaMinute >= 0 && otaMinute < 60)
+                {
+                    dynamicOtaMinute = otaMinute;
+                    Logger.info(LOG_TAG_SYSTEM, "Updated OTA minute to %d", dynamicOtaMinute);
+                }
+
+                if (otaDuration > 0)
+                {
+                    dynamicOtaDuration = otaDuration;
+                    Logger.info(LOG_TAG_SYSTEM, "Updated OTA duration to %d minutes", dynamicOtaDuration);
+                }
+            }
+            else
+            {
+                Logger.warn(LOG_TAG_SYSTEM, "Failed to fetch remote configuration. Using default values.");
+            }
+
+            // Check for remote OTA flag after config update
+            if (!otaActive)
+            {
+                bool remoteOtaRequested = false;
+                if (httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
                                                   &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
-                                                  &otaHour, &otaMinute, &otaDuration, &remoteOtaRequested);
+                                                  &otaHour, &otaMinute, &otaDuration, &remoteOtaRequested))
+                {
+                    if (remoteOtaRequested)
+                    {
+                        Logger.info(LOG_TAG_SYSTEM, "Remote OTA flag detected during configuration check");
+                        checkAndInitRemoteOta();
+
+                        // Clear the flag after activation attempt
+                        remoteOtaRequested = false;
+                        httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
+                                                      &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
+                                                      &otaHour, &otaMinute, &otaDuration, &remoteOtaRequested);
+                    }
                 }
             }
         }
+
+        // Measure and send wind data periodically
+        if (currentMillis - lastWindUpdate >= dynamicWindInterval)
+        {
+            lastWindUpdate = currentMillis;
+
+            // Get wind data (using a simple fixed sampling period for now)
+            float windSpeed = windSensor.getWindSpeed();
+            float windDirection = windSensor.getWindDirection();
+
+            Logger.info(LOG_TAG_SYSTEM, "Wind: %.1f m/s at %.0f°", windSpeed, windDirection);
+
+            // Send wind data to server
+            if (httpClient.sendWindData(DEVICE_ID, windSpeed, windDirection))
+            {
+                Logger.info(LOG_TAG_SYSTEM, "Wind data sent successfully");
+            }
+            else
+            {
+                Logger.warn(LOG_TAG_SYSTEM, "Failed to send wind data");
+            }
+        }
+
+        // Measure and send temperature data periodically
+        if (currentMillis - lastTemperatureUpdate >= dynamicTempInterval)
+        {
+            lastTemperatureUpdate = currentMillis;
+
+            // Get internal temperature from diagnostics manager
+            float internalTemp = diagnosticsManager.readInternalTemperature();
+
+            // Get external temperature from dedicated sensor
+            float externalTemp = externalTempSensor.readTemperature();
+            if (externalTemp == DEVICE_DISCONNECTED_C)
+            {
+                externalTemp = -127.0; // Use -127 as an indicator of no reading
+                Logger.warn(LOG_TAG_SYSTEM, "Failed to read external temperature");
+            }
+
+            Logger.info(LOG_TAG_SYSTEM, "Temperature readings - Internal: %.2f°C, External: %.2f°C",
+                        internalTemp, externalTemp);
+
+            // Send external temperature data to server (internal temp is sent in diagnostics)
+            if (httpClient.sendTemperatureData(DEVICE_ID, internalTemp, externalTemp))
+            {
+                Logger.info(LOG_TAG_SYSTEM, "Temperature data sent successfully");
+            }
+            else
+            {
+                Logger.warn(LOG_TAG_SYSTEM, "Failed to send temperature data");
+            }
+        }
     }
-
-    // Measure and send wind data periodically
-    if (currentMillis - lastWindUpdate >= dynamicWindInterval)
+    else
     {
-        lastWindUpdate = currentMillis;
-
-        // Get wind data (using a simple fixed sampling period for now)
-        float windSpeed = windSensor.getWindSpeed();
-        float windDirection = windSensor.getWindDirection();
-
-        Logger.info(LOG_TAG_SYSTEM, "Wind: %.1f m/s at %.0f°", windSpeed, windDirection);
-
-        // Send wind data to server
-        if (httpClient.sendWindData(DEVICE_ID, windSpeed, windDirection))
-        {
-            Logger.info(LOG_TAG_SYSTEM, "Wind data sent successfully");
-        }
-        else
-        {
-            Logger.warn(LOG_TAG_SYSTEM, "Failed to send wind data");
-        }
-    }
-
-    // Measure and send temperature data periodically
-    if (currentMillis - lastTemperatureUpdate >= dynamicTempInterval)
-    {
-        lastTemperatureUpdate = currentMillis;
-
-        // Get internal temperature from diagnostics manager
-        float internalTemp = diagnosticsManager.readInternalTemperature();
-
-        // Get external temperature from dedicated sensor
-        float externalTemp = externalTempSensor.readTemperature();
-        if (externalTemp == DEVICE_DISCONNECTED_C)
-        {
-            externalTemp = -127.0; // Use -127 as an indicator of no reading
-            Logger.warn(LOG_TAG_SYSTEM, "Failed to read external temperature");
-        }
-
-        Logger.info(LOG_TAG_SYSTEM, "Temperature readings - Internal: %.2f°C, External: %.2f°C",
-                    internalTemp, externalTemp);
-
-        // Send external temperature data to server (internal temp is sent in diagnostics)
-        if (httpClient.sendTemperatureData(DEVICE_ID, internalTemp, externalTemp))
-        {
-            Logger.info(LOG_TAG_SYSTEM, "Temperature data sent successfully");
-        }
-        else
-        {
-            Logger.warn(LOG_TAG_SYSTEM, "Failed to send temperature data");
-        }
+        // Optional: Log that we are skipping network operations.
+        // Note: This might become noisy if the connection is down for a long time.
+        // Consider adding a flag to log this only once per disconnection.
+        // For now, we'll keep it simple.
     }
 
     // Small delay to prevent excessive looping
@@ -638,6 +608,9 @@ void enterDeepSleepUntil(int hour, int minute)
     }
 
     Logger.info(LOG_TAG_SYSTEM, "Sleeping for %d seconds", sleepSeconds);
+
+    // Disconnect GPRS to save power before sleeping
+    modemManager.maintainConnection(false);
 
     // Disable watchdog timer
     esp_task_wdt_deinit();

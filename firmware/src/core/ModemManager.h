@@ -32,12 +32,12 @@
 class ModemManager
 {
 public:
-    // SIM card status enum
+    // Enum for SIM status, as defined in TinyGSM but scoped here for clarity
     enum SimStatus
     {
-        SIM_ERROR,
-        SIM_READY,
-        SIM_LOCKED
+        SIM_ERROR = 0,
+        SIM_READY = 1,
+        SIM_LOCKED = 2,
     };
 
     /**
@@ -97,6 +97,22 @@ public:
      * @return false if connection failed
      */
     bool connectGprs(int maxRetries = 3);
+
+    /**
+     * @brief Disconnect from GPRS
+     *
+     * @return true if disconnection successful
+     * @return false if disconnection failed
+     */
+    bool disconnectGprs();
+
+    /**
+     * @brief Maintain the modem's connection state (network and GPRS)
+     *
+     * @param active If true, ensures network and GPRS are connected.
+     *               If false, disconnects GPRS to save power.
+     */
+    void maintainConnection(bool active);
 
     /**
      * @brief Get the current time from the network
@@ -180,102 +196,20 @@ public:
      */
     bool sendTestRequest(const char *url);
 
-    /**
-     * @brief Send a test ping to check connectivity
-     *
-     * @param host The host to ping
-     * @param count Number of pings to send
-     * @return true if successful
-     * @return false if failed
-     */
-    bool pingHost(const char *host, int count = 4);
-
-    /**
-     * @brief Get the SIM card status
-     *
-     * @return SimStatus enum value indicating SIM status
-     */
-    SimStatus getSimStatus();
-
-    /**
-     * @brief Get the IMEI of the modem
-     *
-     * @return String containing the IMEI
-     */
-    String getIMEI();
-
-    /**
-     * @brief Set the preferred network mode
-     *
-     * @param mode 1=CAT-M, 2=NB-IoT, 3=CAT-M and NB-IoT
-     * @return true if successful
-     * @return false if failed
-     */
-    bool setPreferredMode(uint8_t mode);
-
-    /**
-     * @brief Set the network mode
-     *
-     * @param mode 2=Automatic, 13=GSM only, 38=LTE only, 51=GSM and LTE only
-     * @return true if successful
-     * @return false if failed
-     */
-    bool setNetworkMode(uint8_t mode);
-
-    /**
-     * @brief Get the APN assigned by the network
-     *
-     * @return String containing the APN
-     */
-    String getNetworkAPN();
-
-    /**
-     * @brief Activate the network connection
-     *
-     * @param on true to activate, false to deactivate
-     * @return true if successful
-     * @return false if failed
-     */
-    bool activateNetwork(bool on = true);
-
-    /**
-     * @brief Get the local IP address assigned to the modem
-     *
-     * @return String containing the IP address
-     */
-    String getLocalIP();
-
-    /**
-     * @brief Get detailed network parameters
-     *
-     * @return String containing the network parameters
-     */
     String getNetworkParams();
-
-    /**
-     * @brief Send a UDP packet to a specified host
-     *
-     * @param host The host to send the packet to
-     * @param port The port to send the packet to
-     * @param message The message to send
-     * @return true if successful
-     * @return false if failed
-     */
-    bool sendUdpPacket(const char *host, uint16_t port, const char *message);
+    String getNetworkAPN();
+    bool activateNetwork(bool state);
+    String getLocalIP();
+    bool pingHost(const char *host, int count);
 
 private:
     TinyGsm _modem = TinyGsm(SerialAT);
     TinyGsmClient _client = TinyGsmClient(_modem);
     bool _initialized = false;
-    int _restartAttempts = 0;
+    unsigned long _lastReconnectAttempt = 0;
 
-    /**
-     * @brief Initialize the modem hardware
-     *
-     * @return true if successful
-     * @return false if failed
-     */
-    bool _initHardware();
+    bool _initHardware();     // Declaration for the private hardware init function
+    SimStatus getSimStatus(); // Declaration for getSimStatus
 
     /**
      * @brief Temporarily disable the watchdog for long modem operations

@@ -21,14 +21,14 @@ bool DiagnosticsManager::init(ModemManager &modemManager, HttpClient &httpClient
     _interval = interval;
 
     // Initialize internal temperature sensor
-    if (!_internalTempSensor.init(TEMP_BUS_INT, 0))
+    if (!_internalTempSensor.init(TEMP_BUS_INT, "internal"))
     {
         Logger.error(LOG_TAG_DIAG, "Failed to initialize internal temperature sensor");
         return false;
     }
 
     // Initialize external temperature sensor
-    if (!_externalTempSensor.init(TEMP_BUS_EXT, 0))
+    if (!_externalTempSensor.init(TEMP_BUS_EXT, "external"))
     {
         Logger.warn(LOG_TAG_DIAG, "Failed to initialize external temperature sensor (optional)");
         // Continue initialization even if external sensor fails
@@ -78,8 +78,19 @@ bool DiagnosticsManager::sendDiagnostics()
     // Get system uptime in seconds
     unsigned long uptime = millis() / 1000;
 
+#ifdef DISABLE_WDT_FOR_MODEM
+    Logger.debug(LOG_TAG_DIAG, "Disabling watchdog for diagnostics");
+    esp_task_wdt_deinit();
+#endif
+
     // Send data to server
     bool success = _httpClient->sendDiagnostics(DEVICE_ID, batteryVoltage, solarVoltage, internalTemp, signalQuality, uptime);
+
+#ifdef DISABLE_WDT_FOR_MODEM
+    Logger.debug(LOG_TAG_DIAG, "Re-enabling watchdog after diagnostics");
+    esp_task_wdt_init(WDT_TIMEOUT / 1000, true);
+    esp_task_wdt_add(NULL);
+#endif
 
     if (success)
     {

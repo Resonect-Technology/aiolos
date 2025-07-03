@@ -5,6 +5,7 @@
 
 #include "HttpClient.h"
 #include "Logger.h"
+#include <ArduinoJson.h> // Use ArduinoJson for robust parsing
 
 #define LOG_TAG_HTTP "HTTP"
 
@@ -223,189 +224,82 @@ bool HttpClient::fetchConfiguration(const char *stationId, unsigned long *tempIn
     {
         Logger.info(LOG_TAG_HTTP, "Configuration data received: %s", responseBody.c_str());
 
-        // Very basic JSON parsing - this could be improved with ArduinoJson library
-        // Looking for keys like "temp_interval", "wind_interval", "diag_interval"
-        if (responseBody.indexOf("temp_interval") >= 0)
+        // Use ArduinoJson for robust parsing
+        JsonDocument doc;
+        DeserializationError error = deserializeJson(doc, responseBody);
+
+        if (error)
         {
-            int startPos = responseBody.indexOf("temp_interval") + 15; // Length of "temp_interval" + 2 for ": "
-            int endPos = responseBody.indexOf(",", startPos);
-            if (endPos < 0)
-                endPos = responseBody.indexOf("}", startPos);
-            if (endPos > startPos)
-            {
-                String valueStr = responseBody.substring(startPos, endPos);
-                valueStr.trim();
-                *tempInterval = valueStr.toInt();
-                Logger.info(LOG_TAG_HTTP, "Parsed temp_interval: %lu", *tempInterval);
-            }
+            Logger.error(LOG_TAG_HTTP, "Failed to parse JSON configuration: %s", error.c_str());
+            return false;
         }
 
-        if (responseBody.indexOf("wind_interval") >= 0)
+        // Safely extract values using the parsed JSON document
+        // Use .is<T>() to check for existence and correct type
+        if (!doc["temp_interval"].isNull())
         {
-            int startPos = responseBody.indexOf("wind_interval") + 15; // Length of "wind_interval" + 2 for ": "
-            int endPos = responseBody.indexOf(",", startPos);
-            if (endPos < 0)
-                endPos = responseBody.indexOf("}", startPos);
-            if (endPos > startPos)
-            {
-                String valueStr = responseBody.substring(startPos, endPos);
-                valueStr.trim();
-                *windInterval = valueStr.toInt();
-                Logger.info(LOG_TAG_HTTP, "Parsed wind_interval: %lu", *windInterval);
-            }
+            *tempInterval = doc["temp_interval"].as<unsigned long>();
+            Logger.info(LOG_TAG_HTTP, "Parsed temp_interval: %lu", *tempInterval);
         }
 
-        if (responseBody.indexOf("diag_interval") >= 0)
+        if (!doc["wind_interval"].isNull())
         {
-            int startPos = responseBody.indexOf("diag_interval") + 15; // Length of "diag_interval" + 2 for ": "
-            int endPos = responseBody.indexOf(",", startPos);
-            if (endPos < 0)
-                endPos = responseBody.indexOf("}", startPos);
-            if (endPos > startPos)
-            {
-                String valueStr = responseBody.substring(startPos, endPos);
-                valueStr.trim();
-                *diagInterval = valueStr.toInt();
-                Logger.info(LOG_TAG_HTTP, "Parsed diag_interval: %lu", *diagInterval);
-            }
+            *windInterval = doc["wind_interval"].as<unsigned long>();
+            Logger.info(LOG_TAG_HTTP, "Parsed wind_interval: %lu", *windInterval);
         }
 
-        // Parse time_interval if pointer is provided
-        if (timeInterval && responseBody.indexOf("time_interval") >= 0)
+        if (!doc["diag_interval"].isNull())
         {
-            int startPos = responseBody.indexOf("time_interval") + 15; // Length of "time_interval" + 2 for ": "
-            int endPos = responseBody.indexOf(",", startPos);
-            if (endPos < 0)
-                endPos = responseBody.indexOf("}", startPos);
-            if (endPos > startPos)
-            {
-                String valueStr = responseBody.substring(startPos, endPos);
-                valueStr.trim();
-                *timeInterval = valueStr.toInt();
-                Logger.info(LOG_TAG_HTTP, "Parsed time_interval: %lu", *timeInterval);
-            }
+            *diagInterval = doc["diag_interval"].as<unsigned long>();
+            Logger.info(LOG_TAG_HTTP, "Parsed diag_interval: %lu", *diagInterval);
         }
 
-        // Parse restart_interval if pointer is provided
-        if (restartInterval && responseBody.indexOf("restart_interval") >= 0)
+        if (timeInterval && !doc["time_interval"].isNull())
         {
-            int startPos = responseBody.indexOf("restart_interval") + 18; // Length of "restart_interval" + 2 for ": "
-            int endPos = responseBody.indexOf(",", startPos);
-            if (endPos < 0)
-                endPos = responseBody.indexOf("}", startPos);
-            if (endPos > startPos)
-            {
-                String valueStr = responseBody.substring(startPos, endPos);
-                valueStr.trim();
-                *restartInterval = valueStr.toInt();
-                Logger.info(LOG_TAG_HTTP, "Parsed restart_interval: %lu", *restartInterval);
-            }
+            *timeInterval = doc["time_interval"].as<unsigned long>();
+            Logger.info(LOG_TAG_HTTP, "Parsed time_interval: %lu", *timeInterval);
         }
 
-        // Parse sleep_start_hour if pointer is provided
-        if (sleepStartHour && responseBody.indexOf("sleep_start_hour") >= 0)
+        if (restartInterval && !doc["restart_interval"].isNull())
         {
-            int startPos = responseBody.indexOf("sleep_start_hour") + 18; // Length of "sleep_start_hour" + 2 for ": "
-            int endPos = responseBody.indexOf(",", startPos);
-            if (endPos < 0)
-                endPos = responseBody.indexOf("}", startPos);
-            if (endPos > startPos)
-            {
-                String valueStr = responseBody.substring(startPos, endPos);
-                valueStr.trim();
-                *sleepStartHour = valueStr.toInt();
-                Logger.info(LOG_TAG_HTTP, "Parsed sleep_start_hour: %d", *sleepStartHour);
-            }
+            *restartInterval = doc["restart_interval"].as<unsigned long>();
+            Logger.info(LOG_TAG_HTTP, "Parsed restart_interval: %lu", *restartInterval);
         }
 
-        // Parse sleep_end_hour if pointer is provided
-        if (sleepEndHour && responseBody.indexOf("sleep_end_hour") >= 0)
+        if (sleepStartHour && !doc["sleep_start_hour"].isNull())
         {
-            int startPos = responseBody.indexOf("sleep_end_hour") + 16; // Length of "sleep_end_hour" + 2 for ": "
-            int endPos = responseBody.indexOf(",", startPos);
-            if (endPos < 0)
-                endPos = responseBody.indexOf("}", startPos);
-            if (endPos > startPos)
-            {
-                String valueStr = responseBody.substring(startPos, endPos);
-                valueStr.trim();
-                *sleepEndHour = valueStr.toInt();
-                Logger.info(LOG_TAG_HTTP, "Parsed sleep_end_hour: %d", *sleepEndHour);
-            }
+            *sleepStartHour = doc["sleep_start_hour"].as<int>();
+            Logger.info(LOG_TAG_HTTP, "Parsed sleep_start_hour: %d", *sleepStartHour);
         }
 
-        // Parse ota_hour if pointer is provided
-        if (otaHour && responseBody.indexOf("ota_hour") >= 0)
+        if (sleepEndHour && !doc["sleep_end_hour"].isNull())
         {
-            int startPos = responseBody.indexOf("ota_hour") + 10; // Length of "ota_hour" + 2 for ": "
-            int endPos = responseBody.indexOf(",", startPos);
-            if (endPos < 0)
-                endPos = responseBody.indexOf("}", startPos);
-            if (endPos > startPos)
-            {
-                String valueStr = responseBody.substring(startPos, endPos);
-                valueStr.trim();
-                *otaHour = valueStr.toInt();
-                Logger.info(LOG_TAG_HTTP, "Parsed ota_hour: %d", *otaHour);
-            }
+            *sleepEndHour = doc["sleep_end_hour"].as<int>();
+            Logger.info(LOG_TAG_HTTP, "Parsed sleep_end_hour: %d", *sleepEndHour);
         }
 
-        // Parse ota_minute if pointer is provided
-        if (otaMinute && responseBody.indexOf("ota_minute") >= 0)
+        if (otaHour && !doc["ota_hour"].isNull())
         {
-            int startPos = responseBody.indexOf("ota_minute") + 12; // Length of "ota_minute" + 2 for ": "
-            int endPos = responseBody.indexOf(",", startPos);
-            if (endPos < 0)
-                endPos = responseBody.indexOf("}", startPos);
-            if (endPos > startPos)
-            {
-                String valueStr = responseBody.substring(startPos, endPos);
-                valueStr.trim();
-                *otaMinute = valueStr.toInt();
-                Logger.info(LOG_TAG_HTTP, "Parsed ota_minute: %d", *otaMinute);
-            }
+            *otaHour = doc["ota_hour"].as<int>();
+            Logger.info(LOG_TAG_HTTP, "Parsed ota_hour: %d", *otaHour);
         }
 
-        // Parse ota_duration if pointer is provided
-        if (otaDuration && responseBody.indexOf("ota_duration") >= 0)
+        if (otaMinute && !doc["ota_minute"].isNull())
         {
-            int startPos = responseBody.indexOf("ota_duration") + 14; // Length of "ota_duration" + 2 for ": "
-            int endPos = responseBody.indexOf(",", startPos);
-            if (endPos < 0)
-                endPos = responseBody.indexOf("}", startPos);
-            if (endPos > startPos)
-            {
-                String valueStr = responseBody.substring(startPos, endPos);
-                valueStr.trim();
-                *otaDuration = valueStr.toInt();
-                Logger.info(LOG_TAG_HTTP, "Parsed ota_duration: %d", *otaDuration);
-            }
+            *otaMinute = doc["ota_minute"].as<int>();
+            Logger.info(LOG_TAG_HTTP, "Parsed ota_minute: %d", *otaMinute);
         }
 
-        // Parse remote_ota flag if pointer is provided
-        if (remoteOta && responseBody.indexOf("remote_ota") >= 0)
+        if (otaDuration && !doc["ota_duration"].isNull())
         {
-            int startPos = responseBody.indexOf("remote_ota") + 12; // Length of "remote_ota" + 2 for ": "
-            int endPos = responseBody.indexOf(",", startPos);
-            if (endPos < 0)
-                endPos = responseBody.indexOf("}", startPos);
-            if (endPos > startPos)
-            {
-                String valueStr = responseBody.substring(startPos, endPos);
-                valueStr.trim();
+            *otaDuration = doc["ota_duration"].as<int>();
+            Logger.info(LOG_TAG_HTTP, "Parsed ota_duration: %d", *otaDuration);
+        }
 
-                // Convert string to boolean - any non-zero value or "true" will be considered true
-                if (valueStr.equalsIgnoreCase("true") || valueStr.equalsIgnoreCase("1"))
-                {
-                    *remoteOta = true;
-                    Logger.info(LOG_TAG_HTTP, "Parsed remote_ota: true");
-                }
-                else
-                {
-                    *remoteOta = false;
-                    Logger.info(LOG_TAG_HTTP, "Parsed remote_ota: false");
-                }
-            }
+        if (remoteOta && !doc["remote_ota"].isNull())
+        {
+            *remoteOta = doc["remote_ota"].as<bool>();
+            Logger.info(LOG_TAG_HTTP, "Parsed remote_ota: %s", *remoteOta ? "true" : "false");
         }
 
         return true;

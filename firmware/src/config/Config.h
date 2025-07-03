@@ -117,7 +117,7 @@
 #define CONFIG_UPDATE_INTERVAL 300000 // Remote configuration update interval (ms) - 5 minutes
 
 // Watchdog settings
-#define WDT_TIMEOUT 30000 // Watchdog timeout in ms (30 seconds)
+#define WDT_TIMEOUT 120000 // Watchdog timeout in ms (120 seconds), was 30000
 // Define this to enable temporary watchdog disabling during modem operations
 #define DISABLE_WDT_FOR_MODEM
 
