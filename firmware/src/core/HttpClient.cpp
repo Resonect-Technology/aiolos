@@ -6,6 +6,7 @@
 #include "HttpClient.h"
 #include "Logger.h"
 #include <ArduinoJson.h> // Use ArduinoJson for robust parsing
+#include "esp_task_wdt.h"
 
 #define LOG_TAG_HTTP "HTTP"
 
@@ -68,7 +69,7 @@ bool HttpClient::sendDiagnostics(const char *stationId, float batteryVoltage, fl
 
     // Build the URL path with the station ID
     char urlPath[64];
-    snprintf(urlPath, sizeof(urlPath), "/stations/%s/diagnostics", stationId);
+    snprintf(urlPath, sizeof(urlPath), "/api/stations/%s/diagnostics", stationId);
 
     // Send HTTP POST request
     Logger.debug(LOG_TAG_HTTP, "Sending POST request to %s", urlPath);
@@ -93,6 +94,7 @@ bool HttpClient::sendDiagnostics(const char *stationId, float batteryVoltage, fl
     unsigned long timeout = millis();
     while (_client->connected() && millis() - timeout < 10000L)
     {
+        esp_task_wdt_reset(); // Reset watchdog
         // Wait for data to be available
         while (_client->available())
         {
@@ -156,7 +158,7 @@ bool HttpClient::fetchConfiguration(const char *stationId, unsigned long *tempIn
 
     // Build the URL path with the station ID
     char urlPath[64];
-    snprintf(urlPath, sizeof(urlPath), "/stations/%s/config", stationId);
+    snprintf(urlPath, sizeof(urlPath), "/api/stations/%s/config", stationId);
 
     // Connect to server
     Logger.debug(LOG_TAG_HTTP, "Connecting to %s:%d", _serverHost, _serverPort);
@@ -188,6 +190,7 @@ bool HttpClient::fetchConfiguration(const char *stationId, unsigned long *tempIn
 
     while (_client->connected() && millis() - timeout < 10000L)
     {
+        esp_task_wdt_reset(); // Reset watchdog
         // Wait for data to be available
         while (_client->available())
         {
@@ -349,7 +352,7 @@ bool HttpClient::sendWindData(const char *stationId, float windSpeed, float wind
 
     // Build the URL path with the station ID
     char urlPath[64];
-    snprintf(urlPath, sizeof(urlPath), "/stations/%s/wind", stationId);
+    snprintf(urlPath, sizeof(urlPath), "/api/stations/%s/wind", stationId);
 
     // Send HTTP POST request
     Logger.debug(LOG_TAG_HTTP, "Sending POST request to %s", urlPath);
@@ -376,6 +379,7 @@ bool HttpClient::sendWindData(const char *stationId, float windSpeed, float wind
 
     while (_client->connected() && millis() - timeout < 10000L)
     {
+        esp_task_wdt_reset(); // Reset watchdog
         // Wait for data to be available
         while (_client->available())
         {
@@ -453,7 +457,7 @@ bool HttpClient::sendTemperatureData(const char *stationId, float internalTemp, 
 
     // Build the URL path with the station ID
     char urlPath[64];
-    snprintf(urlPath, sizeof(urlPath), "/stations/%s/temperature", stationId);
+    snprintf(urlPath, sizeof(urlPath), "/api/stations/%s/temperature", stationId);
 
     // Send HTTP POST request
     Logger.debug(LOG_TAG_HTTP, "Sending POST request to %s", urlPath);
@@ -478,6 +482,7 @@ bool HttpClient::sendTemperatureData(const char *stationId, float internalTemp, 
     unsigned long timeout = millis();
     while (_client->connected() && millis() - timeout < 10000L)
     {
+        esp_task_wdt_reset(); // Reset watchdog
         // Wait for data to be available
         while (_client->available())
         {
@@ -559,6 +564,7 @@ bool HttpClient::confirmOtaStarted(const char *stationId)
     unsigned long timeout = millis();
     while (_client->connected() && millis() - timeout < 5000L)
     {
+        esp_task_wdt_reset(); // Reset watchdog
         if (_client->available())
         {
             break; // Response received

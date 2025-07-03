@@ -670,95 +670,37 @@ bool ModemManager::wakeUp(bool fromDeepSleep)
     return false;
 }
 
-/**
- * @brief Send a test HTTP request to check connectivity
- *
- * @param url The URL to connect to
- * @return true if successful
- * @return false if failed
- */
-bool ModemManager::sendTestRequest(const char *url)
+bool ModemManager::testConnectivity(const char *host, uint16_t port)
 {
-    Logger.info(LOG_TAG_MODEM, "Sending test HTTP request to %s", url);
+    Logger.info(LOG_TAG_MODEM, "Testing connectivity to %s:%d...", host, port);
 
-    if (!isNetworkConnected() || !isGprsConnected())
+    if (!isGprsConnected())
     {
-        Logger.error(LOG_TAG_MODEM, "Network or GPRS not connected");
-        return false;
-    }
-
-    // Use the existing client in _client field instead of creating a new one
-    TinyGsmClient &client = _client;
-
-    // Parse URL to extract host and path
-    String host, path;
-    int port = 80;
-
-    // Simple URL parser, assumes http:// protocol
-    String urlStr = String(url);
-    int hostStart = urlStr.indexOf("://");
-    if (hostStart > 0)
-    {
-        hostStart += 3; // Skip "://"
-    }
-    else
-    {
-        hostStart = 0;
-    }
-
-    int pathStart = urlStr.indexOf("/", hostStart);
-    if (pathStart > 0)
-    {
-        host = urlStr.substring(hostStart, pathStart);
-        path = urlStr.substring(pathStart);
-    }
-    else
-    {
-        host = urlStr.substring(hostStart);
-        path = "/";
-    }
-
-    // Check for port specification
-    int portPos = host.indexOf(":");
-    if (portPos > 0)
-    {
-        port = host.substring(portPos + 1).toInt();
-        host = host.substring(0, portPos);
-    }
-
-    Logger.debug(LOG_TAG_MODEM, "Connecting to %s:%d%s", host.c_str(), port, path.c_str());
-
-    // Connect to server
-    if (!client.connect(host.c_str(), port))
-    {
-        Logger.error(LOG_TAG_MODEM, "Failed to connect to server");
-        return false;
-    }
-
-    // Send HTTP GET request
-    client.print(String("GET ") + path + " HTTP/1.1\r\n");
-    client.print(String("Host: ") + host + "\r\n");
-    client.print("Connection: close\r\n\r\n");
-
-    // Wait for response
-    unsigned long timeout = millis();
-    while (client.connected() && millis() - timeout < 10000L)
-    {
-        while (client.available())
+        Logger.warn(LOG_TAG_MODEM, "GPRS not connected, attempting to connect...");
+        if (!connectGprs())
         {
-            char c = client.read();
-            // Only print first few characters to avoid flooding the log
-            if (millis() - timeout < 1000)
-            {
-                Logger.verbose(LOG_TAG_MODEM, "%c", c);
-            }
-            timeout = millis();
+            Logger.error(LOG_TAG_MODEM, "GPRS connection failed, cannot test connectivity.");
+            return false;
         }
     }
 
-    client.stop();
-    Logger.info(LOG_TAG_MODEM, "Test request completed");
-    return true;
+    // Use the existing client
+    TinyGsmClient &client = _client;
+
+    Logger.debug(LOG_TAG_MODEM, "Attempting to connect to host...");
+    bool connected = client.connect(host, port);
+
+    if (connected)
+    {
+        Logger.info(LOG_TAG_MODEM, "Successfully connected to %s:%d", host, port);
+        client.stop(); // Close the connection immediately
+        return true;
+    }
+    else
+    {
+        Logger.error(LOG_TAG_MODEM, "Failed to connect to %s:%d", host, port);
+        return false;
+    }
 }
 
 ModemManager::SimStatus ModemManager::getSimStatus()
@@ -860,86 +802,6 @@ bool ModemManager::activateNetwork(bool state)
 String ModemManager::getLocalIP()
 {
     return _modem.getLocalIP();
-}
-
-bool ModemManager::pingHost(const char *host, int count)
-{
-    Logger.info(LOG_TAG_MODEM, "Pinging host: %s, count: %d", host, count);
-
-    // Ensure network is connected before pinging
-    if (!isNetworkConnected())
-    {
-        Logger.error(LOG_TAG_MODEM, "Network not connected, cannot ping host");
-        return false;
-    }
-
-    // Use the existing client in _client field instead of creating a new one
-    TinyGsmClient &client = _client;
-
-    // Parse host to extract IP address (supports both domain and IP)
-    IPAddress ip;
-    if (ip.fromString(host))
-    {
-        Logger.info(LOG_TAG_MODEM, "Parsed IP address from host: %s", ip.toString().c_str());
-    }
-    else
-    {
-        Logger.info(LOG_TAG_MODEM, "Host is not an IP address, resolving domain: %s", host);
-        // For domain names, perform a DNS lookup
-        if (!client.connect(host, 80))
-        {
-            Logger.error(LOG_TAG_MODEM, "Failed to connect to host for DNS lookup");
-            return false;
-        }
-
-        // Send a simple HTTP GET request to trigger DNS resolution
-        client.print(String("GET / HTTP/1.1\r\nHost: ") + host + "\r\nConnection: close\r\n\r\n");
-
-        // Wait for response
-        unsigned long timeout = millis();
-        while (client.connected() && millis() - timeout < 5000L)
-        {
-            while (client.available())
-            {
-                String line = client.readStringUntil('\n');
-                Logger.verbose(LOG_TAG_MODEM, "DNS response: %s", line.c_str());
-
-                // Check if the response contains the resolved IP address
-                int ipStart = line.indexOf(':');
-                if (ipStart > 0)
-                {
-                    String ipStr = line.substring(ipStart + 1);
-                    ipStr.trim();
-                    if (ip.fromString(ipStr))
-                    {
-                        Logger.info(LOG_TAG_MODEM, "Resolved IP address: %s", ip.toString().c_str());
-                        client.stop();
-                        return true;
-                    }
-                }
-            }
-        }
-
-        client.stop();
-        Logger.warn(LOG_TAG_MODEM, "Failed to resolve host, ping may not work");
-        return false;
-    }
-
-    // For direct IP addresses, use the ping command directly
-    Logger.info(LOG_TAG_MODEM, "Pinging IP address: %s", ip.toString().c_str());
-
-    // Send ICMP Echo Request (ping)
-    if (client.connect(ip, 80))
-    {
-        Logger.info(LOG_TAG_MODEM, "Ping successful");
-        client.stop();
-        return true;
-    }
-    else
-    {
-        Logger.error(LOG_TAG_MODEM, "Ping failed");
-        return false;
-    }
 }
 
 void ModemManager::maintainConnection(bool active)

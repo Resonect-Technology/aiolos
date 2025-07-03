@@ -188,19 +188,18 @@ public:
     bool isResponsive();
 
     /**
-     * @brief Send a test HTTP request to check connectivity
+     * @brief Test connectivity by connecting to a host and port.
      *
-     * @param url The URL to connect to
-     * @return true if successful
-     * @return false if failed
+     * @param host The hostname or IP address to connect to.
+     * @param port The port to connect to.
+     * @return true if connection is successful, false otherwise.
      */
-    bool sendTestRequest(const char *url);
+    bool testConnectivity(const char *host, uint16_t port);
 
     String getNetworkParams();
     String getNetworkAPN();
     bool activateNetwork(bool state);
     String getLocalIP();
-    bool pingHost(const char *host, int count);
 
 private:
     TinyGsm _modem = TinyGsm(SerialAT);

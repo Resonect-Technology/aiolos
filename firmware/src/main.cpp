@@ -722,24 +722,14 @@ void testModemConnectivity()
         String ip = modemManager.getLocalIP();
         Logger.info(LOG_TAG_SYSTEM, "Local IP address: %s", ip.c_str());
 
-        // Try pinging a reliable host
-        if (modemManager.pingHost("8.8.8.8", 4))
+        // Test connectivity with a reliable host
+        if (modemManager.testConnectivity("google.com", 80))
         {
-            Logger.info(LOG_TAG_SYSTEM, "Ping test successful");
-
-            // If ping works, try HTTP too
-            if (modemManager.sendTestRequest("http://aiolos.resonect.cz"))
-            {
-                Logger.info(LOG_TAG_SYSTEM, "Test HTTP request successful");
-            }
-            else
-            {
-                Logger.warn(LOG_TAG_SYSTEM, "Test HTTP request failed but ping worked");
-            }
+            Logger.info(LOG_TAG_SYSTEM, "Connectivity test to google.com:80 successful.");
         }
         else
         {
-            Logger.error(LOG_TAG_SYSTEM, "Ping test failed");
+            Logger.error(LOG_TAG_SYSTEM, "Connectivity test to google.com:80 failed.");
         }
     }
     else
