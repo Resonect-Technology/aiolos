@@ -78,7 +78,7 @@ public:
      * @return false if failed
      */
     bool fetchConfiguration(const char *stationId, unsigned long *tempInterval, unsigned long *windInterval,
-                            unsigned long *diagInterval, unsigned long *timeInterval = nullptr,
+                            unsigned long *windSampleInterval, unsigned long *diagInterval, unsigned long *timeInterval = nullptr,
                             unsigned long *restartInterval = nullptr, int *sleepStartHour = nullptr,
                             int *sleepEndHour = nullptr, int *otaHour = nullptr,
                             int *otaMinute = nullptr, int *otaDuration = nullptr, bool *remoteOta = nullptr);
@@ -110,7 +110,17 @@ public:
      */
     bool confirmOtaStarted(const char *stationId);
 
+    /**
+     * @brief Get the local IP address of the device
+     *
+     * @return String containing the local IP address
+     */
+    String getLocalIP();
+
 private:
+    // Response buffer size for the HTTP client
+    static const int RESPONSE_BUFFER_SIZE = 1024;
+
     // Backoff constants
     static const unsigned long BASE_BACKOFF_DELAY_MS = 5000;  // 5 seconds
     static const unsigned long MAX_BACKOFF_DELAY_MS = 300000; // 5 minutes
@@ -134,6 +144,7 @@ private:
     void _handleHttpFailure();
     void _resetBackoff();
     int _performRequest(const char *method, const char *path, const char *body, String &responseBody);
+    int _performRawGet(const char *path, String &responseBody);
 };
 
 extern AiolosHttpClient httpClient;

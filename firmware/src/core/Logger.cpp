@@ -67,7 +67,7 @@ void LoggerClass::debug(const char *tag, const char *format, ...)
     va_list args;
     va_start(args, format);
 
-    char buffer[256];
+    char buffer[512]; // Increased buffer size for longer debug messages
     vsnprintf(buffer, sizeof(buffer), format, args);
 
     va_end(args);
@@ -105,7 +105,7 @@ void LoggerClass::log(uint8_t level, const char *tag, const char *format, ...)
     minutes %= 60;
 
     // Format the log prefix with timestamp and level
-    char buffer[256];
+    char buffer[512]; // Increased buffer size for longer messages
     char levelChar;
 
     switch (level)

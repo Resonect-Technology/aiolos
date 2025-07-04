@@ -17,7 +17,8 @@
 #define TINY_GSM_MODEM_SIM7000
 #define TINY_GSM_USE_GPRS true
 #define TINY_GSM_USE_WIFI false
-#define TINY_GSM_RX_BUFFER 1024 // Set RX buffer to 1Kb
+#undef TINY_GSM_RX_BUFFER
+#define TINY_GSM_RX_BUFFER 4096 // Set RX buffer to 4Kb
 
 // Enable required TinyGSM features
 #define TINY_GSM_ENABLE_GPRS true

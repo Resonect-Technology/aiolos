@@ -141,25 +141,62 @@ int AiolosHttpClient::_performRequest(const char *method, const char *path, cons
 
     Logger.debug(LOG_TAG_HTTP, "Sending %s request to %s", method, path);
 
-    // The ArduinoHttpClient library handles the entire request flow within the get() or post() call.
-    // We don't need to use beginRequest/endRequest for these simple cases.
-    int statusCode = 0;
+    int err = 0;
     if (strcmp(method, "POST") == 0)
     {
-        // For POST, we include the content type and body in the call.
-        _arduinoClient->post(path, "application/json", body);
+        err = _arduinoClient->post(path, "application/json", body);
     }
     else
     {
-        // For GET, it's simpler.
-        _arduinoClient->get(path);
+        err = _arduinoClient->get(path);
     }
 
-    // After the request is sent, we can get the status and response.
-    statusCode = _arduinoClient->responseStatusCode();
-    responseBody = _arduinoClient->responseBody(); // Always get the body for logging
+    if (err != 0)
+    {
+        Logger.error(LOG_TAG_HTTP, "HTTP request failed to connect, error: %d", err);
+        _handleHttpFailure();
+        _arduinoClient->stop(); // Ensure the client is stopped on failure
+        return err;             // Return the error code from the library
+    }
 
+    int statusCode = _arduinoClient->responseStatusCode();
     Logger.debug(LOG_TAG_HTTP, "HTTP Status: %d", statusCode);
+
+    // Skip response headers to get to the body
+    if (_arduinoClient->skipResponseHeaders() < 0)
+    {
+        Logger.error(LOG_TAG_HTTP, "Failed to skip response headers");
+        _handleHttpFailure();
+        _arduinoClient->stop();
+        return 0; // Indicate failure
+    }
+
+    // Get the content length from the headers
+    int contentLength = _arduinoClient->contentLength();
+    if (contentLength == 0 || contentLength == -1)
+    {
+        Logger.warn(LOG_TAG_HTTP, "Content-Length is 0 or not specified. Reading until timeout.");
+    }
+
+    // Read the response body with a timeout
+    responseBody = ""; // Clear the string
+
+    unsigned long lastRead = millis();
+    const unsigned long readTimeout = 5000; // 5 seconds timeout
+
+    while (_arduinoClient->connected() && (millis() - lastRead < readTimeout))
+    {
+        while (_arduinoClient->available())
+        {
+            char c = _arduinoClient->read();
+            responseBody += c;
+            lastRead = millis(); // Reset timeout timer with each byte received
+        }
+    }
+
+    // It's important to stop the client after each request to close the connection
+    _arduinoClient->stop();
+
     if (responseBody.length() > 0)
     {
         Logger.debug(LOG_TAG_HTTP, "Response Body: %s", responseBody.c_str());
@@ -171,12 +208,202 @@ int AiolosHttpClient::_performRequest(const char *method, const char *path, cons
     }
     else
     {
+        // If the status code is not successful, handle the failure.
         _handleHttpFailure();
         Logger.error(LOG_TAG_HTTP, "HTTP request failed with status code: %d", statusCode);
         if (responseBody.length() > 0)
         {
             Logger.error(LOG_TAG_HTTP, "Response: %s", responseBody.c_str());
         }
+    }
+
+    return statusCode;
+}
+
+/**
+ * @brief Performs a raw HTTP GET request using TinyGsmClient directly.
+ * This is a workaround for issues with ArduinoHttpClient and large responses.
+ * @param path The URL path for the request.
+ * @param responseBody A String reference to store the response body.
+ * @return The HTTP status code, or 0 on failure.
+ */
+int AiolosHttpClient::_performRawGet(const char *path, String &responseBody)
+{
+    if (this->isConnectionThrottled())
+    {
+        return 0; // Throttled
+    }
+
+    if (!_modemManager || !_modemManager->isNetworkConnected() || !_modemManager->isGprsConnected())
+    {
+        Logger.error(LOG_TAG_HTTP, "Network not available for raw GET");
+        return 0;
+    }
+
+    Logger.debug(LOG_TAG_HTTP, "Performing raw GET to %s:%u%s", _serverAddress, _serverPort, path);
+
+    // Ensure client is stopped before connecting
+    _client->stop();
+
+    if (!_client->connect(_serverAddress, _serverPort))
+    {
+        Logger.error(LOG_TAG_HTTP, "Raw GET connect failed");
+        _handleHttpFailure();
+        return 0;
+    }
+
+    // Send HTTP headers with proper CRLF endings
+    _client->print(String("GET ") + path + " HTTP/1.1\r\n");
+    _client->print(String("Host: ") + _serverAddress + "\r\n");
+    _client->print("Connection: close\r\n\r\n");
+
+    // Wait for response to become available
+    unsigned long timeout = millis();
+    while (_client->available() == 0)
+    {
+        if (millis() - timeout > 10000L) // 10-second timeout
+        {
+            Logger.error(LOG_TAG_HTTP, "Raw GET response timeout");
+            _client->stop();
+            _handleHttpFailure();
+            return 0;
+        }
+    }
+
+    // Read status line to get status code
+    String statusLine = _client->readStringUntil('\r');
+    _client->read(); // consume '\n'
+    int statusCode = 0;
+    if (statusLine.startsWith("HTTP/1.1 "))
+    {
+        statusCode = statusLine.substring(9, 12).toInt();
+        Logger.debug(LOG_TAG_HTTP, "HTTP Status: %d", statusCode);
+    }
+    else
+    {
+        Logger.error(LOG_TAG_HTTP, "Unexpected status line: %s", statusLine.c_str());
+        _client->stop();
+        _handleHttpFailure();
+        return 0;
+    }
+
+    // Parse headers to find Content-Length
+    int contentLength = -1;
+    while (_client->connected())
+    {
+        String line = _client->readStringUntil('\r');
+        _client->read(); // consume '\n'
+        if (line.length() == 0)
+        {
+            break; // End of headers
+        }
+        // Check for Content-Length header
+        if (line.startsWith("Content-Length: "))
+        {
+            contentLength = line.substring(16).toInt();
+            Logger.debug(LOG_TAG_HTTP, "Content-Length: %d", contentLength);
+        }
+    }
+
+    // Read the body based on Content-Length or with improved timeout
+    responseBody = "";
+
+    if (contentLength > 0)
+    {
+        // Allocate a buffer to read the entire response at once
+        char *buffer = (char *)malloc(contentLength + 1);
+        if (!buffer)
+        {
+            Logger.error(LOG_TAG_HTTP, "Failed to allocate buffer for response");
+            _client->stop();
+            _handleHttpFailure();
+            return 0;
+        }
+
+        // Read exact number of bytes specified by Content-Length
+        Logger.debug(LOG_TAG_HTTP, "Reading %d bytes based on Content-Length", contentLength);
+        unsigned long startTime = millis();
+        int bytesRead = 0;
+
+        while (bytesRead < contentLength && _client->connected())
+        {
+            if (millis() - startTime > 20000L) // 20 second absolute timeout
+            {
+                Logger.error(LOG_TAG_HTTP, "Timeout reading response body after %d bytes", bytesRead);
+                break;
+            }
+
+            // Read available data directly into buffer
+            while (_client->available() && bytesRead < contentLength)
+            {
+                int chunkSize = min(_client->available(), contentLength - bytesRead);
+                int actualRead = _client->readBytes(buffer + bytesRead, chunkSize);
+
+                if (actualRead > 0)
+                {
+                    bytesRead += actualRead;
+                    Logger.debug(LOG_TAG_HTTP, "Read %d bytes, total: %d/%d", actualRead, bytesRead, contentLength);
+                }
+            }
+
+            // If we still need more data, wait a bit for the modem to receive it
+            if (bytesRead < contentLength && !_client->available())
+            {
+                delay(200); // Longer delay for cellular connections
+            }
+        }
+
+        Logger.debug(LOG_TAG_HTTP, "Finished reading. Got %d bytes of expected %d", bytesRead, contentLength);
+
+        // Null-terminate the buffer and create the response string
+        buffer[bytesRead] = '\0';
+        responseBody = String(buffer);
+        Logger.debug(LOG_TAG_HTTP, "String created successfully, length: %d", responseBody.length());
+        free(buffer);
+    }
+    else
+    {
+        // Fallback: read with timeout and small delays to handle slow data
+        Logger.debug(LOG_TAG_HTTP, "No Content-Length found, reading with timeout");
+        unsigned long lastRead = millis();
+        const unsigned long readTimeout = 15000; // 15 seconds
+
+        while (_client->connected() && (millis() - lastRead < readTimeout))
+        {
+            bool dataRead = false;
+            while (_client->available())
+            {
+                responseBody += (char)_client->read();
+                dataRead = true;
+            }
+
+            if (dataRead)
+            {
+                lastRead = millis(); // Reset timeout when data is received
+            }
+            else
+            {
+                delay(100); // Wait a bit for more data to arrive
+            }
+        }
+    }
+
+    _client->stop();
+
+    if (responseBody.length() > 0)
+    {
+        Logger.debug(LOG_TAG_HTTP, "Response received, length: %d bytes", responseBody.length());
+        Logger.debug(LOG_TAG_HTTP, "JSON Response: %s", responseBody.c_str());
+    }
+
+    if (statusCode >= 200 && statusCode < 300)
+    {
+        _resetBackoff();
+    }
+    else
+    {
+        _handleHttpFailure();
+        Logger.error(LOG_TAG_HTTP, "HTTP request failed with status code: %d", statusCode);
     }
 
     return statusCode;
@@ -223,7 +450,7 @@ bool AiolosHttpClient::sendDiagnostics(const char *stationId, float batteryVolta
  * @brief Fetch configuration from the server
  */
 bool AiolosHttpClient::fetchConfiguration(const char *stationId, unsigned long *tempInterval, unsigned long *windInterval,
-                                          unsigned long *diagInterval, unsigned long *timeInterval,
+                                          unsigned long *windSampleInterval, unsigned long *diagInterval, unsigned long *timeInterval,
                                           unsigned long *restartInterval, int *sleepStartHour, int *sleepEndHour,
                                           int *otaHour, int *otaMinute, int *otaDuration, bool *remoteOta)
 {
@@ -234,67 +461,83 @@ bool AiolosHttpClient::fetchConfiguration(const char *stationId, unsigned long *
     snprintf(urlPath, sizeof(urlPath), "/api/stations/%s/config", stationId);
 
     String responseBody;
-    int statusCode = _performRequest("GET", urlPath, nullptr, responseBody);
+    int statusCode = _performRawGet(urlPath, responseBody);
 
     if (statusCode >= 200 && statusCode < 300)
     {
         Logger.info(LOG_TAG_HTTP, "Configuration data received.");
 
-        // Use ArduinoJson for robust parsing
+        // Use a JsonDocument with enough capacity for the configuration data
         JsonDocument doc;
+        Logger.debug(LOG_TAG_HTTP, "About to parse JSON with length: %d", responseBody.length());
         DeserializationError error = deserializeJson(doc, responseBody);
 
         if (error)
         {
             Logger.error(LOG_TAG_HTTP, "Failed to parse JSON configuration: %s", error.c_str());
+            Logger.error(LOG_TAG_HTTP, "JSON was: %s", responseBody.c_str());
             _handleHttpFailure(); // Treat parsing error as a failure for backoff
             return false;
         }
 
+        Logger.debug(LOG_TAG_HTTP, "JSON parsed successfully");
+
         // Safely extract values using the parsed JSON document
-        if (!doc["temp_interval"].isNull())
+        if (!doc["tempInterval"].isNull())
         {
-            *tempInterval = doc["temp_interval"].as<unsigned long>();
+            unsigned long value = doc["tempInterval"].as<unsigned long>();
+            Logger.debug(LOG_TAG_HTTP, "tempInterval from JSON: %lu", value);
+            *tempInterval = value;
         }
-        if (!doc["wind_interval"].isNull())
+        if (!doc["windSendInterval"].isNull())
         {
-            *windInterval = doc["wind_interval"].as<unsigned long>();
+            unsigned long value = doc["windSendInterval"].as<unsigned long>();
+            Logger.debug(LOG_TAG_HTTP, "windSendInterval from JSON: %lu", value);
+            *windInterval = value;
         }
-        if (!doc["diag_interval"].isNull())
+        if (windSampleInterval && !doc["windSampleInterval"].isNull())
         {
-            *diagInterval = doc["diag_interval"].as<unsigned long>();
+            unsigned long value = doc["windSampleInterval"].as<unsigned long>();
+            Logger.debug(LOG_TAG_HTTP, "windSampleInterval from JSON: %lu", value);
+            *windSampleInterval = value;
         }
-        if (timeInterval && !doc["time_interval"].isNull())
+        if (!doc["diagInterval"].isNull())
         {
-            *timeInterval = doc["time_interval"].as<unsigned long>();
+            unsigned long value = doc["diagInterval"].as<unsigned long>();
+            Logger.debug(LOG_TAG_HTTP, "diagInterval from JSON: %lu", value);
+            *diagInterval = value;
         }
-        if (restartInterval && !doc["restart_interval"].isNull())
+        if (timeInterval && !doc["timeInterval"].isNull())
         {
-            *restartInterval = doc["restart_interval"].as<unsigned long>();
+            *timeInterval = doc["timeInterval"].as<unsigned long>();
         }
-        if (sleepStartHour && !doc["sleep_start_hour"].isNull())
+        if (restartInterval && !doc["restartInterval"].isNull())
         {
-            *sleepStartHour = doc["sleep_start_hour"].as<int>();
+            *restartInterval = doc["restartInterval"].as<unsigned long>();
         }
-        if (sleepEndHour && !doc["sleep_end_hour"].isNull())
+        if (sleepStartHour && !doc["sleepStartHour"].isNull())
         {
-            *sleepEndHour = doc["sleep_end_hour"].as<int>();
+            *sleepStartHour = doc["sleepStartHour"].as<int>();
         }
-        if (otaHour && !doc["ota_hour"].isNull())
+        if (sleepEndHour && !doc["sleepEndHour"].isNull())
         {
-            *otaHour = doc["ota_hour"].as<int>();
+            *sleepEndHour = doc["sleepEndHour"].as<int>();
         }
-        if (otaMinute && !doc["ota_minute"].isNull())
+        if (otaHour && !doc["otaHour"].isNull())
         {
-            *otaMinute = doc["ota_minute"].as<int>();
+            *otaHour = doc["otaHour"].as<int>();
         }
-        if (otaDuration && !doc["ota_duration"].isNull())
+        if (otaMinute && !doc["otaMinute"].isNull())
         {
-            *otaDuration = doc["ota_duration"].as<int>();
+            *otaMinute = doc["otaMinute"].as<int>();
         }
-        if (remoteOta && !doc["remote_ota"].isNull())
+        if (otaDuration && !doc["otaDuration"].isNull())
         {
-            *remoteOta = doc["remote_ota"].as<bool>();
+            *otaDuration = doc["otaDuration"].as<int>();
+        }
+        if (remoteOta && !doc["remoteOta"].isNull())
+        {
+            *remoteOta = doc["remoteOta"].as<bool>();
         }
 
         return true;

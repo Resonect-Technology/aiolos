@@ -41,6 +41,7 @@ bool isSamplingWind = false; // For wind data averaging
 // Dynamic interval settings, initialized with defaults from Config.h
 unsigned long dynamicTempInterval = DEFAULT_TEMP_INTERVAL;
 unsigned long dynamicWindInterval = DEFAULT_WIND_INTERVAL;
+unsigned long dynamicWindSampleInterval = WIND_AVERAGING_SAMPLE_INTERVAL_MS;
 unsigned long dynamicDiagInterval = DEFAULT_DIAG_INTERVAL;
 unsigned long dynamicTimeInterval = DEFAULT_TIME_UPDATE_INTERVAL;
 unsigned long dynamicRestartInterval = DEFAULT_RESTART_INTERVAL;
@@ -166,7 +167,7 @@ void setup()
         Logger.info(LOG_TAG_SYSTEM, "Wind sensor initialized successfully");
 
         // Set the interval for taking samples during an averaging period
-        windSensor.setSampleInterval(WIND_AVERAGING_SAMPLE_INTERVAL_MS);
+        windSensor.setSampleInterval(dynamicWindSampleInterval);
 
         // Run calibration if enabled
         if (CALIBRATION_MODE)
@@ -412,14 +413,31 @@ void loop()
 void handleRemoteConfiguration()
 {
     Logger.info(LOG_TAG_SYSTEM, "Fetching remote configuration...");
-    unsigned long tempInterval, windInterval, diagInterval, timeInterval, restartInterval;
-    int sleepStartHour, sleepEndHour, otaHour, otaMinute, otaDuration;
+
+    // Initialize variables with current values to detect if they were updated
+    unsigned long tempInterval = dynamicTempInterval;
+    unsigned long windInterval = dynamicWindInterval;
+    unsigned long windSampleInterval = dynamicWindSampleInterval;
+    unsigned long diagInterval = dynamicDiagInterval;
+    unsigned long timeInterval = dynamicTimeInterval;
+    unsigned long restartInterval = dynamicRestartInterval;
+    int sleepStartHour = dynamicSleepStartHour;
+    int sleepEndHour = dynamicSleepEndHour;
+    int otaHour = dynamicOtaHour;
+    int otaMinute = dynamicOtaMinute;
+    int otaDuration = dynamicOtaDuration;
     bool remoteOtaRequested = false; // Flag to check for remote OTA
 
-    if (httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &diagInterval,
+    Logger.debug(LOG_TAG_SYSTEM, "Before fetch - tempInterval: %lu, windInterval: %lu, windSampleInterval: %lu",
+                 tempInterval, windInterval, windSampleInterval);
+
+    if (httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &windSampleInterval, &diagInterval,
                                       &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
                                       &otaHour, &otaMinute, &otaDuration, &remoteOtaRequested))
     {
+        Logger.debug(LOG_TAG_SYSTEM, "After fetch - tempInterval: %lu, windInterval: %lu, windSampleInterval: %lu",
+                     tempInterval, windInterval, windSampleInterval);
+
         // Apply configuration if values are valid (non-zero)
         if (tempInterval > 0)
         {
@@ -430,7 +448,14 @@ void handleRemoteConfiguration()
         if (windInterval > 0)
         {
             dynamicWindInterval = windInterval;
-            Logger.info(LOG_TAG_SYSTEM, "Updated wind interval to %lu ms", dynamicWindInterval);
+            Logger.info(LOG_TAG_SYSTEM, "Updated wind send interval to %lu ms", dynamicWindInterval);
+        }
+
+        if (windSampleInterval > 0)
+        {
+            dynamicWindSampleInterval = windSampleInterval;
+            windSensor.setSampleInterval(dynamicWindSampleInterval);
+            Logger.info(LOG_TAG_SYSTEM, "Updated wind sample interval to %lu ms", dynamicWindSampleInterval);
         }
 
         if (diagInterval > 0)
@@ -545,7 +570,12 @@ void periodicRestart()
  */
 bool isSleepTime()
 {
+#ifdef DEBUG_MODE
+    // In debug mode, never sleep to allow for continuous monitoring and debugging.
+    return false;
+#else
     return (currentHour >= dynamicSleepStartHour || currentHour < dynamicSleepEndHour);
+#endif
 }
 
 /**
