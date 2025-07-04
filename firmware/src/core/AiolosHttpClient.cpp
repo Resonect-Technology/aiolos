@@ -144,7 +144,8 @@ int AiolosHttpClient::_performRequest(const char *method, const char *path, cons
     int err = 0;
     if (strcmp(method, "POST") == 0)
     {
-        err = _arduinoClient->post(path, "application/json", body);
+        const char *requestBody = (body != nullptr) ? body : "";
+        err = _arduinoClient->post(path, "application/json", requestBody);
     }
     else
     {
@@ -221,195 +222,6 @@ int AiolosHttpClient::_performRequest(const char *method, const char *path, cons
 }
 
 /**
- * @brief Performs a raw HTTP GET request using TinyGsmClient directly.
- * This is a workaround for issues with ArduinoHttpClient and large responses.
- * @param path The URL path for the request.
- * @param responseBody A String reference to store the response body.
- * @return The HTTP status code, or 0 on failure.
- */
-int AiolosHttpClient::_performRawGet(const char *path, String &responseBody)
-{
-    if (this->isConnectionThrottled())
-    {
-        return 0; // Throttled
-    }
-
-    if (!_modemManager || !_modemManager->isNetworkConnected() || !_modemManager->isGprsConnected())
-    {
-        Logger.error(LOG_TAG_HTTP, "Network not available for raw GET");
-        return 0;
-    }
-
-    Logger.debug(LOG_TAG_HTTP, "Performing raw GET to %s:%u%s", _serverAddress, _serverPort, path);
-
-    // Ensure client is stopped before connecting
-    _client->stop();
-
-    if (!_client->connect(_serverAddress, _serverPort))
-    {
-        Logger.error(LOG_TAG_HTTP, "Raw GET connect failed");
-        _handleHttpFailure();
-        return 0;
-    }
-
-    // Send HTTP headers with proper CRLF endings
-    _client->print(String("GET ") + path + " HTTP/1.1\r\n");
-    _client->print(String("Host: ") + _serverAddress + "\r\n");
-    _client->print("Connection: close\r\n\r\n");
-
-    // Wait for response to become available
-    unsigned long timeout = millis();
-    while (_client->available() == 0)
-    {
-        if (millis() - timeout > 10000L) // 10-second timeout
-        {
-            Logger.error(LOG_TAG_HTTP, "Raw GET response timeout");
-            _client->stop();
-            _handleHttpFailure();
-            return 0;
-        }
-    }
-
-    // Read status line to get status code
-    String statusLine = _client->readStringUntil('\r');
-    _client->read(); // consume '\n'
-    int statusCode = 0;
-    if (statusLine.startsWith("HTTP/1.1 "))
-    {
-        statusCode = statusLine.substring(9, 12).toInt();
-        Logger.debug(LOG_TAG_HTTP, "HTTP Status: %d", statusCode);
-    }
-    else
-    {
-        Logger.error(LOG_TAG_HTTP, "Unexpected status line: %s", statusLine.c_str());
-        _client->stop();
-        _handleHttpFailure();
-        return 0;
-    }
-
-    // Parse headers to find Content-Length
-    int contentLength = -1;
-    while (_client->connected())
-    {
-        String line = _client->readStringUntil('\r');
-        _client->read(); // consume '\n'
-        if (line.length() == 0)
-        {
-            break; // End of headers
-        }
-        // Check for Content-Length header
-        if (line.startsWith("Content-Length: "))
-        {
-            contentLength = line.substring(16).toInt();
-            Logger.debug(LOG_TAG_HTTP, "Content-Length: %d", contentLength);
-        }
-    }
-
-    // Read the body based on Content-Length or with improved timeout
-    responseBody = "";
-
-    if (contentLength > 0)
-    {
-        // Allocate a buffer to read the entire response at once
-        char *buffer = (char *)malloc(contentLength + 1);
-        if (!buffer)
-        {
-            Logger.error(LOG_TAG_HTTP, "Failed to allocate buffer for response");
-            _client->stop();
-            _handleHttpFailure();
-            return 0;
-        }
-
-        // Read exact number of bytes specified by Content-Length
-        Logger.debug(LOG_TAG_HTTP, "Reading %d bytes based on Content-Length", contentLength);
-        unsigned long startTime = millis();
-        int bytesRead = 0;
-
-        while (bytesRead < contentLength && _client->connected())
-        {
-            if (millis() - startTime > 20000L) // 20 second absolute timeout
-            {
-                Logger.error(LOG_TAG_HTTP, "Timeout reading response body after %d bytes", bytesRead);
-                break;
-            }
-
-            // Read available data directly into buffer
-            while (_client->available() && bytesRead < contentLength)
-            {
-                int chunkSize = min(_client->available(), contentLength - bytesRead);
-                int actualRead = _client->readBytes(buffer + bytesRead, chunkSize);
-
-                if (actualRead > 0)
-                {
-                    bytesRead += actualRead;
-                    Logger.debug(LOG_TAG_HTTP, "Read %d bytes, total: %d/%d", actualRead, bytesRead, contentLength);
-                }
-            }
-
-            // If we still need more data, wait a bit for the modem to receive it
-            if (bytesRead < contentLength && !_client->available())
-            {
-                delay(200); // Longer delay for cellular connections
-            }
-        }
-
-        Logger.debug(LOG_TAG_HTTP, "Finished reading. Got %d bytes of expected %d", bytesRead, contentLength);
-
-        // Null-terminate the buffer and create the response string
-        buffer[bytesRead] = '\0';
-        responseBody = String(buffer);
-        Logger.debug(LOG_TAG_HTTP, "String created successfully, length: %d", responseBody.length());
-        free(buffer);
-    }
-    else
-    {
-        // Fallback: read with timeout and small delays to handle slow data
-        Logger.debug(LOG_TAG_HTTP, "No Content-Length found, reading with timeout");
-        unsigned long lastRead = millis();
-        const unsigned long readTimeout = 15000; // 15 seconds
-
-        while (_client->connected() && (millis() - lastRead < readTimeout))
-        {
-            bool dataRead = false;
-            while (_client->available())
-            {
-                responseBody += (char)_client->read();
-                dataRead = true;
-            }
-
-            if (dataRead)
-            {
-                lastRead = millis(); // Reset timeout when data is received
-            }
-            else
-            {
-                delay(100); // Wait a bit for more data to arrive
-            }
-        }
-    }
-
-    _client->stop();
-
-    if (responseBody.length() > 0)
-    {
-        Logger.debug(LOG_TAG_HTTP, "Response received, length: %d bytes", responseBody.length());
-        Logger.debug(LOG_TAG_HTTP, "JSON Response: %s", responseBody.c_str());
-    }
-
-    if (statusCode >= 200 && statusCode < 300)
-    {
-        _resetBackoff();
-    }
-    else
-    {
-        _handleHttpFailure();
-        Logger.error(LOG_TAG_HTTP, "HTTP request failed with status code: %d", statusCode);
-    }
-
-    return statusCode;
-}
-
-/**
  * @brief Send diagnostics data to the server
  */
 bool AiolosHttpClient::sendDiagnostics(const char *stationId, float batteryVoltage, float solarVoltage, float internalTemp, int signalQuality, unsigned long uptime)
@@ -461,7 +273,7 @@ bool AiolosHttpClient::fetchConfiguration(const char *stationId, unsigned long *
     snprintf(urlPath, sizeof(urlPath), "/api/stations/%s/config", stationId);
 
     String responseBody;
-    int statusCode = _performRawGet(urlPath, responseBody);
+    int statusCode = _performRequest("GET", urlPath, nullptr, responseBody);
 
     if (statusCode >= 200 && statusCode < 300)
     {

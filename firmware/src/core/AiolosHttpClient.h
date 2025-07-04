@@ -144,7 +144,6 @@ private:
     void _handleHttpFailure();
     void _resetBackoff();
     int _performRequest(const char *method, const char *path, const char *body, String &responseBody);
-    int _performRawGet(const char *path, String &responseBody);
 };
 
 extern AiolosHttpClient httpClient;

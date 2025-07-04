@@ -47,12 +47,20 @@ bool OtaManager::init(const char *apName, const char *apPassword, const char *ot
     // Initialize WiFi in AP mode
     WiFi.mode(WIFI_AP);
 
-    // Check if battery voltage is OK before starting OTA
+    // Check if battery voltage is OK before starting OTA (skip in debug mode)
+#ifndef DEBUG_MODE
     if (!isBatteryVoltageOk(OTA_MIN_BATTERY_VOLTAGE))
     {
         Logger.error(LOG_TAG_OTA, "Battery voltage too low for OTA. Aborting.");
         return false;
     }
+#else
+    float voltage = getBatteryVoltage();
+    if (!isBatteryVoltageOk(OTA_MIN_BATTERY_VOLTAGE))
+    {
+        Logger.warn(LOG_TAG_OTA, "Battery voltage low (%.2f V) but allowing OTA in debug mode", voltage);
+    }
+#endif
 
     // Start access point
     if (!WiFi.softAP(apName, apPassword))

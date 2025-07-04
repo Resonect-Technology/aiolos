@@ -81,6 +81,9 @@ router.group(() => {
     router.get('/config', [StationConfigsController, 'show']).as('config.show')
     router.post('/config', [StationConfigsController, 'store']).as('config.store')
 
+    // OTA confirmation endpoint - firmware calls this to confirm OTA mode started
+    router.post('/ota-confirm', [StationConfigsController, 'confirmOta']).as('ota.confirm')
+
     // Wind data endpoint for firmware (maps to same controller as live/wind)
     router.post('/wind', [StationLiveController, 'wind']).as('wind')
 
