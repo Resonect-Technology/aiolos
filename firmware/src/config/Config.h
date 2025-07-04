@@ -26,8 +26,8 @@
 #define LED_PIN 12
 #define ANEMOMETER_PIN 33  // GPIO33 for anemometer (was 14)
 #define WIND_VANE_PIN 32   // GPIO32 for wind vane (ADC1_CH4) (was 2)
-#define TEMP_BUS_INT 18    // OneWire bus for internal temperature sensor (was 13)
-#define TEMP_BUS_EXT 19    // OneWire bus for external temperature sensor (was 15)
+#define TEMP_BUS_INT 21    // OneWire bus for internal temperature sensor (I2C SCL - safe to use)
+#define TEMP_BUS_EXT 13    // OneWire bus for external temperature sensor (GPIO13 - KNOWN WORKING!)
 #define ADC_BATTERY_PIN 35 // ADC pin for battery voltage
 #define ADC_SOLAR_PIN 36   // ADC pin for solar panel voltage
 
