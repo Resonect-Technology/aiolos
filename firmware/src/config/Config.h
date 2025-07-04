@@ -11,7 +11,12 @@
 
 // Debug and logging
 #define DEBUG_ENABLED true
-#define LOG_LEVEL 4 // 0=NONE, 1=ERROR, 2=WARN, 3=INFO, 4=DEBUG, 5=VERBOSE
+#ifdef DEBUG_MODE
+#define LOG_LEVEL 4 // Debug builds: 4=DEBUG level (ERROR, WARN, INFO, DEBUG)
+#else
+#define LOG_LEVEL 2 // Production builds: 2=WARN level (ERROR, WARN only)
+#endif
+// Log levels: 0=NONE, 1=ERROR, 2=WARN, 3=INFO, 4=DEBUG, 5=VERBOSE
 
 // Board pins
 #define PIN_DTR 25
@@ -81,6 +86,13 @@
 #define OTA_PASSWORD CONFIG_OTA_PASSWORD
 #else
 #define OTA_PASSWORD "password"
+#endif
+
+// OTA Update Password (separate from WiFi AP password)
+#ifdef CONFIG_OTA_UPDATE_PASSWORD
+#define OTA_UPDATE_PASSWORD CONFIG_OTA_UPDATE_PASSWORD
+#else
+#define OTA_UPDATE_PASSWORD "update123"
 #endif
 
 #ifdef CONFIG_OTA_MIN_BATTERY_VOLTAGE

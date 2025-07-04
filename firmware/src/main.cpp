@@ -715,7 +715,7 @@ bool checkAndInitOta()
         esp_task_wdt_deinit();
 
         // Initialize OTA manager
-        if (otaManager.init(OTA_SSID, OTA_PASSWORD, OTA_PASSWORD, dynamicOtaDuration * 60 * 1000))
+        if (otaManager.init(OTA_SSID, OTA_PASSWORD, OTA_UPDATE_PASSWORD, dynamicOtaDuration * 60 * 1000))
         {
             otaActive = true;
             Logger.info(LOG_TAG_SYSTEM, "OTA mode initialized successfully");
@@ -764,7 +764,7 @@ bool checkAndInitRemoteOta()
     esp_task_wdt_deinit();
 
     // Initialize OTA manager with remote OTA duration
-    if (otaManager.init(OTA_SSID, OTA_PASSWORD, OTA_PASSWORD, REMOTE_OTA_DURATION * 60 * 1000))
+    if (otaManager.init(OTA_SSID, OTA_PASSWORD, OTA_UPDATE_PASSWORD, REMOTE_OTA_DURATION * 60 * 1000))
     {
         otaActive = true;
         Logger.info(LOG_TAG_SYSTEM, "Remote OTA mode initialized successfully");

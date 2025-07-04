@@ -14,8 +14,7 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
-#include <WebServer.h>
-#include <Update.h>
+#include <WebOTA.h>
 #include "../config/Config.h"
 #include "Logger.h"
 #include "../utils/BatteryUtils.h"
@@ -35,13 +34,13 @@ public:
      * @brief Initialize OTA manager
      *
      * @param apName The access point name (SSID)
-     * @param apPassword The access point password
-     * @param otaPassword The password for OTA updates
+     * @param apPassword The access point password (for WiFi connection)
+     * @param otaUpdatePassword The password for OTA authentication (separate from WiFi)
      * @param timeoutMs Timeout in milliseconds after which WiFi is turned off
      * @return true if initialization was successful
      * @return false if initialization failed
      */
-    bool init(const char *apName, const char *apPassword, const char *otaPassword, unsigned long timeoutMs = 300000);
+    bool init(const char *apName, const char *apPassword, const char *otaUpdatePassword, unsigned long timeoutMs = 300000);
 
     /**
      * @brief Handle OTA updates
@@ -91,47 +90,11 @@ public:
     void end();
 
 private:
-    WebServer _server;
+    WebOTA webota;
     unsigned long _startTime;
     unsigned long _timeoutMs;
     String _otaPassword;
     bool _isInitialized;
-
-    /**
-     * @brief Set up web server routes
-     */
-    void setupWebServer();
-
-    /**
-     * @brief Handle root page request
-     */
-    void handleRoot();
-
-    /**
-     * @brief Handle update page request
-     */
-    void handleUpdate();
-
-    /**
-     * @brief Handle file upload
-     */
-    void handleFileUpload();
-
-    /**
-     * @brief Create HTML page
-     *
-     * @param title Page title
-     * @param content Page content
-     * @return String containing the HTML page
-     */
-    String createHtmlPage(const String &title, const String &content);
-
-    /**
-     * @brief Get system information
-     *
-     * @return String containing system information
-     */
-    String getSystemInfo();
 };
 
 extern OtaManager otaManager;
