@@ -102,9 +102,25 @@ public:
      */
     bool getRecentLogsJson(char *buffer, size_t size);
 
+    /**
+     * @brief Set the current real time for accurate timestamps
+     *
+     * @param hour Current hour (0-23)
+     * @param minute Current minute (0-59)
+     * @param second Current second (0-59)
+     */
+    void setRealTime(int hour, int minute, int second);
+
 private:
     uint8_t _logLevel = LOG_LEVEL_INFO;
     bool _initialized = false;
+
+    // Real time tracking
+    bool _hasRealTime = false;
+    unsigned long _realTimeSetAt = 0; // millis() when real time was set
+    int _realHour = 0;
+    int _realMinute = 0;
+    int _realSecond = 0;
 
     // Circular buffer for recent logs
     static const uint8_t MAX_RECENT_LOGS = 10;

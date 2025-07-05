@@ -2,8 +2,36 @@
  * @file main.cpp
  * @brief Main application for the Aiolos Weather Station
  *
- * This is the entry point for the Aiolos Weather Station firmware.
- * It initializes all components and manages the main operation loop.
+ * This is the entry point for the Aiolos Weather Statio    // Get network time
+    int year, month, day;
+    float timezone;
+    if (modemManager.getNetworkTime(&year, &month, &day, &currentHour, &currentMinute, &currentSeco        int year, month, day;
+        float timezone;
+        if (modemManager.getNetworkTime(&year, &month, &day, &currentHour, &currentMinute, &currentSecond, &timezone))
+        {
+            // Update logger with real time
+            Logger.setRealTime(currentHour, currentMinute, currentSecond);
+
+            Logger.info(LOG_TAG_SYSTEM, "Time updated: %04d-%02d-%02d %02d:%02d:%02d (TZ: %.1f)",
+                       year, month, day, currentHour, currentMinute, currentSecond, timezone);
+        }
+        else
+        {
+            Logger.warn(LOG_TAG_SYSTEM, "Failed to update time from network");
+        }ne))
+    {
+        // Update logger with real time
+        Logger.setRealTime(currentHour, currentMinute, currentSecond);
+
+        Logger.info(LOG_TAG_SYSTEM, "Network time obtained: %04d-%02d-%02d %02d:%02d:%02d (TZ: %.1f)",
+                   year, month, day, currentHour, currentMinute, currentSecond, timezone);
+        Logger.info(LOG_TAG_SYSTEM, "Sleep window: %02d:00 to %02d:00 (current: %02d:%02d)",
+                   dynamicSleepStartHour, dynamicSleepEndHour, currentHour, currentMinute);
+    }
+    else
+    {
+        Logger.warn(LOG_TAG_SYSTEM, "Failed to get network time");
+    } It initializes all components and manages the main operation loop.
  *
  * @version 1.0.0
  * @date 2025-06-25
@@ -51,9 +79,18 @@ int dynamicOtaHour = DEFAULT_OTA_HOUR;
 int dynamicOtaMinute = DEFAULT_OTA_MINUTE;
 int dynamicOtaDuration = DEFAULT_OTA_DURATION;
 
-// Optional: Set to true to run wind vane calibration on startup
-const bool CALIBRATION_MODE = false;
-const unsigned long CALIBRATION_DURATION = 30000; // 30 seconds
+// Calibration mode - can be enabled via build flags
+#ifdef CALIBRATION_MODE
+const bool CALIBRATION_ENABLED = true;
+#else
+const bool CALIBRATION_ENABLED = false;
+#endif
+
+#ifdef CALIBRATION_DURATION
+const unsigned long CALIBRATION_TIME = CALIBRATION_DURATION;
+#else
+const unsigned long CALIBRATION_TIME = 30000; // 30 seconds default
+#endif
 
 // Function prototypes
 void setupWatchdog();
@@ -78,8 +115,23 @@ void setup()
 {
     // Initialize logger
     Logger.init();
-    Logger.info(LOG_TAG_SYSTEM, "Aiolos Weather Station starting...");
+    Logger.info(LOG_TAG_SYSTEM, "=== AIOLOS WEATHER STATION STARTUP ===");
     Logger.info(LOG_TAG_SYSTEM, "Firmware version: " FIRMWARE_VERSION);
+    Logger.info(LOG_TAG_SYSTEM, "Boot reason: %s", esp_reset_reason() == ESP_RST_DEEPSLEEP ? "DEEP_SLEEP_WAKEUP" : "OTHER");
+
+    // Show compile-time flags
+#ifdef DEBUG_MODE
+    Logger.info(LOG_TAG_SYSTEM, "Build mode: DEBUG_MODE enabled");
+#else
+    Logger.info(LOG_TAG_SYSTEM, "Build mode: PRODUCTION (sleep enabled)");
+#endif
+
+#ifdef CALIBRATION_MODE
+    Logger.info(LOG_TAG_SYSTEM, "Calibration mode: ENABLED");
+#else
+    Logger.info(LOG_TAG_SYSTEM, "Calibration mode: DISABLED");
+#endif
+    Logger.info(LOG_TAG_SYSTEM, "=======================================");
 
     // Initialize battery reading utility
     BatteryUtils::init();
@@ -118,7 +170,10 @@ void setup()
     float timezone;
     if (modemManager.getNetworkTime(&year, &month, &day, &currentHour, &currentMinute, &currentSecond, &timezone))
     {
-        Logger.info(LOG_TAG_SYSTEM, "Current time: %02d:%02d:%02d", currentHour, currentMinute, currentSecond);
+        Logger.info(LOG_TAG_SYSTEM, "Network time obtained: %04d-%02d-%02d %02d:%02d:%02d (TZ: %.1f)",
+                    year, month, day, currentHour, currentMinute, currentSecond, timezone);
+        Logger.info(LOG_TAG_SYSTEM, "Sleep window: %02d:00 to %02d:00 (current: %02d:%02d)",
+                    dynamicSleepStartHour, dynamicSleepEndHour, currentHour, currentMinute);
     }
     else
     {
@@ -126,7 +181,14 @@ void setup()
     }
 
     // Check if it's sleep time
-    if (isSleepTime())
+    bool sleepTimeCheck = isSleepTime();
+    Logger.info(LOG_TAG_SYSTEM, "Sleep check: isSleepTime()=%s, currentHour=%d, sleepStart=%d, sleepEnd=%d",
+                sleepTimeCheck ? "true" : "false", currentHour, dynamicSleepStartHour, dynamicSleepEndHour);
+#ifdef DEBUG_MODE
+    Logger.info(LOG_TAG_SYSTEM, "DEBUG_MODE is enabled - sleep is disabled for debugging");
+#endif
+
+    if (sleepTimeCheck)
     {
         Logger.info(LOG_TAG_SYSTEM, "It's sleep time. Entering deep sleep...");
         enterDeepSleepUntil(dynamicSleepEndHour, 0);
@@ -170,12 +232,12 @@ void setup()
         windSensor.setSampleInterval(dynamicWindSampleInterval);
 
         // Run calibration if enabled
-        if (CALIBRATION_MODE)
+        if (CALIBRATION_ENABLED)
         {
             Logger.info(LOG_TAG_SYSTEM, "Starting wind vane calibration mode");
             // Temporarily disable watchdog during calibration
             esp_task_wdt_deinit();
-            windSensor.calibrateWindVane(CALIBRATION_DURATION);
+            windSensor.calibrateWindVane(CALIBRATION_TIME);
             // Re-enable watchdog after calibration
             setupWatchdog();
         }
@@ -261,7 +323,8 @@ void loop()
         float timezone;
         if (modemManager.getNetworkTime(&year, &month, &day, &currentHour, &currentMinute, &currentSecond, &timezone))
         {
-            Logger.info(LOG_TAG_SYSTEM, "Updated time: %02d:%02d:%02d", currentHour, currentMinute, currentSecond);
+            Logger.info(LOG_TAG_SYSTEM, "Time updated: %04d-%02d-%02d %02d:%02d:%02d (TZ: %.1f)",
+                        year, month, day, currentHour, currentMinute, currentSecond, timezone);
         }
         else
         {
@@ -269,7 +332,11 @@ void loop()
         }
 
         // Check if it's sleep time
-        if (isSleepTime())
+        bool sleepTimeCheck = isSleepTime();
+        Logger.debug(LOG_TAG_SYSTEM, "Periodic sleep check: isSleepTime()=%s, currentHour=%d",
+                     sleepTimeCheck ? "true" : "false", currentHour);
+
+        if (sleepTimeCheck)
         {
             Logger.info(LOG_TAG_SYSTEM, "It's sleep time. Entering deep sleep...");
             enterDeepSleepUntil(dynamicSleepEndHour, 0);
@@ -568,9 +635,13 @@ bool isSleepTime()
 {
 #ifdef DEBUG_MODE
     // In debug mode, never sleep to allow for continuous monitoring and debugging.
+    Logger.debug(LOG_TAG_SYSTEM, "isSleepTime(): DEBUG_MODE enabled, sleep disabled");
     return false;
 #else
-    return (currentHour >= dynamicSleepStartHour || currentHour < dynamicSleepEndHour);
+    bool inSleepWindow = (currentHour >= dynamicSleepStartHour || currentHour < dynamicSleepEndHour);
+    Logger.debug(LOG_TAG_SYSTEM, "isSleepTime(): currentHour=%d, sleepStart=%d, sleepEnd=%d, inWindow=%s",
+                 currentHour, dynamicSleepStartHour, dynamicSleepEndHour, inSleepWindow ? "true" : "false");
+    return inSleepWindow;
 #endif
 }
 

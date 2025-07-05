@@ -11,10 +11,12 @@
 
 // Debug and logging
 #define DEBUG_ENABLED true
+#ifndef LOG_LEVEL
 #ifdef DEBUG_MODE
 #define LOG_LEVEL 4 // Debug builds: 4=DEBUG level (ERROR, WARN, INFO, DEBUG)
 #else
 #define LOG_LEVEL 2 // Production builds: 2=WARN level (ERROR, WARN only)
+#endif
 #endif
 // Log levels: 0=NONE, 1=ERROR, 2=WARN, 3=INFO, 4=DEBUG, 5=VERBOSE
 

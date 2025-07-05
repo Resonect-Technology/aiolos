@@ -95,14 +95,34 @@ void LoggerClass::log(uint8_t level, const char *tag, const char *format, ...)
         return;
     }
 
-    // Get current time since boot
-    unsigned long now = millis();
-    unsigned long seconds = now / 1000;
-    unsigned long minutes = seconds / 60;
-    unsigned long hours = minutes / 60;
+    // Calculate current time (real time if available, boot time if not)
+    unsigned long hours, minutes, seconds;
 
-    seconds %= 60;
-    minutes %= 60;
+    if (_hasRealTime)
+    {
+        // Calculate elapsed time since real time was set
+        unsigned long now = millis();
+        unsigned long elapsedMs = now - _realTimeSetAt;
+        unsigned long elapsedSeconds = elapsedMs / 1000;
+
+        // Add elapsed seconds to the real time
+        unsigned long totalSeconds = (_realHour * 3600) + (_realMinute * 60) + _realSecond + elapsedSeconds;
+
+        // Handle day rollover
+        totalSeconds %= (24 * 3600);
+
+        hours = totalSeconds / 3600;
+        minutes = (totalSeconds % 3600) / 60;
+        seconds = totalSeconds % 60;
+    }
+    else
+    {
+        // Fall back to boot time
+        unsigned long now = millis();
+        seconds = (now / 1000) % 60;
+        minutes = ((now / 1000) / 60) % 60;
+        hours = (((now / 1000) / 60) / 60) % 24;
+    }
 
     // Format the log prefix with timestamp and level
     char buffer[512]; // Increased buffer size for longer messages
@@ -130,8 +150,18 @@ void LoggerClass::log(uint8_t level, const char *tag, const char *format, ...)
         break;
     }
 
-    int prefixLen = snprintf(buffer, sizeof(buffer), "[%02lu:%02lu:%02lu][%c][%s] ",
+    // Use different format based on whether we have real time
+    int prefixLen;
+    if (_hasRealTime)
+    {
+        prefixLen = snprintf(buffer, sizeof(buffer), "[%02lu:%02lu:%02lu][%c][%s] ",
                              hours, minutes, seconds, levelChar, tag);
+    }
+    else
+    {
+        prefixLen = snprintf(buffer, sizeof(buffer), "[%02lu:%02lu:%02lu*][%c][%s] ",
+                             hours, minutes, seconds, levelChar, tag);
+    }
 
     // Format the log message
     va_list args;
@@ -144,6 +174,15 @@ void LoggerClass::log(uint8_t level, const char *tag, const char *format, ...)
 
     // Store in recent logs
     _storeLog(buffer);
+}
+
+void LoggerClass::setRealTime(int hour, int minute, int second)
+{
+    _realHour = hour;
+    _realMinute = minute;
+    _realSecond = second;
+    _realTimeSetAt = millis();
+    _hasRealTime = true;
 }
 
 void LoggerClass::_storeLog(const char *message)
