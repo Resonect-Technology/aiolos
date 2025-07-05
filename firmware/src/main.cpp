@@ -2,36 +2,8 @@
  * @file main.cpp
  * @brief Main application for the Aiolos Weather Station
  *
- * This is the entry point for the Aiolos Weather Statio    // Get network time
-    int year, month, day;
-    float timezone;
-    if (modemManager.getNetworkTime(&year, &month, &day, &currentHour, &currentMinute, &currentSeco        int year, month, day;
-        float timezone;
-        if (modemManager.getNetworkTime(&year, &month, &day, &currentHour, &currentMinute, &currentSecond, &timezone))
-        {
-            // Update logger with real time
-            Logger.setRealTime(currentHour, currentMinute, currentSecond);
-
-            Logger.info(LOG_TAG_SYSTEM, "Time updated: %04d-%02d-%02d %02d:%02d:%02d (TZ: %.1f)",
-                       year, month, day, currentHour, currentMinute, currentSecond, timezone);
-        }
-        else
-        {
-            Logger.warn(LOG_TAG_SYSTEM, "Failed to update time from network");
-        }ne))
-    {
-        // Update logger with real time
-        Logger.setRealTime(currentHour, currentMinute, currentSecond);
-
-        Logger.info(LOG_TAG_SYSTEM, "Network time obtained: %04d-%02d-%02d %02d:%02d:%02d (TZ: %.1f)",
-                   year, month, day, currentHour, currentMinute, currentSecond, timezone);
-        Logger.info(LOG_TAG_SYSTEM, "Sleep window: %02d:00 to %02d:00 (current: %02d:%02d)",
-                   dynamicSleepStartHour, dynamicSleepEndHour, currentHour, currentMinute);
-    }
-    else
-    {
-        Logger.warn(LOG_TAG_SYSTEM, "Failed to get network time");
-    } It initializes all components and manages the main operation loop.
+ * This is the entry point for the Aiolos Weather Station.
+ * It initializes all components and manages the main operation loop.
  *
  * @version 1.0.0
  * @date 2025-06-25
@@ -170,6 +142,9 @@ void setup()
     float timezone;
     if (modemManager.getNetworkTime(&year, &month, &day, &currentHour, &currentMinute, &currentSecond, &timezone))
     {
+        // Update logger with real time
+        Logger.setRealTime(currentHour, currentMinute, currentSecond);
+
         Logger.info(LOG_TAG_SYSTEM, "Network time obtained: %04d-%02d-%02d %02d:%02d:%02d (TZ: %.1f)",
                     year, month, day, currentHour, currentMinute, currentSecond, timezone);
         Logger.info(LOG_TAG_SYSTEM, "Sleep window: %02d:00 to %02d:00 (current: %02d:%02d)",
@@ -323,6 +298,9 @@ void loop()
         float timezone;
         if (modemManager.getNetworkTime(&year, &month, &day, &currentHour, &currentMinute, &currentSecond, &timezone))
         {
+            // Update logger with real time
+            Logger.setRealTime(currentHour, currentMinute, currentSecond);
+
             Logger.info(LOG_TAG_SYSTEM, "Time updated: %04d-%02d-%02d %02d:%02d:%02d (TZ: %.1f)",
                         year, month, day, currentHour, currentMinute, currentSecond, timezone);
         }

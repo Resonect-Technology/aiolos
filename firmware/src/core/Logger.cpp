@@ -183,6 +183,10 @@ void LoggerClass::setRealTime(int hour, int minute, int second)
     _realSecond = second;
     _realTimeSetAt = millis();
     _hasRealTime = true;
+
+    // Log that real time was set (use Serial directly to avoid recursion)
+    Serial.printf("[LOGGER] Real time set to %02d:%02d:%02d (at boot+%lums)\n",
+                  hour, minute, second, _realTimeSetAt);
 }
 
 void LoggerClass::_storeLog(const char *message)

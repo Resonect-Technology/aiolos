@@ -104,13 +104,13 @@ float WindSensor::getWindDirection()
 
     if (adcValue < 598) // Below 598 (midpoint of 584 and 612)
     {
-        direction = 135; // SOUTHEAST
-        Logger.debug(LOG_TAG_WIND, "ADC %d -> SOUTHEAST (135°)", adcValue);
+        direction = 90; // EAST (swapped: was SOUTHEAST)
+        Logger.debug(LOG_TAG_WIND, "ADC %d -> EAST (90°)", adcValue);
     }
     else if (adcValue < 818) // 598-817 (midpoint of 612 and 1023)
     {
-        direction = 90; // EAST
-        Logger.debug(LOG_TAG_WIND, "ADC %d -> EAST (90°)", adcValue);
+        direction = 135; // SOUTHEAST (swapped: was EAST)
+        Logger.debug(LOG_TAG_WIND, "ADC %d -> SOUTHEAST (135°)", adcValue);
     }
     else if (adcValue < 1590) // 818-1589 (midpoint of 1023 and 2156)
     {
