@@ -85,6 +85,18 @@ The firmware supports two methods for remote updates, managed by `OtaManager` us
 - **Authentication**: Uses HTTP digest authentication for secure access to the OTA interface.
 - **Debug Mode**: In debug builds, OTA mode will activate even with low battery voltage for development convenience.
 
+#### Debug Mode Features
+
+When compiled with `DEBUG_MODE=1` flag, the firmware enables several development-friendly features:
+
+- **Sleep Disabled**: Deep sleep functionality is completely disabled to allow continuous monitoring and debugging
+- **Enhanced Logging**: Log level increased to DEBUG (level 4) showing detailed operational information vs. production WARN level (level 2)
+- **Low Battery OTA Override**: OTA updates are allowed even when battery voltage is below the minimum threshold (3.8V), useful when developing via USB power
+- **Development Build Identification**: Startup logs clearly indicate debug mode is active
+- **Continuous Operation**: Device remains active 24/7 without entering power-saving sleep cycles
+
+**Note**: Debug mode should never be used in field deployments as it prevents power-saving sleep and may drain the battery quickly.
+
 ### 5. Configuration System
 
 The firmware uses a flexible, three-tiered configuration system.
@@ -144,7 +156,11 @@ The project uses a `secrets.ini` file (ignored by Git) to manage sensitive data 
 The firmware is **production-ready** and has undergone comprehensive testing and optimization. All critical systems have been refactored for robustness and power efficiency.
 
 #### Recent Improvements (v2.0)
-- **Fixed Modem Power Management**: Resolved persistent modem restart issues with proper `powerOff()` implementation
+- **Critical Modem Power-Off Fix**: Completely resolved modem restart issues during deep sleep
+  - Eliminated problematic hardware pulses after software shutdown that were waking the modem
+  - Modem now stays powered off (diodes remain off) during ESP32 deep sleep cycles
+  - Implemented fast, decisive shutdown sequence using multiple `AT+CPOWD=1` commands
+  - Fixed PWR_PIN logic to maintain correct OFF state (HIGH = LOW to modem due to transistor inversion)
 - **Optimized HTTP Communication**: Lightweight POST methods for improved reliability
 - **Enhanced Error Handling**: Comprehensive error recovery throughout all modules
 - **Calibrated ADC Readings**: More accurate battery and solar voltage measurements
