@@ -1,25 +1,10 @@
 /**
  * @file ModemManager.h
- * @brief Manages the SIM7000G     /**
- * @brief Power off the modem completely
+ * @brief Manages the SIM7000G modem
  *
- * This method implements a robust power-off sequence that fixes the persistent
- * modem restart issue. It sends multiple AT+CPOWD=1 commands and ensures the
- * PWR_PIN is set to the correct state (HIGH = LOW to modem) to maintain the
- * OFF state, preventing automatic modem restart.
- *
- * IMPORTANT: No validation via AT commands is performed as this could wake
- * up the modem. The power-off sequence itself is considered sufficient.
- *
- * The implementation addresses GitHub issues #146, #251, and #144.
- *
- * @return true if successful
- * @return false if failed
+ * Handles modem initialization, power cycling, network connection,
+ * and communication. Provides access to network time and signal quality.
  */
-bool powerOff();
-**Handles modem initialization, power cycling, network connection,
-    *and communication.Provides access to network time and signal quality.
-             * /
 
 #pragma once
 
@@ -45,7 +30,7 @@ bool powerOff();
 // Define SerialAT - this should be consistent with LilyGO examples
 #define SerialAT Serial1
 
-        class ModemManager
+class ModemManager
 {
 public:
     // Enum for SIM status, as defined in TinyGSM but scoped here for clarity
