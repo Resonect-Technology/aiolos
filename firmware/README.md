@@ -113,6 +113,8 @@ The firmware implements comprehensive system reliability measures to ensure stab
 - **Strategic Disabling**: Watchdog is temporarily disabled during long operations (modem initialization, OTA updates, connectivity tests)
 - **Periodic Restarts**: Configurable automatic restarts (default 6 hours) to maintain system health
 - **Error Recovery**: Graceful handling of modem, network, and sensor failures with appropriate fallbacks
+- **Non-Blocking Operations**: All potentially blocking operations converted to timer-based alternatives
+- **System Responsiveness**: Sensors and core functions continue operating during connection issues
 
 ---
 
@@ -161,7 +163,15 @@ The firmware is **production-ready** and has undergone comprehensive testing and
   - Modem now stays powered off (diodes remain off) during ESP32 deep sleep cycles
   - Implemented fast, decisive shutdown sequence using multiple `AT+CPOWD=1` commands
   - Fixed PWR_PIN logic to maintain correct OFF state (HIGH = LOW to modem due to transistor inversion)
-- **Optimized HTTP Communication**: Lightweight POST methods for improved reliability
+- **Non-Blocking Emergency Recovery**: Replaced blocking delays with timer-based recovery system
+  - Prevents watchdog resets during connection failures
+  - System remains responsive during emergency recovery periods
+  - Maintains sensor operation even during connection issues
+- **Optimized HTTP Communication**: 
+  - Lightweight POST methods for improved reliability and speed
+  - Fixed timeout alignment (30s HttpClient timeout matches manual read timeout)
+  - Modern JsonDocument usage eliminating deprecation warnings
+  - Enhanced error handling in lightweight operations
 - **Enhanced Error Handling**: Comprehensive error recovery throughout all modules
 - **Calibrated ADC Readings**: More accurate battery and solar voltage measurements
 - **Robust Deep Sleep**: Simplified logic ensuring reliable wake-up behavior
@@ -169,8 +179,10 @@ The firmware is **production-ready** and has undergone comprehensive testing and
 #### Field Testing Ready
 - **Long-term Stability**: Validated for continuous operation with periodic restarts
 - **Power Efficiency**: Optimized for solar/battery operation with deep sleep
-- **Network Reliability**: Connection throttling and graceful degradation
+- **Network Reliability**: Non-blocking connection recovery prevents system hangs
 - **Data Integrity**: Comprehensive sensor validation and error reporting
+- **Production Robustness**: All critical blocking operations converted to non-blocking
+- **HTTP Optimization**: Lightweight POST operations with aligned timeouts for better performance
 
 #### Wind Measurement System
 - **Accurate Wind Speed**: Fixed timing issues in pulse counting for precise speed measurements
@@ -336,20 +348,28 @@ The system includes comprehensive connection recovery mechanisms to prevent infi
 ### Failure Detection and Recovery
 
 **Connection Failure Tracking:**
-- Tracks consecutive connection failures
-- Implements exponential backoff (30s to 5 minutes)
-- Prevents infinite connection retry loops
+- Tracks consecutive connection failures up to 10 attempts
+- Implements non-blocking emergency recovery mode
+- Prevents infinite connection retry loops and watchdog resets
+
+**Emergency Recovery System:**
+- **Non-Blocking Design**: Uses timer-based recovery instead of blocking delays
+- **Recovery Duration**: 10-minute recovery period during which connection attempts are skipped
+- **System Responsiveness**: Sensors and other operations continue during recovery
+- **Automatic Reset**: Failure counter automatically resets after recovery period
 
 **Modem Reset Conditions:**
-- After 5 consecutive connection failures
-- After 3 minutes of modem unresponsiveness
-- Minimum 5 minutes between resets to prevent reset loops
+- Triggered when maximum connection failures (10) are reached
+- Modem reset attempted if `needsReset()` indicates modem is unresponsive
+- **Graceful Handling**: System continues operation even if reset fails
+- Minimum recovery periods prevent reset loops
 
 **Recovery Sequence:**
-1. **Backoff Period**: Exponential delays between connection attempts
-2. **Modem Reset**: Complete power cycle if failures persist
-3. **Emergency Recovery**: Hardware reset with full re-initialization
-4. **Graceful Degradation**: System continues with limited functionality if modem fails
+1. **Connection Monitoring**: Track consecutive failures
+2. **Emergency Mode**: Enter non-blocking recovery when limit reached
+3. **Modem Reset**: Attempt reset if modem appears unresponsive
+4. **Timer-Based Recovery**: 10-minute recovery period with continued operation
+5. **Automatic Restoration**: System resumes normal operation after recovery period
 
 ### Configuration for Field Deployment
 
@@ -380,10 +400,11 @@ The system includes comprehensive connection recovery mechanisms to prevent infi
 ### Monitoring and Diagnostics
 
 The system logs comprehensive connection health information:
-- Connection failure counts and backoff periods
+- Connection failure counts and emergency recovery periods
 - Modem reset events and recovery success rates
 - Signal quality trends and network stability metrics
-- Unresponsive modem detection and recovery timing
+- Non-blocking recovery system operation and timing
+- System responsiveness during connection issues
 
 ### Field Operation Recommendations
 

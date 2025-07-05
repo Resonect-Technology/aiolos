@@ -46,6 +46,11 @@ int connectionFailureCount = 0;
 const int MAX_CONNECTION_FAILURES = 10;
 const unsigned long CONNECTION_FAILURE_RESET_TIME = 600000; // 10 minutes
 
+// Emergency recovery non-blocking state
+bool emergencyRecoveryMode = false;
+unsigned long emergencyRecoveryStartTime = 0;
+const unsigned long EMERGENCY_RECOVERY_DURATION = 600000; // 10 minutes
+
 // Non-blocking temperature reading state
 bool tempConversionStarted = false;
 unsigned long tempConversionStartTime = 0;
@@ -385,31 +390,45 @@ void loop()
     // Check if we've had too many connection failures recently
     if (connectionFailureCount >= MAX_CONNECTION_FAILURES)
     {
-        Logger.error(LOG_TAG_SYSTEM, "EMERGENCY: Too many connection failures (%d), entering recovery mode",
-                     connectionFailureCount);
-
-        // Force modem reset
-        if (modemManager.needsReset())
+        if (!emergencyRecoveryMode)
         {
-            Logger.warn(LOG_TAG_SYSTEM, "EMERGENCY: Attempting modem reset");
-            if (modemManager.resetModem())
+            Logger.error(LOG_TAG_SYSTEM, "EMERGENCY: Too many connection failures (%d), entering recovery mode",
+                         connectionFailureCount);
+            emergencyRecoveryMode = true;
+            emergencyRecoveryStartTime = currentMillis;
+
+            // Force modem reset
+            if (modemManager.needsReset())
             {
-                Logger.info(LOG_TAG_SYSTEM, "EMERGENCY: Modem reset successful, clearing failure count");
+                Logger.warn(LOG_TAG_SYSTEM, "EMERGENCY: Attempting modem reset");
+                if (modemManager.resetModem())
+                {
+                    Logger.info(LOG_TAG_SYSTEM, "EMERGENCY: Modem reset successful, clearing failure count");
+                    connectionFailureCount = 0;
+                    emergencyRecoveryMode = false;
+                }
+                else
+                {
+                    Logger.error(LOG_TAG_SYSTEM, "EMERGENCY: Modem reset failed, entering non-blocking backoff");
+                }
+            }
+        }
+
+        // Non-blocking emergency recovery
+        if (emergencyRecoveryMode)
+        {
+            if (currentMillis - emergencyRecoveryStartTime >= EMERGENCY_RECOVERY_DURATION)
+            {
+                Logger.info(LOG_TAG_SYSTEM, "EMERGENCY: Recovery period ended, clearing failure count");
                 connectionFailureCount = 0;
+                emergencyRecoveryMode = false;
             }
             else
             {
-                Logger.error(LOG_TAG_SYSTEM, "EMERGENCY: Modem reset failed, entering extended backoff");
-                // Enter extended backoff - don't attempt connections for 10 minutes
-                delay(600000);              // 10 minutes
-                connectionFailureCount = 0; // Reset after backoff
+                // Skip connection attempts during recovery, but don't block
+                Logger.debug(LOG_TAG_SYSTEM, "EMERGENCY: In recovery mode, skipping connection attempts");
+                return; // Skip this loop iteration without blocking
             }
-        }
-        else
-        {
-            Logger.warn(LOG_TAG_SYSTEM, "EMERGENCY: Extended backoff period active");
-            delay(60000); // 1 minute delay
-            return;       // Skip this loop iteration
         }
     }
 
