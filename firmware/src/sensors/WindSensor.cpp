@@ -96,45 +96,56 @@ float WindSensor::getWindDirection()
     Logger.debug(LOG_TAG_WIND, "Wind vane raw ADC value: %d", adcValue);
 
     // Map ADC value to wind direction based on calibrated ranges
-    // Using exact same ranges from the old code
-    if (adcValue < 150)
-        direction = 202.5;
-    else if (adcValue < 300)
-        direction = 180;
-    else if (adcValue < 400)
-        direction = 247.5;
-    else if (adcValue < 600)
-        direction = 225;
-    else if (adcValue < 900)
-        direction = 292.5;
-    else if (adcValue < 1100)
-        direction = 270;
-    else if (adcValue < 1500)
-        direction = 112.5;
-    else if (adcValue < 1700)
-        direction = 135;
-    else if (adcValue < 2250)
-        direction = 337.5;
-    else if (adcValue < 2350)
-        direction = 315;
-    else if (adcValue < 2700)
-        direction = 67.5;
-    else if (adcValue < 3000)
-        direction = 90;
-    else if (adcValue < 3200)
-        direction = 22.5;
-    else if (adcValue < 3400)
-        direction = 45;
-    else if (adcValue < 4000)
-        direction = 0;
-    else
-        direction = 0; // Unknown
+    // Updated with calibration results from wizard
+    // Calibration data (sorted by ADC):
+    // SOUTHEAST(135°): 584, EAST(90°): 612, SOUTH(180°): 1023,
+    // NORTHEAST(45°): 2156, SOUTHWEST(225°): 2426, NORTH(0°): 3070,
+    // NORTHWEST(315°): 3583, WEST(270°): 3921
 
-    // Apply the same adjustment as in the old code:
-    // Adjust direction to have 0 degrees as North
-    direction -= 90;
-    if (direction < 0)
-        direction += 360;
+    if (adcValue < 598) // Below 598 (midpoint of 584 and 612)
+    {
+        direction = 135; // SOUTHEAST
+        Logger.debug(LOG_TAG_WIND, "ADC %d -> SOUTHEAST (135°)", adcValue);
+    }
+    else if (adcValue < 818) // 598-817 (midpoint of 612 and 1023)
+    {
+        direction = 90; // EAST
+        Logger.debug(LOG_TAG_WIND, "ADC %d -> EAST (90°)", adcValue);
+    }
+    else if (adcValue < 1590) // 818-1589 (midpoint of 1023 and 2156)
+    {
+        direction = 180; // SOUTH
+        Logger.debug(LOG_TAG_WIND, "ADC %d -> SOUTH (180°)", adcValue);
+    }
+    else if (adcValue < 2291) // 1590-2290 (midpoint of 2156 and 2426)
+    {
+        direction = 45; // NORTHEAST
+        Logger.debug(LOG_TAG_WIND, "ADC %d -> NORTHEAST (45°)", adcValue);
+    }
+    else if (adcValue < 2748) // 2291-2747 (midpoint of 2426 and 3070)
+    {
+        direction = 225; // SOUTHWEST
+        Logger.debug(LOG_TAG_WIND, "ADC %d -> SOUTHWEST (225°)", adcValue);
+    }
+    else if (adcValue < 3327) // 2748-3326 (midpoint of 3070 and 3583)
+    {
+        direction = 0; // NORTH
+        Logger.debug(LOG_TAG_WIND, "ADC %d -> NORTH (0°)", adcValue);
+    }
+    else if (adcValue < 3752) // 3327-3751 (midpoint of 3583 and 3921)
+    {
+        direction = 315; // NORTHWEST
+        Logger.debug(LOG_TAG_WIND, "ADC %d -> NORTHWEST (315°)", adcValue);
+    }
+    else
+    {
+        direction = 270; // WEST (3752+)
+        Logger.debug(LOG_TAG_WIND, "ADC %d -> WEST (270°)", adcValue);
+    }
+
+    // Note: No adjustment needed since calibration already gives us correct directions
+    // The old code needed -90 adjustment because it used different direction mapping
+    // Our calibration wizard mapped directions correctly, so we use them directly
 
     // Implement minimum change time to prevent rapid direction bouncing
     unsigned long currentTime = millis();
@@ -250,29 +261,183 @@ void WindSensor::countAnemometerPulse()
 
 void WindSensor::calibrateWindVane(unsigned long durationMs)
 {
-    Logger.info(LOG_TAG_WIND, "Starting simple wind vane readings for %lu ms...", durationMs);
+    Logger.info(LOG_TAG_WIND, "=========================================");
+    Logger.info(LOG_TAG_WIND, "=== WIND VANE CALIBRATION WIZARD ===");
+    Logger.info(LOG_TAG_WIND, "=========================================");
+    Logger.info(LOG_TAG_WIND, "");
+    Logger.info(LOG_TAG_WIND, "This wizard will guide you through calibrating");
+    Logger.info(LOG_TAG_WIND, "your wind vane for 8 cardinal directions.");
+    Logger.info(LOG_TAG_WIND, "");
+    Logger.info(LOG_TAG_WIND, "Instructions:");
+    Logger.info(LOG_TAG_WIND, "1. Point wind vane to the direction shown");
+    Logger.info(LOG_TAG_WIND, "2. Hold steady until 'STABLE' appears");
+    Logger.info(LOG_TAG_WIND, "3. Wait for automatic progression to next direction");
+    Logger.info(LOG_TAG_WIND, "4. At the end, you'll get a summary table");
+    Logger.info(LOG_TAG_WIND, "");
+    Logger.info(LOG_TAG_WIND, "Starting calibration in 3 seconds...");
+    Logger.info(LOG_TAG_WIND, "=========================================");
 
-    unsigned long startTime = millis();
-    unsigned long lastPrintTime = 0;
+    delay(3000); // Give user time to read instructions
 
-    while (millis() - startTime < durationMs)
+    // Structure to store calibration results
+    struct CalibrationResult
     {
-        // Only print every 1000ms to avoid flooding the console
-        if (millis() - lastPrintTime >= 1000)
+        const char *direction;
+        float degrees;
+        int adcValue;
+        float voltage;
+        bool success;
+    };
+
+    // Define the 8 cardinal directions to test
+    CalibrationResult results[] = {
+        {"NORTH", 0.0, 0, 0.0, false},
+        {"NORTHEAST", 45.0, 0, 0.0, false},
+        {"EAST", 90.0, 0, 0.0, false},
+        {"SOUTHEAST", 135.0, 0, 0.0, false},
+        {"SOUTH", 180.0, 0, 0.0, false},
+        {"SOUTHWEST", 225.0, 0, 0.0, false},
+        {"WEST", 270.0, 0, 0.0, false},
+        {"NORTHWEST", 315.0, 0, 0.0, false}};
+
+    const int numDirections = sizeof(results) / sizeof(results[0]);
+    const int STABLE_THRESHOLD = 15;      // ADC value must be stable within ±15
+    const int STABLE_READINGS_NEEDED = 6; // Need 6 stable readings (3 seconds)
+    const int MEASUREMENT_TIME = 8;       // 8 seconds to measure each direction
+
+    // Calibrate each direction
+    for (int dir = 0; dir < numDirections; dir++)
+    {
+        Logger.info(LOG_TAG_WIND, "");
+        Logger.info(LOG_TAG_WIND, "========================================");
+        Logger.info(LOG_TAG_WIND, "Direction %d of %d: %s (%.0f°)",
+                    dir + 1, numDirections, results[dir].direction, results[dir].degrees);
+        Logger.info(LOG_TAG_WIND, "========================================");
+        Logger.info(LOG_TAG_WIND, "");
+        Logger.info(LOG_TAG_WIND, ">>> Point the wind vane to %s <<<", results[dir].direction);
+        Logger.info(LOG_TAG_WIND, ">>> Hold steady and wait for STABLE readings <<<");
+        Logger.info(LOG_TAG_WIND, "");
+
+        unsigned long directionStartTime = millis();
+        unsigned long lastPrintTime = 0;
+        int lastAdcValue = -1;
+        int stableCount = 0;
+        int totalReadings = 0;
+        long adcSum = 0;
+        bool gotStableReading = false;
+
+        while (millis() - directionStartTime < (MEASUREMENT_TIME * 1000))
         {
-            lastPrintTime = millis();
+            // Print every 500ms
+            if (millis() - lastPrintTime >= 500)
+            {
+                lastPrintTime = millis();
+                totalReadings++;
 
-            // Read analog value from wind vane
-            int adcValue = analogRead(_windVanePin);
-            float voltage = (adcValue * 3.3) / 4095.0;
+                // Get averaged ADC reading for more stability
+                int adcValue = getAveragedAdcReading();
+                float voltage = (adcValue * 3.3) / 4095.0;
 
-            Logger.info(LOG_TAG_WIND, "Wind Vane: ADC=%d, Voltage=%.3fV", adcValue, voltage);
+                // Check if reading is stable
+                bool isStable = false;
+                if (abs(adcValue - lastAdcValue) <= STABLE_THRESHOLD)
+                {
+                    stableCount++;
+                    if (stableCount >= STABLE_READINGS_NEEDED)
+                    {
+                        isStable = true;
+                        gotStableReading = true;
+                    }
+                }
+                else
+                {
+                    stableCount = 0;
+                }
+
+                // Accumulate ADC values for averaging
+                adcSum += adcValue;
+
+                // Calculate remaining time
+                unsigned long elapsed = millis() - directionStartTime;
+                int remaining = MEASUREMENT_TIME - (elapsed / 1000);
+
+                // Print the reading with stability indicator
+                if (isStable)
+                {
+                    Logger.info(LOG_TAG_WIND, "ADC=%4d, V=%.3f **STABLE** (Time: %ds)",
+                                adcValue, voltage, remaining);
+                }
+                else
+                {
+                    Logger.info(LOG_TAG_WIND, "ADC=%4d, V=%.3f (Stabilizing... %ds)",
+                                adcValue, voltage, remaining);
+                }
+
+                lastAdcValue = adcValue;
+            }
+
+            delay(10);
         }
 
-        delay(10); // Small delay to prevent excessive looping
+        // Store results
+        if (totalReadings > 0)
+        {
+            results[dir].adcValue = adcSum / totalReadings;
+            results[dir].voltage = (results[dir].adcValue * 3.3) / 4095.0;
+            results[dir].success = gotStableReading;
+        }
+
+        if (gotStableReading)
+        {
+            Logger.info(LOG_TAG_WIND, "");
+            Logger.info(LOG_TAG_WIND, "✓ %s calibration COMPLETE", results[dir].direction);
+        }
+        else
+        {
+            Logger.info(LOG_TAG_WIND, "");
+            Logger.info(LOG_TAG_WIND, "⚠ %s calibration completed (but readings were unstable)", results[dir].direction);
+        }
+
+        // Short pause before next direction
+        if (dir < numDirections - 1)
+        {
+            Logger.info(LOG_TAG_WIND, "");
+            Logger.info(LOG_TAG_WIND, "Moving to next direction in 2 seconds...");
+            delay(2000);
+        }
     }
 
-    Logger.info(LOG_TAG_WIND, "Wind vane readings complete.");
+    // Print summary table
+    Logger.info(LOG_TAG_WIND, "");
+    Logger.info(LOG_TAG_WIND, "");
+    Logger.info(LOG_TAG_WIND, "=========================================");
+    Logger.info(LOG_TAG_WIND, "=== CALIBRATION SUMMARY TABLE ===");
+    Logger.info(LOG_TAG_WIND, "=========================================");
+    Logger.info(LOG_TAG_WIND, "Direction     | Degrees | ADC  | Voltage | Status");
+    Logger.info(LOG_TAG_WIND, "------------- | ------- | ---- | ------- | ------");
+
+    for (int i = 0; i < numDirections; i++)
+    {
+        Logger.info(LOG_TAG_WIND, "%-13s | %7.0f | %4d | %7.3f | %s",
+                    results[i].direction,
+                    results[i].degrees,
+                    results[i].adcValue,
+                    results[i].voltage,
+                    results[i].success ? "STABLE" : "UNSTABLE");
+    }
+
+    Logger.info(LOG_TAG_WIND, "=========================================");
+    Logger.info(LOG_TAG_WIND, "");
+    Logger.info(LOG_TAG_WIND, "=== NEXT STEPS ===");
+    Logger.info(LOG_TAG_WIND, "1. Copy the ADC values above");
+    Logger.info(LOG_TAG_WIND, "2. Update getWindDirection() method with new ranges:");
+    Logger.info(LOG_TAG_WIND, "   if (adcValue < XXX) direction = YYY;");
+    Logger.info(LOG_TAG_WIND, "3. Sort ADC values from lowest to highest");
+    Logger.info(LOG_TAG_WIND, "4. Create ranges between adjacent ADC values");
+    Logger.info(LOG_TAG_WIND, "5. Test with aiolos-esp32dev-debug environment");
+    Logger.info(LOG_TAG_WIND, "");
+    Logger.info(LOG_TAG_WIND, "=== CALIBRATION WIZARD COMPLETE ===");
+    Logger.info(LOG_TAG_WIND, "====================================");
 }
 
 void WindSensor::setSampleInterval(unsigned long intervalMs)
