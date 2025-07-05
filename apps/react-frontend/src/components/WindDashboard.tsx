@@ -5,9 +5,9 @@ import { WindDirectionCompass } from './WindDirectionCompass';
 import { WindRoseChart } from './WindRoseChart';
 import { UnitSelector } from './UnitSelector';
 import { WindSpeedDisplay } from './WindSpeedDisplay';
-import { ControlPanel } from './ControlPanel';
 import { ConnectionStatus } from './ConnectionStatus';
 import { DiagnosticsPanel } from './DiagnosticsPanel';
+import { TemperatureDisplay } from './TemperatureDisplay';
 import './WindDirectionCompass.css';
 
 interface WindData {
@@ -29,66 +29,6 @@ export function WindDashboard({ stationId }: WindDashboardProps) {
 
   const transmitInstanceRef = useRef<Transmit | null>(null);
   const subscriptionRef = useRef<any | null>(null);
-
-  const formatTimestamp = useCallback((timestamp: string) => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString();
-  }, []);
-
-  const startMockData = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/stations/${stationId}/live/wind/mock/start`, {
-        method: 'POST'
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to start mock data');
-      }
-      
-      const data = await response.json();
-      console.log('Mock data started:', data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start mock data');
-    }
-  }, [stationId]);
-
-  const stopMockData = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/stations/${stationId}/live/wind/mock/stop`, {
-        method: 'POST'
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to stop mock data');
-      }
-      
-      const data = await response.json();
-      console.log('Mock data stopped:', data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to stop mock data');
-    }
-  }, [stationId]);
-
-  const sendSingleMockData = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/stations/${stationId}/live/wind/mock`, {
-        method: 'POST'
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to send mock data');
-      }
-      
-      const data = await response.json();
-      console.log('Mock data sent:', data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send mock data');
-    }
-  }, [stationId]);
-
-  const clearWindHistory = useCallback(() => {
-    setWindHistory([]);
-  }, []);
 
   const handleUnitChange = useCallback((unit: string) => {
     setSelectedUnit(unit);
@@ -159,6 +99,13 @@ export function WindDashboard({ stationId }: WindDashboardProps) {
           />
         </div>
 
+        {/* Temperature Display Card */}
+        <div className="mb-10">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-2xl transition-shadow duration-300">
+            <TemperatureDisplay stationId={stationId} />
+          </div>
+        </div>
+
         {/* Unit Selector */}
         <div className="mb-10 flex justify-center">
           <UnitSelector 
@@ -204,18 +151,6 @@ export function WindDashboard({ stationId }: WindDashboardProps) {
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Control Panel */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-2xl transition-shadow duration-300 mb-10">
-          <ControlPanel 
-            windData={windData}
-            formatTimestamp={formatTimestamp}
-            startMockData={startMockData}
-            stopMockData={stopMockData}
-            sendSingleMockData={sendSingleMockData}
-            clearWindHistory={clearWindHistory}
-          />
         </div>
 
         {/* Diagnostics Panel */}

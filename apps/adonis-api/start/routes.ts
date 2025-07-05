@@ -13,11 +13,11 @@ import swagger from '#config/swagger'
 import transmit from '@adonisjs/transmit/services/main'
 
 // Import controllers
-const SensorReadingsController = () => import('#app/SensorReadingsController')
 const StationLiveController = () => import('#app/controllers/StationLiveController')
 const StationDiagnosticsController = () => import('#app/controllers/StationDiagnosticsController')
 const StationConfigsController = () => import('#app/controllers/station_configs_controller')
 const SystemConfigsController = () => import('#app/controllers/system_configs_controller')
+const StationTemperatureController = () => import('#app/controllers/StationTemperatureController')
 
 /**
  * Home route
@@ -67,10 +67,11 @@ router.group(() => {
    */
   router.group(() => {
     // Apply .as() to name routes for reverse routing
-    // Station readings routes (new format, replacing /sensors/:sensor_id/readings)
-    router.get('/readings', [SensorReadingsController, 'index']).as('readings.index')
-    router.get('/readings/:id', [SensorReadingsController, 'show']).as('readings.show')
-    router.post('/readings', [SensorReadingsController, 'store']).as('readings.store')
+
+    // Temperature data endpoint for firmware
+    router.post('/temperature', [StationTemperatureController, 'store']).as('temperature.store')
+    router.get('/temperature', [StationTemperatureController, 'index']).as('temperature.index')
+    router.get('/temperature/latest', [StationTemperatureController, 'latest']).as('temperature.latest')
 
     // Station diagnostics endpoints
     router.post('/diagnostics', [StationDiagnosticsController, 'store']).as('diagnostics.store')
@@ -80,10 +81,16 @@ router.group(() => {
     router.get('/config', [StationConfigsController, 'show']).as('config.show')
     router.post('/config', [StationConfigsController, 'store']).as('config.store')
 
+    // OTA confirmation endpoint - firmware calls this to confirm OTA mode started
+    router.post('/ota-confirm', [StationConfigsController, 'confirmOta']).as('ota.confirm')
+
+    // Wind data endpoint for firmware (maps to same controller as live/wind)
+    router.post('/wind', [StationLiveController, 'wind']).as('wind')
+
     // Live data routes group
     router.group(() => {
       // Live wind data ingestion endpoint for stations
-      router.post('/wind', [StationLiveController, 'wind']).as('wind')
+      router.post('/wind', [StationLiveController, 'wind']).as('live_wind')
 
       // Mock data routes for development
       router.group(() => {

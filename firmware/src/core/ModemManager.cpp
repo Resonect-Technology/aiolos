@@ -5,6 +5,8 @@
 
 #include "ModemManager.h"
 #include "Logger.h"
+#include "config/Config.h" // Include config for APN constant
+#include <Arduino.h>       // For Arduino types and functions
 
 ModemManager modemManager;
 
@@ -42,8 +44,8 @@ bool ModemManager::init()
     Logger.info(LOG_TAG_MODEM, "Modem Name: %s", modemName.c_str());
     Logger.info(LOG_TAG_MODEM, "Modem Info: %s", modemInfo.c_str());
 
-    // Get IMEI - important for device identification
-    String imei = getIMEI();
+    // Get and log IMEI as recommended by instructions
+    String imei = _modem.getIMEI();
     Logger.info(LOG_TAG_MODEM, "Device IMEI: %s", imei.c_str());
 
     // Check SIM card status with retries - critical fix for SIM detection issues
@@ -104,8 +106,37 @@ bool ModemManager::init()
     }
 
     // Set network modes - simplified
-    _modem.setPreferredMode(3); // CAT-M and NB-IoT
-    _modem.setNetworkMode(2);   // Automatic
+    // _modem.setPreferredMode(3); // CAT-M and NB-IoT
+    // _modem.setNetworkMode(2);   // Automatic
+
+    // Set network modes as per reference code for better reliability
+    Logger.info(LOG_TAG_MODEM, "Configuring network modes...");
+
+    _modem.sendAT("+CFUN=0");
+    if (_modem.waitResponse(10000L) != 1)
+    {
+        Logger.warn(LOG_TAG_MODEM, "Failed to set CFUN=0");
+    }
+    delay(200);
+
+    if (!_modem.setNetworkMode(2)) // Automatic
+    {
+        Logger.warn(LOG_TAG_MODEM, "Failed to set network mode");
+    }
+    delay(200);
+
+    if (!_modem.setPreferredMode(3)) // CAT-M and NB-IoT
+    {
+        Logger.warn(LOG_TAG_MODEM, "Failed to set preferred mode");
+    }
+    delay(200);
+
+    _modem.sendAT("+CFUN=1");
+    if (_modem.waitResponse(10000L) != 1)
+    {
+        Logger.warn(LOG_TAG_MODEM, "Failed to set CFUN=1");
+    }
+    delay(200);
 
     Logger.info(LOG_TAG_MODEM, "Modem initialized successfully");
     return true;
@@ -120,9 +151,11 @@ bool ModemManager::_initHardware()
     pinMode(PIN_DTR, OUTPUT);
     digitalWrite(PIN_DTR, LOW); // DTR low to keep modem awake
 
-    // Then set power pin
+    // Then set power pin - CRITICAL: Based on issue #251, pin logic is INVERTED
+    // Due to NPN transistor: GPIO HIGH = LOW to modem, GPIO LOW = HIGH to modem
+    // NOTE: Reset pin also has inverted levels (issue #251 comment)
     pinMode(PWR_PIN, OUTPUT);
-    digitalWrite(PWR_PIN, LOW); // Initial state of the power pin must be LOW
+    digitalWrite(PWR_PIN, HIGH); // This sends LOW to modem (default off state)
 
     // Add delay to ensure pin states are stable
     delay(100);
@@ -197,21 +230,21 @@ bool ModemManager::powerOn()
         SerialAT.read();
     }
 
-    // Make sure modem is in a known power state before attempting to power on
-    Logger.debug(LOG_TAG_MODEM, "Setting up power state...");
+    // CRITICAL: Use correct power-on sequence with inverted logic understanding
+    // Based on issue #251: GPIO levels are inverted due to NPN transistor
+    Logger.debug(LOG_TAG_MODEM, "Setting up power-on sequence...");
     pinMode(PWR_PIN, OUTPUT);
-    digitalWrite(PWR_PIN, LOW);
-    delay(2000);
 
-    // Send power pulse - this is the key to proper power-on
-    Logger.debug(LOG_TAG_MODEM, "Sending power pulse");
-    digitalWrite(PWR_PIN, HIGH);
-    delay(1500); // Stick with the datasheet recommendation of ~1.2s (plus margin)
-    digitalWrite(PWR_PIN, LOW);
+    // Power-on sequence: LOW pulse (which becomes HIGH to modem for power-on)
+    digitalWrite(PWR_PIN, HIGH); // Start with modem OFF (LOW to modem)
+    delay(100);                  // Ensure stable state
+    digitalWrite(PWR_PIN, LOW);  // Send power-on pulse (HIGH to modem)
+    delay(1000);                 // Hold for at least 1 second (SIM7000 requirement)
+    digitalWrite(PWR_PIN, HIGH); // Return to default state (LOW to modem)
 
-    // Critical: Longer wait time for boot
+    // Critical: Wait for boot
     Logger.debug(LOG_TAG_MODEM, "Waiting for modem to boot...");
-    delay(8000); // Increased to 8 seconds - this is crucial
+    delay(3000);
 
     // Clear any boot messages
     while (SerialAT.available())
@@ -237,29 +270,35 @@ bool ModemManager::powerOn()
         // If we didn't get a response, try a different approach
         if (i == 2)
         {
-            // Try hardware reset in the middle of attempts
+            // Try hardware power toggle (considering inverted logic)
             Logger.debug(LOG_TAG_MODEM, "No response, trying hardware toggle...");
-            digitalWrite(PWR_PIN, HIGH);
-            delay(100); // Short pulse
-            digitalWrite(PWR_PIN, LOW);
+            digitalWrite(PWR_PIN, LOW);  // Send power pulse (HIGH to modem)
+            delay(100);                  // Short pulse
+            digitalWrite(PWR_PIN, HIGH); // Return to default (LOW to modem)
             delay(2000);
         }
 
         delay(1000);
     }
 
-    // Last resort: try using TinyGSM's restart
+    // Last resort: try using TinyGSM's restart like manufacturer
     Logger.debug(LOG_TAG_MODEM, "Trying modem restart...");
-    _modem.sendAT("+CFUN=1,1"); // Software reset command
-    _modem.waitResponse(10000);
-
-    delay(5000);
+    if (!_modem.restart())
+    {
+        Logger.warn(LOG_TAG_MODEM, "Modem restart failed, trying init...");
+        if (!_modem.init())
+        {
+            Logger.error(LOG_TAG_MODEM, "Modem init also failed");
+            _setWatchdog(false);
+            return false;
+        }
+    }
 
     // Final check
     _modem.sendAT();
     if (_modem.waitResponse(3000) == 1)
     {
-        Logger.info(LOG_TAG_MODEM, "Modem responsive after software reset");
+        Logger.info(LOG_TAG_MODEM, "Modem responsive after restart/init");
         _setWatchdog(false);
         return true;
     }
@@ -273,51 +312,93 @@ bool ModemManager::powerOff()
 {
     Logger.info(LOG_TAG_MODEM, "Powering off modem...");
 
+    /*
+     * CRITICAL MODEM POWER-OFF SEQUENCE
+     *
+     * This implementation fixes the persistent modem power-off issue described in:
+     * - GitHub issue #146: Modem restarts after power-off
+     * - GitHub issue #251: Pin logic is inverted due to NPN transistor
+     * - GitHub issue #144: Related power management issues
+     *
+     * Key fixes applied:
+     * 1. Send AT+CPOWD=1 command twice for enhanced reliability
+     * 2. Use TinyGSM's poweroff() method for additional AT+CPOWD=1
+     * 3. CRITICAL: Set PWR_PIN to HIGH (LOW to modem) to maintain OFF state
+     * 4. NO validation via AT commands (could wake up the modem)
+     *
+     * Pin logic understanding (confirmed by LilyGO ModemSleep example):
+     * - ESP32 GPIO HIGH = LOW to modem (OFF state)
+     * - ESP32 GPIO LOW = HIGH to modem (ON state)
+     * This is due to NPN transistor inversion on the PWR_KEY line.
+     */
+
     // Make sure modem is responsive before attempting software power down
     bool isResponsive = _modem.testAT(1000);
 
     if (isResponsive)
     {
-        // First try software power down command as recommended in LilyGO examples
-        Logger.debug(LOG_TAG_MODEM, "Attempting software power down");
-        _modem.sendAT("+CPOWD=1");
+        // OPTIMIZED: Fast shutdown sequence to prevent modem restart
+        Logger.debug(LOG_TAG_MODEM, "Attempting fast software power down");
 
-        // Timeout of 10 seconds for power down command (based on LilyGO examples)
-        if (_modem.waitResponse(10000) != 1)
-        {
-            Logger.warn(LOG_TAG_MODEM, "Software power down command failed");
-            isResponsive = false; // Fall back to hardware power down
-        }
-        else
-        {
-            Logger.info(LOG_TAG_MODEM, "Software power down successful");
-            // Wait for modem to shut down completely (LilyGO examples suggest 5s)
-            Logger.debug(LOG_TAG_MODEM, "Waiting for modem to complete shutdown...");
-            delay(5000);
-            return true;
-        }
+        // CRITICAL: Set PWR_PIN to correct state IMMEDIATELY before sending commands
+        // This prevents the modem from restarting during the shutdown sequence
+        pinMode(PWR_PIN, OUTPUT);
+        digitalWrite(PWR_PIN, HIGH); // This is LOW to the modem due to transistor inversion (keeps OFF)
+
+        // Step 1: Send rapid +CPOWD=1 commands with minimal delay
+        Logger.debug(LOG_TAG_MODEM, "Sending rapid AT+CPOWD=1 commands");
+
+        _modem.sendAT("+CPOWD=1");
+        delay(100); // Minimal delay, don't wait for response
+
+        _modem.sendAT("+CPOWD=1");
+        delay(100); // Minimal delay, don't wait for response
+
+        _modem.sendAT("+CPOWD=1");
+        delay(100); // Minimal delay, don't wait for response
+
+        // Step 2: Call TinyGSM's poweroff method immediately (sends another +CPOWD=1)
+        Logger.debug(LOG_TAG_MODEM, "Calling TinyGSM poweroff immediately");
+        _modem.poweroff();
+
+        // Step 3: Ensure PWR_PIN stays HIGH (already set above, but reinforce)
+        digitalWrite(PWR_PIN, HIGH); // This is LOW to modem due to transistor inversion (keeps OFF)
+
+        // Step 4: Minimal wait - just enough for shutdown to take effect
+        Logger.debug(LOG_TAG_MODEM, "Brief wait for shutdown to take effect...");
+        delay(1000); // Reduced from 3000ms to 1000ms
+
+        // CRITICAL: NO HARDWARE PULSES AFTER SHUTDOWN
+        // Any hardware pulse after software shutdown could wake the modem
+        // PWR_PIN is already HIGH (OFF state) from Step 3 above
+
+        // NOTE: We do NOT validate power-off by sending AT commands or hardware pulses
+        // as this could wake up the modem. The software shutdown sequence is sufficient.
+
+        Logger.info(LOG_TAG_MODEM, "Fast software power off completed, PWR_PIN secured to HIGH (LOW to modem)");
+        return true;
     }
     else
     {
-        Logger.debug(LOG_TAG_MODEM, "Modem not responsive, skipping software power down");
-    }
+        Logger.debug(LOG_TAG_MODEM, "Modem not responsive, using fast hardware power down");
 
-    // If modem is not responsive or software power down failed, use hardware power down
-    if (!isResponsive)
-    {
-        Logger.info(LOG_TAG_MODEM, "Using hardware power down method");
+        // OPTIMIZED: Fast hardware power down using power pin
+        // CRITICAL: Based on issue #251, pin logic is INVERTED
+        pinMode(PWR_PIN, OUTPUT);
 
-        // Make sure PWR_PIN is LOW first
-        digitalWrite(PWR_PIN, LOW);
-        delay(1000);
+        // Send decisive power-off pulse: LOW for sufficient time (per SIM7000 spec)
+        digitalWrite(PWR_PIN, LOW); // This becomes HIGH to modem (power off command)
+        delay(1200);                // Hold for minimum required time (1.2s per spec)
 
-        // Apply power pulse
-        digitalWrite(PWR_PIN, HIGH);
-        delay(1500); // Datasheet Toff time = 1.2s
-        digitalWrite(PWR_PIN, LOW);
+        // CRITICAL: Immediately set final state to HIGH to maintain modem OFF state
+        // This prevents the modem from restarting due to incorrect pin state
+        digitalWrite(PWR_PIN, HIGH); // This is LOW to modem (maintains OFF state)
 
-        // Wait for modem to shut down completely
-        delay(5000);
+        Logger.debug(LOG_TAG_MODEM, "Fast hardware power down pulse sent, PWR_PIN set to HIGH (LOW to modem)");
+        delay(1000); // Reduced wait time
+
+        // NOTE: We do NOT validate power-off by sending AT commands as this could wake up the modem.
+        // The hardware power-off sequence (LOW pulse + correct final PWR_PIN state) should be sufficient.
 
         Logger.info(LOG_TAG_MODEM, "Hardware power down completed");
     }
@@ -526,12 +607,14 @@ bool ModemManager::isResponsive()
     if (res == 1)
     {
         Logger.debug(LOG_TAG_MODEM, "Modem is responsive");
+        _updateResponsiveTime(); // Update responsive time
         return true;
     }
     else if (res == 2)
     {
         Logger.debug(LOG_TAG_MODEM, "Modem returned ERROR but is responsive");
-        return true; // Still consider responsive if it returns ERROR
+        _updateResponsiveTime(); // Update responsive time
+        return true;             // Still consider responsive if it returns ERROR
     }
     else
     {
@@ -644,10 +727,10 @@ bool ModemManager::wakeUp(bool fromDeepSleep)
     // If still not responsive, try more aggressive wake-up with power pin toggle
     Logger.debug(LOG_TAG_MODEM, "Still not responsive, trying power pin toggle...");
 
-    // Send a short pulse to the power pin (shorter than power-on)
-    digitalWrite(PWR_PIN, HIGH);
-    delay(100); // Just a short pulse to nudge the modem
-    digitalWrite(PWR_PIN, LOW);
+    // Send a short pulse to the power pin (considering inverted logic)
+    digitalWrite(PWR_PIN, LOW);  // Send wake pulse (HIGH to modem)
+    delay(100);                  // Just a short pulse to nudge the modem
+    digitalWrite(PWR_PIN, HIGH); // Return to default (LOW to modem)
     delay(3000);
 
     // Final check for responsiveness
@@ -669,95 +752,37 @@ bool ModemManager::wakeUp(bool fromDeepSleep)
     return false;
 }
 
-/**
- * @brief Send a test HTTP request to check connectivity
- *
- * @param url The URL to connect to
- * @return true if successful
- * @return false if failed
- */
-bool ModemManager::sendTestRequest(const char *url)
+bool ModemManager::testConnectivity(const char *host, int port)
 {
-    Logger.info(LOG_TAG_MODEM, "Sending test HTTP request to %s", url);
+    Logger.info(LOG_TAG_MODEM, "Testing connectivity to %s:%d...", host, port);
 
-    if (!isNetworkConnected() || !isGprsConnected())
+    if (!isGprsConnected())
     {
-        Logger.error(LOG_TAG_MODEM, "Network or GPRS not connected");
-        return false;
-    }
-
-    // Use the existing client in _client field instead of creating a new one
-    TinyGsmClient &client = _client;
-
-    // Parse URL to extract host and path
-    String host, path;
-    int port = 80;
-
-    // Simple URL parser, assumes http:// protocol
-    String urlStr = String(url);
-    int hostStart = urlStr.indexOf("://");
-    if (hostStart > 0)
-    {
-        hostStart += 3; // Skip "://"
-    }
-    else
-    {
-        hostStart = 0;
-    }
-
-    int pathStart = urlStr.indexOf("/", hostStart);
-    if (pathStart > 0)
-    {
-        host = urlStr.substring(hostStart, pathStart);
-        path = urlStr.substring(pathStart);
-    }
-    else
-    {
-        host = urlStr.substring(hostStart);
-        path = "/";
-    }
-
-    // Check for port specification
-    int portPos = host.indexOf(":");
-    if (portPos > 0)
-    {
-        port = host.substring(portPos + 1).toInt();
-        host = host.substring(0, portPos);
-    }
-
-    Logger.debug(LOG_TAG_MODEM, "Connecting to %s:%d%s", host.c_str(), port, path.c_str());
-
-    // Connect to server
-    if (!client.connect(host.c_str(), port))
-    {
-        Logger.error(LOG_TAG_MODEM, "Failed to connect to server");
-        return false;
-    }
-
-    // Send HTTP GET request
-    client.print(String("GET ") + path + " HTTP/1.1\r\n");
-    client.print(String("Host: ") + host + "\r\n");
-    client.print("Connection: close\r\n\r\n");
-
-    // Wait for response
-    unsigned long timeout = millis();
-    while (client.connected() && millis() - timeout < 10000L)
-    {
-        while (client.available())
+        Logger.warn(LOG_TAG_MODEM, "GPRS not connected, attempting to connect...");
+        if (!connectGprs())
         {
-            char c = client.read();
-            // Only print first few characters to avoid flooding the log
-            if (millis() - timeout < 1000)
-            {
-                Logger.verbose(LOG_TAG_MODEM, "%c", c);
-            }
-            timeout = millis();
+            Logger.error(LOG_TAG_MODEM, "GPRS connection failed, cannot test connectivity.");
+            return false;
         }
     }
 
-    client.stop();
-    Logger.info(LOG_TAG_MODEM, "Test request completed");
-    return true;
+    // Use the existing client
+    TinyGsmClient &client = _client;
+
+    Logger.debug(LOG_TAG_MODEM, "Attempting to connect to host...");
+    bool connected = client.connect(host, port);
+
+    if (connected)
+    {
+        Logger.info(LOG_TAG_MODEM, "Successfully connected to %s:%d", host, port);
+        client.stop(); // Close the connection immediately
+        return true;
+    }
+    else
+    {
+        Logger.error(LOG_TAG_MODEM, "Failed to connect to %s:%d", host, port);
+        return false;
+    }
 }
 
 ModemManager::SimStatus ModemManager::getSimStatus()
@@ -834,241 +859,276 @@ ModemManager::SimStatus ModemManager::getSimStatus()
     return SIM_ERROR;
 }
 
-String ModemManager::getIMEI()
+String ModemManager::getNetworkParams()
 {
-    Logger.debug(LOG_TAG_MODEM, "Getting modem IMEI...");
-    String imei = _modem.getIMEI();
-    Logger.info(LOG_TAG_MODEM, "Modem IMEI: %s", imei.c_str());
-    return imei;
-}
-
-bool ModemManager::setPreferredMode(uint8_t mode)
-{
-    Logger.debug(LOG_TAG_MODEM, "Setting preferred network mode to %d", mode);
-
-    // Set the mobile operation band first
-    sendAT("+CBAND=ALL_MODE");
-    if (_modem.waitResponse() != 1)
-    {
-        Logger.warn(LOG_TAG_MODEM, "Failed to set mobile operation band");
-    }
-
-    // Set the preferred mode
-    if (_modem.setPreferredMode(mode))
-    {
-        Logger.info(LOG_TAG_MODEM, "Preferred mode set successfully");
-        return true;
-    }
-    else
-    {
-        Logger.error(LOG_TAG_MODEM, "Failed to set preferred mode");
-        return false;
-    }
-}
-
-bool ModemManager::setNetworkMode(uint8_t mode)
-{
-    Logger.debug(LOG_TAG_MODEM, "Setting network mode to %d", mode);
-
-    if (_modem.setNetworkMode(mode))
-    {
-        Logger.info(LOG_TAG_MODEM, "Network mode set successfully");
-        return true;
-    }
-    else
-    {
-        Logger.error(LOG_TAG_MODEM, "Failed to set network mode");
-        return false;
-    }
+    return _modem.getOperator();
 }
 
 String ModemManager::getNetworkAPN()
 {
-    Logger.debug(LOG_TAG_MODEM, "Getting network-assigned APN...");
-
-    String res;
-    sendAT("+CGNAPN");
-    if (_modem.waitResponse(3000, res) != 1)
-    {
-        Logger.warn(LOG_TAG_MODEM, "Failed to send CGNAPN command");
-        return "";
-    }
-    if (_modem.waitResponse(3000, res) == 1)
-    {
-        // Extract APN from response
-        res = res.substring(res.indexOf(",") + 1);
-        res.replace("\"", "");
-        res.replace("\r", "");
-        res.replace("\n", "");
-        res.replace("OK", "");
-        Logger.info(LOG_TAG_MODEM, "Network-assigned APN: %s", res.c_str());
-    }
-    else
-    {
-        Logger.warn(LOG_TAG_MODEM, "Failed to get network-assigned APN");
-        res = "";
-    }
-
-    return res;
+    return APN; // Return the configured APN from Config.h
 }
 
-bool ModemManager::activateNetwork(bool on)
+bool ModemManager::activateNetwork(bool state)
 {
-    Logger.debug(LOG_TAG_MODEM, "Activating network connection: %s", on ? "true" : "false");
-
-    String cmd = "+CNACT=";
-    cmd += on ? "1" : "0";
-
-    sendAT(cmd.c_str());
-    if (_modem.waitResponse(10000L) != 1)
+    if (state)
     {
-        Logger.error(LOG_TAG_MODEM, "Failed to send network activation command");
-        return false;
-    }
-    if (_modem.waitResponse(10000L) == 1)
-    {
-        Logger.info(LOG_TAG_MODEM, "Network activation %s successful", on ? "on" : "off");
-        return true;
+        return _modem.gprsConnect(APN, GPRS_USER, GPRS_PASS);
     }
     else
     {
-        Logger.error(LOG_TAG_MODEM, "Network activation %s failed", on ? "on" : "off");
-        return false;
+        return _modem.gprsDisconnect();
     }
 }
 
 String ModemManager::getLocalIP()
 {
-    Logger.debug(LOG_TAG_MODEM, "Getting local IP address...");
+    return _modem.getLocalIP();
+}
 
-    String res;
-    sendAT("+CNACT?");
-    if (_modem.waitResponse("+CNACT: ") != 1)
+void ModemManager::maintainConnection(bool active)
+{
+    if (active)
     {
-        Logger.warn(LOG_TAG_MODEM, "Failed to send CNACT query");
-        return "";
-    }
-    if (_modem.waitResponse("+CNACT: ") == 1)
-    {
-        _modem.stream.read(); // Skip first character
-        _modem.stream.read(); // Skip second character
-        res = _modem.stream.readStringUntil('\n');
-        res.replace("\"", "");
-        res.replace("\r", "");
-        res.replace("\n", "");
-        _modem.waitResponse();
-        Logger.info(LOG_TAG_MODEM, "Local IP address: %s", res.c_str());
+        // Check if we should attempt connection based on failure tracking
+        if (!_shouldAttemptConnection())
+        {
+            Logger.debug(LOG_TAG_MODEM, "Skipping connection attempt due to backoff (failures: %d)", _consecutiveFailures);
+            return;
+        }
+
+        // Check if modem needs reset due to being unresponsive
+        if (needsReset())
+        {
+            Logger.warn(LOG_TAG_MODEM, "Modem requires reset due to consecutive failures or unresponsiveness");
+            if (!resetModem())
+            {
+                Logger.error(LOG_TAG_MODEM, "Modem reset failed");
+                _recordConnectionFailure();
+                return;
+            }
+        }
+
+        // If we need an active connection, ensure network and GPRS are up
+        if (!isNetworkConnected())
+        {
+            Logger.info(LOG_TAG_MODEM, "Network not connected, attempting to connect...");
+            if (!connectNetwork(1)) // Only try once to avoid loops
+            {
+                _recordConnectionFailure();
+                return;
+            }
+        }
+
+        if (!isGprsConnected())
+        {
+            Logger.info(LOG_TAG_MODEM, "GPRS not connected, attempting to connect...");
+            if (!connectGprs(1)) // Only try once to avoid loops
+            {
+                _recordConnectionFailure();
+                return;
+            }
+        }
+
+        // If we reach here, connection is successful
+        _recordConnectionSuccess();
     }
     else
     {
-        Logger.warn(LOG_TAG_MODEM, "Failed to get local IP address");
-        res = "";
+        // If we want to be inactive, just disconnect GPRS
+        if (isGprsConnected())
+        {
+            disconnectGprs();
+        }
     }
-
-    return res;
 }
 
-String ModemManager::getNetworkParams()
+bool ModemManager::disconnectGprs()
 {
-    Logger.debug(LOG_TAG_MODEM, "Getting network parameters...");
+    Logger.info(LOG_TAG_MODEM, "Disconnecting from GPRS...");
 
-    String res;
-    sendAT("+CPSI?");
-    if (_modem.waitResponse("+CPSI: ") != 1)
+    // Make sure modem is responsive before attempting to disconnect
+    bool isResponsive = _modem.testAT(1000);
+
+    if (isResponsive)
     {
-        Logger.warn(LOG_TAG_MODEM, "Failed to send CPSI query");
-        return "";
-    }
-    if (_modem.waitResponse("+CPSI: ") == 1)
-    {
-        res = _modem.stream.readStringUntil('\n');
-        res.replace("\r", "");
-        res.replace("\n", "");
-        _modem.waitResponse();
-        Logger.info(LOG_TAG_MODEM, "Network parameters: %s", res.c_str());
+        // Directly use TinyGSM's disconnect method
+        _modem.gprsDisconnect();
+        Logger.info(LOG_TAG_MODEM, "GPRS disconnected");
     }
     else
     {
-        Logger.warn(LOG_TAG_MODEM, "Failed to get network parameters");
-        res = "";
+        Logger.warn(LOG_TAG_MODEM, "Modem not responsive, cannot disconnect GPRS");
     }
 
-    return res;
+    return true;
 }
 
-bool ModemManager::pingHost(const char *host, int count)
+/**
+ * @brief Check if we should attempt a connection based on failure tracking
+ */
+bool ModemManager::_shouldAttemptConnection()
 {
-    Logger.info(LOG_TAG_MODEM, "Pinging host %s (%d times)", host, count);
+    unsigned long currentTime = millis();
 
-    if (!isNetworkConnected() || !isGprsConnected())
+    // Always allow first attempt
+    if (_lastConnectionAttempt == 0)
     {
-        Logger.error(LOG_TAG_MODEM, "Network or GPRS not connected");
+        _lastConnectionAttempt = currentTime;
+        return true;
+    }
+
+    // Check if we're still in backoff period
+    if (_backoffDelay > 0 && (currentTime - _lastConnectionAttempt) < _backoffDelay)
+    {
         return false;
     }
 
-    // Format ping command with timeout of 10 seconds and specified count
-    String cmd = "+CIPPING=\"";
-    cmd += host;
-    cmd += "\",1,4,10";
+    // Update last attempt time
+    _lastConnectionAttempt = currentTime;
+    return true;
+}
 
-    int successCount = 0;
+/**
+ * @brief Record a connection failure and update backoff
+ */
+void ModemManager::_recordConnectionFailure()
+{
+    _consecutiveFailures++;
 
-    for (int i = 0; i < count; i++)
+    // Calculate exponential backoff
+    _backoffDelay = MIN_BACKOFF_DELAY * (1 << min(_consecutiveFailures - 1, 4)); // Max 16x multiplier
+    _backoffDelay = min(_backoffDelay, MAX_BACKOFF_DELAY);
+
+    Logger.warn(LOG_TAG_MODEM, "Connection failure #%d, backoff: %lu ms", _consecutiveFailures, _backoffDelay);
+}
+
+/**
+ * @brief Record a successful connection and reset failure tracking
+ */
+void ModemManager::_recordConnectionSuccess()
+{
+    if (_consecutiveFailures > 0)
     {
-        Logger.debug(LOG_TAG_MODEM, "Sending ping %d of %d", i + 1, count);
+        Logger.info(LOG_TAG_MODEM, "Connection successful after %d failures", _consecutiveFailures);
+    }
 
-        sendAT(cmd.c_str());
-        if (_modem.waitResponse(5000) != 1)
+    _consecutiveFailures = 0;
+    _backoffDelay = 0;
+    _updateResponsiveTime();
+}
+
+/**
+ * @brief Check if modem needs reset due to consecutive failures
+ */
+bool ModemManager::needsReset()
+{
+    unsigned long currentTime = millis();
+
+    // Check consecutive failures
+    if (_consecutiveFailures >= MAX_CONSECUTIVE_FAILURES)
+    {
+        // Only reset if enough time has passed since last reset
+        if (currentTime - _lastModemReset >= MIN_RESET_INTERVAL)
         {
-            Logger.warn(LOG_TAG_MODEM, "Failed to send ping command");
-            continue;
+            Logger.warn(LOG_TAG_MODEM, "Modem reset needed due to %d consecutive failures", _consecutiveFailures);
+            return true;
         }
+    }
 
-        // Wait for ping response with timeout
-        unsigned long start = millis();
-        bool pingSuccess = false;
-        String response;
-
-        while (millis() - start < 15000)
+    // Check if modem has been unresponsive for too long
+    if (_lastResponsiveTime > 0 && (currentTime - _lastResponsiveTime) > UNRESPONSIVE_TIMEOUT)
+    {
+        if (currentTime - _lastModemReset >= MIN_RESET_INTERVAL)
         {
-            if (_modem.stream.available())
-            {
-                response = _modem.stream.readString();
-
-                // Check for success response
-                if (response.indexOf("+CIPPING: 1,") >= 0)
-                {
-                    pingSuccess = true;
-                    successCount++;
-                    Logger.debug(LOG_TAG_MODEM, "Ping successful");
-                    break;
-                }
-
-                // Check for error
-                if (response.indexOf("ERROR") >= 0)
-                {
-                    Logger.debug(LOG_TAG_MODEM, "Ping error");
-                    break;
-                }
-            }
-
-            delay(100);
+            Logger.warn(LOG_TAG_MODEM, "Modem reset needed due to unresponsiveness (%lu ms)",
+                        currentTime - _lastResponsiveTime);
+            return true;
         }
+    }
 
-        if (!pingSuccess)
+    return false;
+}
+
+/**
+ * @brief Reset the modem completely (power cycle)
+ */
+bool ModemManager::resetModem()
+{
+    Logger.warn(LOG_TAG_MODEM, "Performing emergency modem reset...");
+
+    unsigned long currentTime = millis();
+    _lastModemReset = currentTime;
+
+    // Disable watchdog for reset operation
+    _setWatchdog(true);
+
+    // Step 1: Force power off
+    Logger.debug(LOG_TAG_MODEM, "Emergency power off...");
+    pinMode(PWR_PIN, OUTPUT);
+    digitalWrite(PWR_PIN, HIGH); // OFF state
+    delay(2000);
+
+    // Step 2: Send power-off pulse
+    digitalWrite(PWR_PIN, LOW); // Power off pulse
+    delay(1500);
+    digitalWrite(PWR_PIN, HIGH); // Return to OFF state
+    delay(3000);
+
+    // Step 3: Re-initialize hardware
+    Logger.debug(LOG_TAG_MODEM, "Re-initializing hardware...");
+    _initHardware();
+    delay(1000);
+
+    // Step 4: Power on sequence
+    Logger.debug(LOG_TAG_MODEM, "Emergency power on...");
+    digitalWrite(PWR_PIN, LOW); // Power on pulse
+    delay(1000);
+    digitalWrite(PWR_PIN, HIGH); // Return to default state
+    delay(3000);
+
+    // Step 5: Test responsiveness
+    Logger.debug(LOG_TAG_MODEM, "Testing modem responsiveness...");
+    bool responsive = false;
+    for (int i = 0; i < 10; i++)
+    {
+        if (isResponsive())
         {
-            Logger.debug(LOG_TAG_MODEM, "Ping timeout or failed");
+            responsive = true;
+            break;
         }
-
-        // Wait between pings
         delay(1000);
     }
 
-    // Consider success if at least one ping worked
-    bool result = (successCount > 0);
+    // Re-enable watchdog
+    _setWatchdog(false);
 
-    Logger.info(LOG_TAG_MODEM, "Ping test %s (%d/%d successful)",
-                result ? "passed" : "failed", successCount, count);
+    if (responsive)
+    {
+        Logger.info(LOG_TAG_MODEM, "Emergency modem reset successful");
+        _consecutiveFailures = 0; // Reset failure count
+        _updateResponsiveTime();
+        return true;
+    }
+    else
+    {
+        Logger.error(LOG_TAG_MODEM, "Emergency modem reset failed - modem still unresponsive");
+        return false;
+    }
+}
 
-    return result;
+/**
+ * @brief Update the last responsive time
+ */
+void ModemManager::_updateResponsiveTime()
+{
+    _lastResponsiveTime = millis();
+}
+
+/**
+ * @brief Internal method to perform modem reset
+ */
+bool ModemManager::_performModemReset()
+{
+    return resetModem();
 }

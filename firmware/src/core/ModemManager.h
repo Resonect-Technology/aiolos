@@ -1,6 +1,6 @@
 /**
  * @file ModemManager.h
- * @brief Manages the SIM7000G cellular modem
+ * @brief Manages the SIM7000G modem
  *
  * Handles modem initialization, power cycling, network connection,
  * and communication. Provides access to network time and signal quality.
@@ -17,7 +17,8 @@
 #define TINY_GSM_MODEM_SIM7000
 #define TINY_GSM_USE_GPRS true
 #define TINY_GSM_USE_WIFI false
-#define TINY_GSM_RX_BUFFER 1024 // Set RX buffer to 1Kb
+#undef TINY_GSM_RX_BUFFER
+#define TINY_GSM_RX_BUFFER 4096 // Set RX buffer to 4Kb
 
 // Enable required TinyGSM features
 #define TINY_GSM_ENABLE_GPRS true
@@ -32,12 +33,12 @@
 class ModemManager
 {
 public:
-    // SIM card status enum
+    // Enum for SIM status, as defined in TinyGSM but scoped here for clarity
     enum SimStatus
     {
-        SIM_ERROR,
-        SIM_READY,
-        SIM_LOCKED
+        SIM_ERROR = 0,
+        SIM_READY = 1,
+        SIM_LOCKED = 2,
     };
 
     /**
@@ -57,7 +58,14 @@ public:
     bool powerOn();
 
     /**
-     * @brief Power off the modem
+     * @brief Power off the modem completely
+     *
+     * This method implements a robust power-off sequence that fixes the persistent
+     * modem restart issue. It sends multiple AT+CPOWD=1 commands and ensures the
+     * PWR_PIN is set to the correct state (HIGH = LOW to modem) to maintain the
+     * OFF state, preventing automatic modem restart.
+     *
+     * The implementation addresses GitHub issues #146, #251, and #144.
      *
      * @return true if successful
      * @return false if failed
@@ -97,6 +105,41 @@ public:
      * @return false if connection failed
      */
     bool connectGprs(int maxRetries = 3);
+
+    /**
+     * @brief Disconnect from GPRS
+     *
+     * @return true if disconnection successful
+     * @return false if disconnection failed
+     */
+    bool disconnectGprs();
+
+    /**
+     * @brief Maintain the modem's connection state (network and GPRS)
+     *
+     * This method includes intelligent failure detection and recovery mechanisms
+     * to prevent infinite connection loops and handle unresponsive modem states.
+     *
+     * @param active If true, ensures network and GPRS are connected.
+     *               If false, disconnects GPRS to save power.
+     */
+    void maintainConnection(bool active);
+
+    /**
+     * @brief Check if the modem is in a failure state requiring reset
+     *
+     * @return true if modem needs reset due to consecutive failures
+     * @return false if modem is operating normally
+     */
+    bool needsReset();
+
+    /**
+     * @brief Reset the modem completely (power cycle)
+     *
+     * @return true if reset successful
+     * @return false if reset failed
+     */
+    bool resetModem();
 
     /**
      * @brief Get the current time from the network
@@ -172,110 +215,46 @@ public:
     bool isResponsive();
 
     /**
-     * @brief Send a test HTTP request to check connectivity
+     * @brief Test connectivity by connecting to a host and port.
      *
-     * @param url The URL to connect to
-     * @return true if successful
-     * @return false if failed
+     * @param host The hostname or IP address to connect to.
+     * @param port The port to connect to.
+     * @return true if connection is successful, false otherwise.
      */
-    bool sendTestRequest(const char *url);
+    bool testConnectivity(const char *host, int port);
 
-    /**
-     * @brief Send a test ping to check connectivity
-     *
-     * @param host The host to ping
-     * @param count Number of pings to send
-     * @return true if successful
-     * @return false if failed
-     */
-    bool pingHost(const char *host, int count = 4);
-
-    /**
-     * @brief Get the SIM card status
-     *
-     * @return SimStatus enum value indicating SIM status
-     */
-    SimStatus getSimStatus();
-
-    /**
-     * @brief Get the IMEI of the modem
-     *
-     * @return String containing the IMEI
-     */
-    String getIMEI();
-
-    /**
-     * @brief Set the preferred network mode
-     *
-     * @param mode 1=CAT-M, 2=NB-IoT, 3=CAT-M and NB-IoT
-     * @return true if successful
-     * @return false if failed
-     */
-    bool setPreferredMode(uint8_t mode);
-
-    /**
-     * @brief Set the network mode
-     *
-     * @param mode 2=Automatic, 13=GSM only, 38=LTE only, 51=GSM and LTE only
-     * @return true if successful
-     * @return false if failed
-     */
-    bool setNetworkMode(uint8_t mode);
-
-    /**
-     * @brief Get the APN assigned by the network
-     *
-     * @return String containing the APN
-     */
-    String getNetworkAPN();
-
-    /**
-     * @brief Activate the network connection
-     *
-     * @param on true to activate, false to deactivate
-     * @return true if successful
-     * @return false if failed
-     */
-    bool activateNetwork(bool on = true);
-
-    /**
-     * @brief Get the local IP address assigned to the modem
-     *
-     * @return String containing the IP address
-     */
-    String getLocalIP();
-
-    /**
-     * @brief Get detailed network parameters
-     *
-     * @return String containing the network parameters
-     */
     String getNetworkParams();
-
-    /**
-     * @brief Send a UDP packet to a specified host
-     *
-     * @param host The host to send the packet to
-     * @param port The port to send the packet to
-     * @param message The message to send
-     * @return true if successful
-     * @return false if failed
-     */
-    bool sendUdpPacket(const char *host, uint16_t port, const char *message);
+    String getNetworkAPN();
+    bool activateNetwork(bool state);
+    String getLocalIP();
 
 private:
     TinyGsm _modem = TinyGsm(SerialAT);
     TinyGsmClient _client = TinyGsmClient(_modem);
     bool _initialized = false;
-    int _restartAttempts = 0;
+    unsigned long _lastReconnectAttempt = 0;
 
-    /**
-     * @brief Initialize the modem hardware
-     *
-     * @return true if successful
-     * @return false if failed
-     */
-    bool _initHardware();
+    // Connection failure tracking and recovery
+    unsigned long _lastConnectionAttempt = 0;
+    int _consecutiveFailures = 0;
+    unsigned long _backoffDelay = 0;
+    unsigned long _lastModemReset = 0;
+    unsigned long _lastResponsiveTime = 0;
+    static const int MAX_CONSECUTIVE_FAILURES = 5;
+    static const unsigned long MIN_BACKOFF_DELAY = 30000;     // 30 seconds
+    static const unsigned long MAX_BACKOFF_DELAY = 300000;    // 5 minutes
+    static const unsigned long MIN_RESET_INTERVAL = 300000;   // 5 minutes between resets
+    static const unsigned long UNRESPONSIVE_TIMEOUT = 180000; // 3 minutes of unresponsiveness
+
+    bool _initHardware();     // Declaration for the private hardware init function
+    SimStatus getSimStatus(); // Declaration for getSimStatus
+
+    // Connection management methods
+    bool _shouldAttemptConnection();
+    void _recordConnectionFailure();
+    void _recordConnectionSuccess();
+    bool _performModemReset();
+    void _updateResponsiveTime();
 
     /**
      * @brief Temporarily disable the watchdog for long modem operations

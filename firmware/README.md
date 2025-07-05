@@ -1,252 +1,415 @@
-# Aiolos Firmware
+# Aiolos Firmware v2.0
 
-## Using USB Devices with WSL and PlatformIO
+This document provides a comprehensive overview of the Aiolos Weather Station firmware, designed for the LilyGO T-SIM7000G module. It covers the system architecture, key features, and operational logic, intended for developers maintaining or extending the project.
 
-If you are developing firmware using PlatformIO in VS Code on Windows Subsystem for Linux (WSL), and you want to use USB devices (such as serial programmers or modems), you need to use `usbipd` to attach USB devices to your WSL environment.
+## Core Architecture
 
-### Attaching USB Devices
+The firmware is built on a modular architecture that separates concerns into distinct components, managed by the main application loop in `main.cpp`.
 
-1. **List available USB devices:**
-   ```bash
-   usbipd wsl list
-   ```
-   This will show all USB devices that can be attached to WSL.
+- **`main.cpp`**: The entry point and central orchestrator. It manages the main loop, initializes all modules, handles the device's state (active, sleep, OTA), and schedules all tasks.
+- **`ModemManager`**: Encapsulates all logic for the SIM7000G modem, including power, network registration, GPRS connection, and sleep management.
+- **`AiolosHttpClient`**: Manages all communication with the backend server, including sending sensor data and fetching remote configuration. It relies on `ModemManager` for an active connection.
+- **`WindSensor`**: Handles all wind speed and direction measurements. It supports both instantaneous and long-term averaged readings.
+- **`TemperatureSensor`**: Manages the DS18B20 external temperature sensor.
+- **`BatteryUtils`**: Provides accurate, calibrated battery voltage readings.
+- **`OtaManager`**: Manages both scheduled and remote-triggered Over-The-Air firmware updates via a Wi-Fi Access Point.
+- **`DiagnosticsManager`**: Collects and sends device health data (battery, signal, uptime).
+- **`Config.h`**: A central header for all default compile-time configurations.
 
-2. **Attach the device:**
-   Find the `BUSID` of your device from the list, then run:
-   ```bash
-   usbipd wsl attach --busid <BUSID>
-   ```
-   Replace `<BUSID>` with the correct value (e.g., `1-2`).
+---
 
-### Persistence Limitation
+## Key Features & Operational Logic
 
-**Note:** If you unplug and replug your USB device, it will not be automatically re-attached to WSL. You must repeat the `usbipd wsl attach` command each time you reconnect the device. This is a current limitation of `usbipd` and WSL.
+### 1. Power and Connection Management
 
-#### Workaround
-- You can create a simple script to re-attach the device when needed.
-- Some advanced users set up automation on Windows to detect device changes and run the attach command, but this requires extra setup.
+The firmware implements robust power management optimized for field deployment with deep sleep functionality.
 
-### Troubleshooting
-- If your device does not show up in WSL after replugging, repeat the attach steps above.
-- Make sure you have the latest version of `usbipd-win` installed on Windows.
-- For more information, see the [usbipd-win documentation](https://github.com/dorssel/usbipd-win).
+- **Deep Sleep Mode**: During inactive hours (defined by `DEFAULT_SLEEP_START_HOUR` and `DEFAULT_SLEEP_END_HOUR`), the ESP32 enters deep sleep with the modem completely powered off for maximum power savings.
+- **`maintainConnection(bool active)`**: Core function for connection management.
+  - During **active hours**, `maintainConnection(true)` ensures the modem is powered and GPRS connection is stable.
+  - Before deep sleep, `maintainConnection(false)` gracefully disconnects GPRS.
+  - **Critical Fix**: The `enterDeepSleepUntil()` function now calls `modemManager.powerOff()` to completely power off the modem (not just sleep) before entering deep sleep, ensuring reliable wake-up behavior.
 
-## Modem Implementation (LilyGO T-SIM7000G)
+### 2. Dual-Mode Wind Measurement
 
-The Aiolos Weather Station uses a LilyGO T-SIM7000G module (ESP32 + SIM7000G cellular modem) for connectivity. The firmware follows best practices for robust cellular communication:
+The wind sensor can operate in two distinct modes, determined by the `dynamicWindInterval` fetched from the remote configuration.
 
-### Key Features
+- **Livestream Mode** (`interval <= 5 seconds`):
+  - Provides near real-time wind data.
+  - Uses `getWindSpeed()` and `getWindDirection()` for instantaneous readings.
+  - Ideal for active monitoring during the day.
 
-- **Reliable Power Sequence**: Proper initialization of the SIM7000G modem with correct timing for power-on sequence
-- **Error Resilience**: System continues operation even if modem/SIM errors occur
-- **Network Connection**: Automatic connection to cellular network and GPRS with retry mechanisms
-- **HTTP Communication**: Direct HTTP POST requests to the Adonis backend API
+- **Low-Power Averaged Mode** (`interval > 5 seconds`):
+  - Designed for power efficiency and data accuracy over long periods.
+  - Uses `startSamplingPeriod()` to begin a measurement window (e.g., 5 minutes).
+  - Internally, it samples the wind every `WIND_AVERAGING_SAMPLE_INTERVAL_MS` (e.g., 10 seconds).
+  - At the end of the period, `getAveragedWindData()` returns the final values.
+  - **Direction Averaging**: Uses **vector averaging** for a mathematically correct mean direction, which prevents issues with the 0°/360° crossover.
 
-- **Power Management**: Sleep mode support for power conservation with proper wake-up sequence
-- **SIM Detection**: Multiple methods to detect SIM card presence (CPIN, CCID, TinyGSM)
+### 3. Sensor Implementation & Optimizations
 
-### Configuration
+- **Wind Sensor**:
+  - **Direction**: Uses **raw ADC values** mapped to calibrated direction headings. This is more robust than converting to voltage first.
+  - **Speed**: Uses **hardware interrupts** for accurate, non-blocking counting of anemometer rotations.
 
-- APN: "simbase" - Used for cellular data connection
-- Baud Rate: 115200
-- Hardware Pins:
-  - PIN_DTR: 25
-  - PIN_TX: 27
-  - PIN_RX: 26
-  - PWR_PIN: 4
+- **Temperature Sensor (DS18B20)**:
+  - Uses standard temperature reading with proper error handling for disconnected sensors.
+  - Both internal (`TEMP_BUS_INT` - GPIO21) and external (`TEMP_BUS_EXT` - GPIO13) temperature sensors supported.
+  - External sensor failures are handled gracefully with `-127.0°C` indicator values.
 
-### Modem Initialization Process
+- **Battery Measurement**:
+  - Uses the ESP32's `esp_adc_cal` library for **calibrated voltage readings** with hardware-specific compensation.
+  - The `BATTERY_VOLTAGE_DIVIDER_RATIO` constant in `BatteryUtils.h` accounts for the T-SIM7000G's voltage divider circuit.
+  - Also monitors solar panel voltage via `ADC_SOLAR_PIN` for comprehensive power system diagnostics.
 
-1. Initialize hardware (serial port, pins)
-2. Power on the modem with correct pulse timing
-3. Test AT command response
-4. Check SIM card status
-5. Connect to network and GPRS
+### 4. Over-The-Air (OTA) Updates
 
-### Power Management
+The firmware supports two methods for remote updates, managed by `OtaManager` using the **ESP-WebOTA library**.
 
-The modem supports sleep mode for power conservation:
+- **Scheduled OTA**: The device automatically enters OTA mode during a pre-configured daily window (`DEFAULT_OTA_HOUR`, `DEFAULT_OTA_MINUTE`). It will host a Wi-Fi AP (`Aiolos-Ota`) for a set duration.
+- **Remote-Triggered OTA**: An update can be initiated on-demand by setting a flag on the backend server.
+  - When the device fetches its configuration and sees the flag, it immediately enters OTA mode.
+  - It then sends a confirmation to the server (`confirmOtaStarted`) to clear the flag, ensuring the OTA process only runs once per request.
 
-- DTR pin control for sleep/wake
-- Software commands for power management
-- Support for wake-up after ESP32 deep sleep
+#### Developer Notes for OTA
+- **Library Used**: The firmware uses the [ESP-WebOTA library](https://github.com/scottchiefbaker/ESP-WebOTA) for reliable OTA functionality.
+- **File Upload**: Upload the `firmware.bin` file generated by PlatformIO (located at `.pio/build/aiolos-esp32dev/firmware.bin` for production or `.pio/build/aiolos-esp32dev-debug/firmware.bin` for debug builds).
+- **Two-Layer Security**:
+  - **WiFi Access**: Connect using `OTA_SSID` and `OTA_PASSWORD` (for WiFi connection)
+  - **OTA Authentication**: Login using username `admin` and `OTA_UPDATE_PASSWORD` (for firmware upload)
+- **Access Method**: 
+  1. Connect to the WiFi AP (SSID from `OTA_SSID` with password from `OTA_PASSWORD`)
+  2. Navigate to `http://192.168.4.1/update` in a web browser
+  3. Enter credentials when prompted: username `admin`, password from `OTA_UPDATE_PASSWORD`
+  4. Upload the `.bin` file through the web interface
+- **Authentication**: Uses HTTP digest authentication for secure access to the OTA interface.
+- **Debug Mode**: In debug builds, OTA mode will activate even with low battery voltage for development convenience.
 
-### Troubleshooting
+#### Debug Mode Features
 
-- If the modem doesn't respond, try a power cycle
-- Check signal quality using diagnostic functions
-- Verify SIM card is properly inserted
-- Ensure the correct APN is configured for your cellular provider
-- Test HTTP connectivity with the test request function
+When compiled with `DEBUG_MODE=1` flag, the firmware enables several development-friendly features:
 
-### HTTP API Communication
+- **Sleep Disabled**: Deep sleep functionality is completely disabled to allow continuous monitoring and debugging
+- **Enhanced Logging**: Log level increased to DEBUG (level 4) showing detailed operational information vs. production WARN level (level 2)
+- **Low Battery OTA Override**: OTA updates are allowed even when battery voltage is below the minimum threshold (3.8V), useful when developing via USB power
+- **Development Build Identification**: Startup logs clearly indicate debug mode is active
+- **Continuous Operation**: Device remains active 24/7 without entering power-saving sleep cycles
 
-The firmware communicates with the backend using simple HTTP POST requests:
+**Note**: Debug mode should never be used in field deployments as it prevents power-saving sleep and may drain the battery quickly.
 
-- Endpoints follow the pattern: `/station/{stationId}/{resourceType}`
-- JSON payloads for structured data transmission
-- Support for sending diagnostic data, wind readings, and temperature values
-- Automatic retries on connection failures
+### 5. Configuration System
 
-## Wind Measurement System
+The firmware uses a flexible, three-tiered configuration system.
 
-The Aiolos Weather Station includes a comprehensive wind measurement system that accurately measures both wind direction and wind speed:
+1.  **`secrets.ini`**: For per-device secrets that should not be in version control (APN, Wi-Fi passwords, etc.). See "Environment Configuration" below.
+2.  **`Config.h`**: Contains the default fallback values for all operational parameters (e.g., `DEFAULT_WIND_INTERVAL`). These are used if the device cannot reach the server.
+3.  **Remote Configuration**: At runtime, the device periodically fetches a JSON configuration from the backend server using `AiolosHttpClient.fetchConfiguration()`. These values override the defaults, allowing for dynamic adjustment of reporting intervals, sleep times, and other parameters without reflashing the firmware.
 
-### Wind Direction Sensor (Wind Vane)
+### 6. System Reliability & Watchdog Management
 
-- **Operating Principle**: Uses a resistor network with a rotating magnet to create voltage variations based on wind direction
-- **Resolution**: 16 distinct directions (22.5° increments) covering full 360° range
-- **Hardware Interface**: Analog input connected to ESP32 ADC (pin GPIO2)
-- **Voltage Range**: 0V to 3.3V corresponding to different wind directions
-- **Reading Method**: ADC reading converted to voltage, then matched against calibrated lookup table
-- **Calibration**: Precise resistance-to-voltage-to-direction lookup table for accurate readings
+The firmware implements comprehensive system reliability measures to ensure stable long-term operation.
 
-### Wind Speed Sensor (Anemometer)
+- **Watchdog Timer**: 120-second timeout to detect and recover from system hangs
+- **Strategic Disabling**: Watchdog is temporarily disabled during long operations (modem initialization, OTA updates, connectivity tests)
+- **Periodic Restarts**: Configurable automatic restarts (default 6 hours) to maintain system health
+- **Error Recovery**: Graceful handling of modem, network, and sensor failures with appropriate fallbacks
+- **Non-Blocking Operations**: All potentially blocking operations converted to timer-based alternatives
+- **System Responsiveness**: Sensors and core functions continue operating during connection issues
 
-- **Operating Principle**: Reed switch sends pulses as the anemometer cups rotate
-- **Hardware Interface**: Digital input with interrupt for pulse counting (pin GPIO14)
-- **Calibration**: 1Hz (one rotation per second) = 0.447 m/s wind speed
-- **Debounce Protection**: 10ms software debounce to prevent false readings
-- **Measurement Period**: Wind speed averaged over configurable interval (default 1 minute)
+---
 
-### Implementation Details
+## Hardware Connections
 
-- Sampling rate configurable via `WIND_INTERVAL` in Config.h
-- Dedicated `WindSensor` class separates wind measurement logic from main application
-- Interrupt-driven anemometer readings for accurate pulse counting
-- Direct ADC value mapping for wind direction based on calibrated thresholds
-- Comprehensive logging of wind measurements
+| Component         | Pin Name          | ESP32 Pin | Notes                               |
+| ----------------- | ----------------- | --------- | ----------------------------------- |
+| Anemometer        | `ANEMOMETER_PIN`  | `GPIO33`  | Interrupt-capable pin for pulse counting |
+| Wind Vane         | `WIND_VANE_PIN`   | `GPIO32`  | ADC pin for direction reading       |
+| External Temp     | `TEMP_BUS_EXT`    | `GPIO13`  | OneWire bus for DS18B20             |
+| Battery Sensing   | `ADC_BATTERY_PIN` | `GPIO35`  | ADC pin for voltage measurement     |
+| Solar Sensing     | `ADC_SOLAR_PIN`   | `GPIO36`  | ADC pin for solar voltage measurement |
+| Modem TX          | `PIN_TX`          | `GPIO27`  |                                     |
+| Modem RX          | `PIN_RX`          | `GPIO26`  |                                     |
+| Modem Power       | `PWR_PIN`         | `GPIO4`   |                                     |
+| Modem DTR         | `PIN_DTR`         | `GPIO25`  | For modem sleep control             |
+| Modem Reset       | `MODEM_RST_PIN`   | `GPIO5`   | For complete modem power off        |
+| Status LED        | `LED_PIN`         | `GPIO12`  |                                     |
 
-### Hardware Connections
-
-- Wind vane connects to `WIND_VANE_PIN` (GPIO2, ADC2_CH2)
-- Anemometer connects to `ANEMOMETER_PIN` (GPIO14, interrupt-capable pin)
-- Both sensors operate at 3.3V for compatibility with ESP32
-
-### Current Implementation Status
-
-As of June 27, 2025, the wind measurement system has been updated with the following improvements:
-
-#### Completed:
-- ✅ Aligned pin assignments with the original working implementation (GPIO2 for wind vane, GPIO14 for anemometer)
-- ✅ Implemented direct ADC value mapping for wind direction using calibrated thresholds from proven code
-- ✅ Added wind direction adjustment (subtracting 90° with proper wrap-around) for correct compass alignment
-- ✅ Configured ADC with proper resolution (12-bit) and attenuation for accurate readings
-- ✅ Fixed ADC_ATTEN_DB_11 deprecation warning by using ADC_ATTEN_DB_12
-- ✅ Added robust wind speed calculation based on pulse counting and time measurement
-- ✅ Implemented debounce protection for anemometer readings
-- ✅ Added optional calibration mode for testing and diagnostics
-- ✅ Enhanced debug logging for troubleshooting
-
-#### Next Steps:
-- Continue testing to verify wind direction accuracy across all 16 positions
-- Fine-tune ADC thresholds if needed based on field testing
-- Consider adding smoothing/averaging for more stable readings in variable conditions
-- Integrate with HTTP API for data transmission to backend
-- Implement power optimization to reduce consumption during measurements
-
-The current implementation combines the reliability of the proven direction calculation from the original code with the more modular and maintainable structure of the new code.
-
-## Diagnostics System
-
-The Aiolos Weather Station includes a comprehensive diagnostics system that monitors the health and status of the device:
-
-### Diagnostics Data Collected
-
-- **Battery Voltage**: Current battery level in volts (3.5V-4.2V range)
-- **Solar Panel Voltage**: Solar input voltage in volts (4.4V-6V range)
-- **Signal Quality**: Cellular signal strength in dBm
-- **System Uptime**: Time since last boot in seconds
-
-### Sending Frequency
-
-- Diagnostics data is sent at configurable intervals (default: 5 minutes)
-- The interval can be adjusted in code via the DiagnosticsManager
-- Initial value is set in `Config.h` as `DIAG_INTERVAL`
-
-### Implementation Details
-
-- ADC readings are averaged over multiple samples for accuracy
-- Voltage readings include calibration factors for hardware-specific adjustments
-- USB power detection to warn when battery readings may be inaccurate
-- Dedicated DiagnosticsManager class separates concerns from main application logic
-
-### Data Format
-
-Diagnostics data is sent as a JSON payload to `/stations/{stationId}/diagnostics`:
-
-```json
-{
-  "battery_voltage": 4.1,
-  "solar_voltage": 5.2,
-  "signal_quality": -67,
-  "uptime": 3600,
-  "timestamp": "2025-06-27T14:30:00Z"
-}
-```
-
-The timestamp is added by the server if not provided by the device.
+---
 
 ## Environment Configuration
 
-The Aiolos firmware uses PlatformIO's build system to manage environment-specific configurations and sensitive values. Rather than hardcoding sensitive information in source files, we use a `firmware/secrets.ini` file that is excluded from version control.
+The project uses a `secrets.ini` file (ignored by Git) to manage sensitive data and per-device settings.
 
 ### Setup
 
-1. Copy the example file to create your own secrets file:
-   ```bash
-   cp firmware/secrets.ini.example firmware/secrets.ini
-   ```
+1.  **Copy the example file:**
+    ```bash
+    cp firmware/secrets.ini.example firmware/secrets.ini
+    ```
 
-2. Edit `firmware/secrets.ini` with your specific configuration values:
-   ```ini
-   [secrets]
-   APN = "your_apn_here"
-   GPRS_USER = "your_username"
-   GPRS_PASS = "your_password"
-   OTA_SSID = "your_ota_ssid"
-   OTA_PASSWORD = "your_secure_password"
-   # ... and other values
-   ```
+2.  **Edit `firmware/secrets.ini`** with your specific values (APN, server host, etc.).
 
-3. Build the project normally with PlatformIO - it will automatically incorporate your secret values.
+3.  **Build the project.** PlatformIO automatically injects these values into the build process. The firmware uses them via `CONFIG_*` macros, which are then assigned to the `DEFAULT_*` constants in `Config.h`.
 
-### How It Works
+---
 
-- The main `platformio.ini` includes the `secrets.ini` file using the `extra_configs` directive
-- Values from `secrets.ini` are passed to the compiler via `-D` flags in `build_flags`
-- The `Config.h` file has fallback definitions for when environment values aren't provided
+## Project Status (July 2025)
 
-### Environment-Specific Builds
+The firmware is **production-ready** and has undergone comprehensive testing and optimization. All critical systems have been refactored for robustness and power efficiency.
 
-You can create different environment configurations for development, testing, and production:
+#### Recent Improvements (v2.0)
+- **Critical Modem Power-Off Fix**: Completely resolved modem restart issues during deep sleep
+  - Eliminated problematic hardware pulses after software shutdown that were waking the modem
+  - Modem now stays powered off (diodes remain off) during ESP32 deep sleep cycles
+  - Implemented fast, decisive shutdown sequence using multiple `AT+CPOWD=1` commands
+  - Fixed PWR_PIN logic to maintain correct OFF state (HIGH = LOW to modem due to transistor inversion)
+- **Non-Blocking Emergency Recovery**: Replaced blocking delays with timer-based recovery system
+  - Prevents watchdog resets during connection failures
+  - System remains responsive during emergency recovery periods
+  - Maintains sensor operation even during connection issues
+- **Optimized HTTP Communication**: 
+  - Lightweight POST methods for improved reliability and speed
+  - Fixed timeout alignment (30s HttpClient timeout matches manual read timeout)
+  - Modern JsonDocument usage eliminating deprecation warnings
+  - Enhanced error handling in lightweight operations
+- **Enhanced Error Handling**: Comprehensive error recovery throughout all modules
+- **Calibrated ADC Readings**: More accurate battery and solar voltage measurements
+- **Robust Deep Sleep**: Simplified logic ensuring reliable wake-up behavior
 
-```ini
-[env:development]
-# Development-specific configuration
-platform = espressif32
-# ... other settings
-build_flags =
-    # ... other flags
-    -DCONFIG_SERVER_HOST=\"dev.example.com\"
+#### Field Testing Ready
+- **Long-term Stability**: Validated for continuous operation with periodic restarts
+- **Power Efficiency**: Optimized for solar/battery operation with deep sleep
+- **Network Reliability**: Non-blocking connection recovery prevents system hangs
+- **Data Integrity**: Comprehensive sensor validation and error reporting
+- **Production Robustness**: All critical blocking operations converted to non-blocking
+- **HTTP Optimization**: Lightweight POST operations with aligned timeouts for better performance
 
-[env:production]
-# Production-specific configuration
-platform = espressif32
-# ... other settings
-build_flags =
-    # ... other flags
-    -DCONFIG_SERVER_HOST=\"prod.example.com\"
+#### Wind Measurement System
+- **Accurate Wind Speed**: Fixed timing issues in pulse counting for precise speed measurements
+- **Smart Direction Filtering**: 1-second stability delay prevents reporting of brief wind gusts
+- **Dual Reporting Modes**: 
+  - **Live Stream**: ≤5s interval readings for real-time monitoring (windSampleInterval ignored)
+  - **Averaged Data**: >5s interval vector-averaged readings for long-term trends
+- **Vector Averaging**: Proper handling of wind direction across the 0°/360° boundary
+
+---
+
+## Technical Details
+
+### Wind Measurement Architecture
+
+#### Wind Speed Calculation
+The anemometer generates pulses that are counted by an interrupt handler. Wind speed is calculated using:
+- **Frequency = (Total Pulses × 1000) / Time Period (ms)**
+- **Wind Speed = Frequency × 0.6667 m/s** (calibrated from datasheet: 2.4 km/h per Hz)
+
+#### Wind Direction Stability
+To filter out brief wind gusts, direction changes must be stable for at least 1 second before being reported. This prevents rapid fluctuations from affecting measurements.
+
+#### Averaging System
+For long-term measurements (5+ minutes), the system uses:
+- **Vector Averaging**: Directions are converted to X,Y components and averaged to handle the 0°/360° boundary correctly
+- **Configurable Sample Rate**: Default 2-second intervals during the averaging period  
+- **Cumulative Pulse Counting**: All pulses are counted over the entire period for accurate speed averaging
+
+The system supports both live streaming (1-second readings) and averaged data (5+ minute periods) for different use cases.
+
+### Wind Measurement Configuration
+
+The wind measurement system operates in two distinct modes based on the `windSendInterval` configuration parameter:
+
+#### Mode Selection
+- **Live Stream Mode**: `windSendInterval ≤ 5000ms` (≤ 5 seconds)
+- **Averaged Mode**: `windSendInterval > 5000ms` (> 5 seconds)
+
+#### Configuration Parameters
+
+**windSendInterval** - Controls how often wind data is sent to the server:
+- `1000` = Send every 1 second (live stream)
+- `3000` = Send every 3 seconds (live stream)
+- `300000` = Send every 5 minutes (averaged mode)
+
+**windSampleInterval** - Controls internal sampling rate during averaging:
+- **Live Stream Mode**: This parameter is **ignored** (direct sensor readings used)
+- **Averaged Mode**: Controls how often samples are taken during the averaging period
+  - `2000` = Sample every 2 seconds during averaging
+  - `10000` = Sample every 10 seconds during averaging
+
+#### Configuration Examples
+
+**Maximum Real-Time Performance:**
+```json
+{
+  "windSendInterval": 1000,
+  "windSampleInterval": 500
+}
+```
+Result: Sends wind data every 1 second using direct sensor readings (windSampleInterval ignored)
+
+**Balanced Live Monitoring:**
+```json
+{
+  "windSendInterval": 3000,
+  "windSampleInterval": 1000
+}
+```
+Result: Sends wind data every 3 seconds using direct sensor readings (windSampleInterval ignored)
+
+**Low-Power Averaged Mode:**
+```json
+{
+  "windSendInterval": 300000,
+  "windSampleInterval": 10000
+}
+```
+Result: Samples wind every 10 seconds for 5 minutes, then sends one vector-averaged reading
+
+**High-Resolution Averaged Mode:**
+```json
+{
+  "windSendInterval": 300000,
+  "windSampleInterval": 2000
+}
+```
+Result: Samples wind every 2 seconds for 5 minutes, then sends one vector-averaged reading (higher accuracy, slightly more power consumption)
+
+## Diagnostics and System Health
+
+The DiagnosticsManager handles system health monitoring and reporting. It collects and sends critical system metrics to the server for monitoring and alerting.
+
+### Diagnostic Data Collected
+
+- **Battery Voltage**: Calibrated ADC reading from the battery monitoring circuit
+- **Solar Panel Voltage**: Calibrated ADC reading from the solar panel input
+- **Internal Temperature**: DS18B20 sensor reading from inside the weather station enclosure
+- **External Temperature**: DS18B20 sensor reading from the external environment (optional)
+- **Signal Quality**: Cellular signal strength (RSSI) from the modem
+- **System Uptime**: Time since last system restart (seconds)
+
+### Configuration Parameters
+
+**diagInterval** - Controls how often diagnostics are sent:
+- `300000` = Send every 5 minutes (recommended for production)
+- `60000` = Send every minute (useful for debugging)
+- `3600000` = Send every hour (low-power mode)
+
+### Temperature Sensor Management
+
+The system manages temperature sensors to avoid conflicts between the main loop and diagnostics:
+
+- **Internal Temperature**: Read via DiagnosticsManager using TEMP_BUS_INT (GPIO21)
+- **External Temperature**: Primary reading via main loop using TEMP_BUS_EXT (GPIO13)
+- **Sensor Conflict Avoidance**: DiagnosticsManager can accept external temperature readings to prevent OneWire bus conflicts
+
+### Solar Voltage Calibration
+
+The solar voltage reading uses a calibration factor that may need adjustment based on the actual hardware:
+
+- **Default Calibration**: 2.0x multiplier
+- **Expected Range**: 0V to 6.5V
+- **Calibration Method**: Compare DiagnosticsManager readings with multimeter measurements and adjust
+
+### Field Operation Recommendations
+
+**Production Configuration:**
+```json
+{
+  "diagInterval": 300000
+}
 ```
 
-To build for a specific environment:
-```bash
-pio run -e production
+**Development/Debug Configuration:**
+```json
+{
+  "diagInterval": 60000
+}
 ```
 
-### Security Notes
+**Low-Power Configuration:**
+```json
+{
+  "diagInterval": 3600000
+}
+```
 
-- The `secrets.ini` file should NEVER be committed to version control
-- Ensure it's listed in `.gitignore`
-- For production deployments, consider using PlatformIO's encrypted storage or CI/CD secrets management
+### Diagnostic Error Handling
+
+The system includes robust error handling for diagnostic operations:
+
+- **Temperature Sensor Failures**: System continues operation with -127.0°C indicating sensor unavailable
+- **ADC Reading Validation**: Out-of-range values are detected and logged
+- **HTTP Transmission Failures**: Logged and retried on next cycle
+- **Watchdog Management**: Temporarily disabled during network operations to prevent false resets
+
+## Connection Recovery and Stability
+
+The system includes comprehensive connection recovery mechanisms to prevent infinite loops and handle modem failures:
+
+### Failure Detection and Recovery
+
+**Connection Failure Tracking:**
+- Tracks consecutive connection failures up to 10 attempts
+- Implements non-blocking emergency recovery mode
+- Prevents infinite connection retry loops and watchdog resets
+
+**Emergency Recovery System:**
+- **Non-Blocking Design**: Uses timer-based recovery instead of blocking delays
+- **Recovery Duration**: 10-minute recovery period during which connection attempts are skipped
+- **System Responsiveness**: Sensors and other operations continue during recovery
+- **Automatic Reset**: Failure counter automatically resets after recovery period
+
+**Modem Reset Conditions:**
+- Triggered when maximum connection failures (10) are reached
+- Modem reset attempted if `needsReset()` indicates modem is unresponsive
+- **Graceful Handling**: System continues operation even if reset fails
+- Minimum recovery periods prevent reset loops
+
+**Recovery Sequence:**
+1. **Connection Monitoring**: Track consecutive failures
+2. **Emergency Mode**: Enter non-blocking recovery when limit reached
+3. **Modem Reset**: Attempt reset if modem appears unresponsive
+4. **Timer-Based Recovery**: 10-minute recovery period with continued operation
+5. **Automatic Restoration**: System resumes normal operation after recovery period
+
+### Configuration for Field Deployment
+
+**Stable Connection Settings:**
+```json
+{
+  "windSendInterval": 5000,
+  "diagInterval": 300000,
+  "tempInterval": 600000
+}
+```
+- Reduces modem load while maintaining functionality
+- Allows recovery time between operations
+- Balances data frequency with stability
+
+**High-Reliability Mode:**
+```json
+{
+  "windSendInterval": 10000,
+  "diagInterval": 600000,
+  "tempInterval": 900000
+}
+```
+- Maximum stability for remote deployments
+- Minimal modem stress
+- Suitable for locations with poor signal quality
+
+### Monitoring and Diagnostics
+
+The system logs comprehensive connection health information:
+- Connection failure counts and emergency recovery periods
+- Modem reset events and recovery success rates
+- Signal quality trends and network stability metrics
+- Non-blocking recovery system operation and timing
+- System responsiveness during connection issues
+
+### Field Operation Recommendations
+
+1. **Monitor Initial Deployment**: Check logs for connection patterns in the first 24 hours
+2. **Signal Quality**: Ensure signal strength > -100 dBm for stable operation
+3. **Power Management**: Use conservative intervals in low-power scenarios
+4. **Remote Recovery**: System will automatically recover from most failure modes
+5. **Manual Intervention**: Only needed if hardware faults occur

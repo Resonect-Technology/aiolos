@@ -12,7 +12,10 @@ export default class StationConfig extends BaseModel {
   declare temp_interval: number
 
   @column()
-  declare wind_interval: number
+  declare wind_send_interval: number
+
+  @column()
+  declare wind_sample_interval: number
 
   @column()
   declare diag_interval: number

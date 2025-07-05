@@ -1,0 +1,28 @@
+meta {
+  name: Send Single Mock Wind Data
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{base_url}}/api/stations/{{station_id}}/live/wind/mock
+  body: {}
+  auth: none
+}
+
+vars:pre-request {
+  
+}
+
+assert {
+  
+}
+
+vars:post-response {
+  
+}
+
+docs {
+  title: "Send Single Mock Wind Data"
+  description: "Sends a single mock wind data point"
+}

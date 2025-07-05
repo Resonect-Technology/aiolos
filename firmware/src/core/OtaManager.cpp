@@ -1,6 +1,6 @@
 /**
  * @file OtaManager.cpp
- * @brief Implementation of OTA update manager
+ * @brief Implementation of the OTA update manager using ESP-WebOTA library
  */
 
 #include "OtaManager.h"
@@ -12,49 +12,53 @@ OtaManager otaManager;
 /**
  * @brief Constructor
  */
-OtaManager::OtaManager() : _server(80), _startTime(0), _timeoutMs(300000), _isInitialized(false)
+OtaManager::OtaManager() : _startTime(0), _timeoutMs(300000), _isInitialized(false)
 {
 }
 
 /**
- * @brief Initialize OTA manager
+ * @brief Initialize OTA manager using ESP-WebOTA library
  *
  * @param apName The access point name (SSID)
- * @param apPassword The access point password
- * @param otaPassword The password for OTA updates
+ * @param apPassword The access point password (for WiFi connection)
+ * @param otaUpdatePassword The password for OTA authentication (separate from WiFi)
  * @param timeoutMs Timeout in milliseconds after which WiFi is turned off
  * @return true if initialization was successful
  * @return false if initialization failed
  */
-bool OtaManager::init(const char *apName, const char *apPassword, const char *otaPassword, unsigned long timeoutMs)
+bool OtaManager::init(const char *apName, const char *apPassword, const char *otaUpdatePassword, unsigned long timeoutMs)
 {
     if (_isInitialized)
     {
         return true;
     }
 
-    Logger.info(LOG_TAG_OTA, "Initializing OTA manager...");
+    Logger.info(LOG_TAG_OTA, "Initializing OTA manager with ESP-WebOTA...");
 
-    // Store OTA password
-    _otaPassword = String(otaPassword);
-
-    // Set timeout
+    // Store OTA password and timeout
+    _otaPassword = String(otaUpdatePassword);
     _timeoutMs = timeoutMs;
-
-    // Record start time
     _startTime = millis();
 
-    // Initialize WiFi in AP mode
-    WiFi.mode(WIFI_AP);
+    Logger.debug(LOG_TAG_OTA, "OTA update password set to: %s", _otaPassword.c_str());
 
-    // Check if battery voltage is OK before starting OTA
+    // Check if battery voltage is OK before starting OTA (skip in debug mode)
+#ifndef DEBUG_MODE
     if (!isBatteryVoltageOk(OTA_MIN_BATTERY_VOLTAGE))
     {
         Logger.error(LOG_TAG_OTA, "Battery voltage too low for OTA. Aborting.");
         return false;
     }
+#else
+    float voltage = getBatteryVoltage();
+    if (!isBatteryVoltageOk(OTA_MIN_BATTERY_VOLTAGE))
+    {
+        Logger.warn(LOG_TAG_OTA, "Battery voltage low (%.2f V) but allowing OTA in debug mode", voltage);
+    }
+#endif
 
-    // Start access point
+    // Initialize WiFi in AP mode
+    WiFi.mode(WIFI_AP);
     if (!WiFi.softAP(apName, apPassword))
     {
         Logger.error(LOG_TAG_OTA, "Failed to start access point");
@@ -63,33 +67,32 @@ bool OtaManager::init(const char *apName, const char *apPassword, const char *ot
 
     IPAddress ip = WiFi.softAPIP();
     Logger.info(LOG_TAG_OTA, "AP started with IP: %s", ip.toString().c_str());
-    Logger.info(LOG_TAG_OTA, "SSID: %s", apName);
+    Logger.info(LOG_TAG_OTA, "SSID: %s", apName); // Initialize ESP-WebOTA
+    // According to the README: webota.init(port, path);
+    // Default port is 8080, but we can use 80. Path defaults to "/webota"
+    webota.init(80, "/update");
 
-    // Setup web server
-    setupWebServer();
+    // Enable HTTP digest authentication for WebOTA
+    // This will prompt for credentials before allowing uploads
+    webota.useAuth("admin", otaUpdatePassword);
 
-    // Start web server
-    _server.begin();
-    Logger.info(LOG_TAG_OTA, "Web server started");
+    Logger.info(LOG_TAG_OTA, "ESP-WebOTA initialized on port 80 at path /update with authentication");
+    Logger.info(LOG_TAG_OTA, "Access OTA interface at: http://192.168.4.1/update");
+    Logger.info(LOG_TAG_OTA, "Login: username='admin', password='%s'", otaUpdatePassword);
 
     // Set initialization flag
     _isInitialized = true;
 
-    // Flash LED to indicate OTA mode is active
+    // Flash LED to indicate OTA mode is active (non-blocking)
     pinMode(LED_PIN, OUTPUT);
-    for (int i = 0; i < 5; i++)
-    {
-        digitalWrite(LED_PIN, LOW);
-        delay(100);
-        digitalWrite(LED_PIN, HIGH);
-        delay(100);
-    }
+    // Use non-blocking LED pattern instead of blocking delays
+    Logger.info(LOG_TAG_OTA, "OTA mode LED initialized (will blink during operation)");
 
     return true;
 }
 
 /**
- * @brief Handle OTA updates
+ * @brief Handle OTA updates using ESP-WebOTA
  *
  * This method should be called regularly to handle OTA updates.
  * It checks for timeout and handles web server requests.
@@ -112,8 +115,8 @@ bool OtaManager::handle()
         return false;
     }
 
-    // Handle web server requests
-    _server.handleClient();
+    // Handle ESP-WebOTA requests
+    webota.handle();
 
     // Blink LED periodically to indicate OTA mode is active
     if ((millis() / 500) % 2 == 0)
@@ -204,208 +207,10 @@ void OtaManager::end()
 
     Logger.info(LOG_TAG_OTA, "Ending OTA mode");
 
-    // Stop web server
-    _server.stop();
-
     // Turn off WiFi
     WiFi.disconnect();
     WiFi.mode(WIFI_OFF);
 
     // Reset initialization flag
     _isInitialized = false;
-}
-
-/**
- * @brief Set up web server routes
- */
-void OtaManager::setupWebServer()
-{
-    // Serve root page
-    _server.on("/", HTTP_GET, [this]()
-               { handleRoot(); });
-
-    // Serve update page
-    _server.on("/update", HTTP_GET, [this]()
-               { handleUpdate(); });
-
-    // Handle file upload
-    _server.on("/update", HTTP_POST, [this]()
-               {
-        _server.sendHeader("Connection", "close");
-        _server.send(200, "text/plain", Update.hasError() ? "Update failed" : "Update success! Rebooting...");
-        delay(1000);
-        ESP.restart(); }, [this]()
-               { handleFileUpload(); });
-
-    // Serve 404 for unknown URLs
-    _server.onNotFound([this]()
-                       { _server.send(404, "text/plain", "Not found"); });
-}
-
-/**
- * @brief Handle root page request
- */
-void OtaManager::handleRoot()
-{
-    String html = createHtmlPage("Aiolos Weather Station",
-                                 "<h2>Aiolos Weather Station</h2>"
-                                 "<p>Welcome to the OTA update interface.</p>"
-                                 "<p><a href='/update'>Go to update page</a></p>"
-                                 "<h3>System Information</h3>" +
-                                     getSystemInfo());
-
-    _server.send(200, "text/html", html);
-}
-
-/**
- * @brief Handle update page request
- */
-void OtaManager::handleUpdate()
-{
-    String html = createHtmlPage("Firmware Update",
-                                 "<h2>Firmware Update</h2>"
-                                 "<form method='POST' action='/update' enctype='multipart/form-data'>"
-                                 "    <div>"
-                                 "        <label>Firmware file:</label>"
-                                 "        <input type='file' name='update'>"
-                                 "    </div>"
-                                 "    <div>"
-                                 "        <label>Password:</label>"
-                                 "        <input type='password' name='password'>"
-                                 "    </div>"
-                                 "    <div>"
-                                 "        <input type='submit' value='Update'>"
-                                 "    </div>"
-                                 "</form>"
-                                 "<p><a href='/'>Back to home</a></p>");
-
-    _server.send(200, "text/html", html);
-}
-
-/**
- * @brief Handle file upload
- */
-void OtaManager::handleFileUpload()
-{
-    HTTPUpload &upload = _server.upload();
-
-    // Check password
-    if (upload.status == UPLOAD_FILE_START)
-    {
-        String password = _server.arg("password");
-        if (password != _otaPassword)
-        {
-            Logger.error(LOG_TAG_OTA, "Invalid OTA password");
-            _server.send(403, "text/plain", "Invalid password");
-            return;
-        }
-
-        Logger.info(LOG_TAG_OTA, "Update started: %s", upload.filename.c_str());
-
-        // Start update
-        if (!Update.begin(UPDATE_SIZE_UNKNOWN))
-        {
-            Logger.error(LOG_TAG_OTA, "Not enough space for update");
-            Update.printError(Serial);
-        }
-    }
-    else if (upload.status == UPLOAD_FILE_WRITE)
-    {
-        // Write update data
-        if (Update.write(upload.buf, upload.currentSize) != upload.currentSize)
-        {
-            Logger.error(LOG_TAG_OTA, "Error writing update");
-            Update.printError(Serial);
-        }
-    }
-    else if (upload.status == UPLOAD_FILE_END)
-    {
-        // Finish update
-        if (Update.end(true))
-        {
-            Logger.info(LOG_TAG_OTA, "Update success: %u bytes", upload.totalSize);
-        }
-        else
-        {
-            Logger.error(LOG_TAG_OTA, "Update failed");
-            Update.printError(Serial);
-        }
-    }
-}
-
-/**
- * @brief Create HTML page
- *
- * @param title Page title
- * @param content Page content
- * @return String containing the HTML page
- */
-String OtaManager::createHtmlPage(const String &title, const String &content)
-{
-    return String("<!DOCTYPE html>"
-                  "<html>"
-                  "<head>"
-                  "    <meta charset='UTF-8'>"
-                  "    <meta name='viewport' content='width=device-width, initial-scale=1.0'>"
-                  "    <title>") +
-           title + "</title>"
-                   "    <style>"
-                   "        body { font-family: Arial, sans-serif; margin: 20px; }"
-                   "        h2 { color: #333; }"
-                   "        div { margin-bottom: 15px; }"
-                   "        input[type='file'], input[type='password'], input[type='submit'] { padding: 8px; }"
-                   "        a { color: #0066cc; text-decoration: none; }"
-                   "        a:hover { text-decoration: underline; }"
-                   "    </style>"
-                   "</head>"
-                   "<body>" +
-           content +
-           "</body>"
-           "</html>";
-}
-
-/**
- * @brief Get system information
- *
- * @return String containing system information
- */
-String OtaManager::getSystemInfo()
-{
-    String info = "<ul>";
-
-    // Firmware version
-    info += "<li>Firmware Version: " FIRMWARE_VERSION "</li>";
-
-    // Uptime
-    unsigned long uptimeSeconds = millis() / 1000;
-    unsigned long uptimeMinutes = uptimeSeconds / 60;
-    unsigned long uptimeHours = uptimeMinutes / 60;
-    unsigned long uptimeDays = uptimeHours / 24;
-
-    uptimeSeconds %= 60;
-    uptimeMinutes %= 60;
-    uptimeHours %= 24;
-
-    char uptimeStr[50];
-    sprintf(uptimeStr, "%lu days, %02lu:%02lu:%02lu", uptimeDays, uptimeHours, uptimeMinutes, uptimeSeconds);
-    info += "<li>Uptime: " + String(uptimeStr) + "</li>";
-
-    // Battery voltage
-    float voltage = getBatteryVoltage();
-    info += "<li>Battery Voltage: " + String(voltage, 2) + " V</li>";
-
-    // Free heap
-    info += "<li>Free Heap: " + String(ESP.getFreeHeap()) + " bytes</li>";
-
-    // CPU frequency
-    info += "<li>CPU Frequency: " + String(ESP.getCpuFreqMHz()) + " MHz</li>";
-
-    // Flash size
-    info += "<li>Flash Size: " + String(ESP.getFlashChipSize() / 1024 / 1024) + " MB</li>";
-
-    // SDK version
-    info += "<li>ESP-IDF Version: " + String(ESP.getSdkVersion()) + "</li>";
-
-    info += "</ul>";
-    return info;
 }

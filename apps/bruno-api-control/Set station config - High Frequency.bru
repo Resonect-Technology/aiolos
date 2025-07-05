@@ -1,7 +1,7 @@
 meta {
-  name: Set station config
+  name: Set station config - High Frequency
   type: http
-  seq: 2
+  seq: 3
 }
 
 post {
@@ -17,15 +17,16 @@ headers {
 
 body:json {
   {
-    "temp_interval": 300000,
-    "wind_interval": 1000,
-    "diag_interval": 300000,
+    "temp_interval": 60000,
+    "wind_send_interval": 1000,
+    "wind_sample_interval": 1000,
+    "diag_interval": 60000,
     "time_interval": 3600000,
     "restart_interval": 21600,
     "sleep_start_hour": 22,
     "sleep_end_hour": 9,
-    "ota_hour": 3,
-    "ota_minute": 30,
+    "ota_hour": 10,
+    "ota_minute": 0,
     "ota_duration": 60,
     "remote_ota": false
   }
