@@ -34,6 +34,7 @@ unsigned long lastWindDataSendTime = 0;
 unsigned long lastHeartbeatTime = 0;
 unsigned long lastConfigFetchTime = 0;
 int currentHour = 0, currentMinute = 0, currentSecond = 0;
+unsigned long lastNetworkTimeUpdate = 0; // Track when we last got network time
 bool otaActive = false;
 unsigned long lastOtaCheck = 0;
 bool isSamplingWind = false; // For wind data averaging
@@ -140,34 +141,46 @@ void setup()
     // Get network time
     int year, month, day;
     float timezone;
+    bool networkTimeObtained = false;
     if (modemManager.getNetworkTime(&year, &month, &day, &currentHour, &currentMinute, &currentSecond, &timezone))
     {
         // Update logger with real time
         Logger.setRealTime(currentHour, currentMinute, currentSecond);
 
+        // Record when we got network time
+        lastNetworkTimeUpdate = millis();
+
         Logger.info(LOG_TAG_SYSTEM, "Network time obtained: %04d-%02d-%02d %02d:%02d:%02d (TZ: %.1f)",
                     year, month, day, currentHour, currentMinute, currentSecond, timezone);
         Logger.info(LOG_TAG_SYSTEM, "Sleep window: %02d:00 to %02d:00 (current: %02d:%02d)",
                     dynamicSleepStartHour, dynamicSleepEndHour, currentHour, currentMinute);
+        networkTimeObtained = true;
     }
     else
     {
-        Logger.warn(LOG_TAG_SYSTEM, "Failed to get network time");
+        Logger.warn(LOG_TAG_SYSTEM, "Failed to get network time - sleep check will be skipped during setup");
     }
 
-    // Check if it's sleep time
-    bool sleepTimeCheck = isSleepTime();
-    Logger.info(LOG_TAG_SYSTEM, "Sleep check: isSleepTime()=%s, currentHour=%d, sleepStart=%d, sleepEnd=%d",
-                sleepTimeCheck ? "true" : "false", currentHour, dynamicSleepStartHour, dynamicSleepEndHour);
+    // Only check sleep time if we successfully obtained network time
+    if (networkTimeObtained)
+    {
+        bool sleepTimeCheck = isSleepTime();
+        Logger.info(LOG_TAG_SYSTEM, "Sleep check: isSleepTime()=%s, currentHour=%d, sleepStart=%d, sleepEnd=%d",
+                    sleepTimeCheck ? "true" : "false", currentHour, dynamicSleepStartHour, dynamicSleepEndHour);
 #ifdef DEBUG_MODE
-    Logger.info(LOG_TAG_SYSTEM, "DEBUG_MODE is enabled - sleep is disabled for debugging");
+        Logger.info(LOG_TAG_SYSTEM, "DEBUG_MODE is enabled - sleep is disabled for debugging");
 #endif
 
-    if (sleepTimeCheck)
+        if (sleepTimeCheck)
+        {
+            Logger.info(LOG_TAG_SYSTEM, "It's sleep time. Entering deep sleep...");
+            enterDeepSleepUntil(dynamicSleepEndHour, 0);
+            return;
+        }
+    }
+    else
     {
-        Logger.info(LOG_TAG_SYSTEM, "It's sleep time. Entering deep sleep...");
-        enterDeepSleepUntil(dynamicSleepEndHour, 0);
-        return;
+        Logger.info(LOG_TAG_SYSTEM, "Skipping initial sleep check due to failed network time retrieval");
     }
 
     // Initialize HTTP client
@@ -191,6 +204,18 @@ void setup()
 
             // Fetch initial configuration
             handleRemoteConfiguration();
+
+            // Check for sleep time again after initial config fetch (in case config changed sleep window)
+            bool postConfigSleepCheck = isSleepTime();
+            Logger.info(LOG_TAG_SYSTEM, "Post-config sleep check: isSleepTime()=%s, currentHour=%d, sleepWindow=%02d:00-%02d:00",
+                        postConfigSleepCheck ? "true" : "false", currentHour, dynamicSleepStartHour, dynamicSleepEndHour);
+
+            if (postConfigSleepCheck)
+            {
+                Logger.info(LOG_TAG_SYSTEM, "Sleep time detected after initial config fetch. Entering deep sleep...");
+                enterDeepSleepUntil(dynamicSleepEndHour, 0);
+                return;
+            }
         }
         else
         {
@@ -300,6 +325,9 @@ void loop()
         {
             // Update logger with real time
             Logger.setRealTime(currentHour, currentMinute, currentSecond);
+
+            // Record when we got network time
+            lastNetworkTimeUpdate = millis();
 
             Logger.info(LOG_TAG_SYSTEM, "Time updated: %04d-%02d-%02d %02d:%02d:%02d (TZ: %.1f)",
                         year, month, day, currentHour, currentMinute, currentSecond, timezone);
@@ -562,10 +590,36 @@ void handleRemoteConfiguration()
                 httpClient.confirmOtaStarted(DEVICE_ID);
             }
         }
+
+        // Check for sleep time after configuration update
+        bool sleepTimeCheck = isSleepTime();
+        Logger.info(LOG_TAG_SYSTEM, "Sleep check after config update: isSleepTime()=%s, currentHour=%d, sleepWindow=%02d:00-%02d:00",
+                    sleepTimeCheck ? "true" : "false", currentHour, dynamicSleepStartHour, dynamicSleepEndHour);
+
+        if (sleepTimeCheck)
+        {
+            Logger.info(LOG_TAG_SYSTEM, "Sleep time detected after config update. Entering deep sleep...");
+            enterDeepSleepUntil(dynamicSleepEndHour, 0);
+            // Note: This will cause the device to restart, so execution won't continue past this point
+            return;
+        }
     }
     else
     {
         Logger.warn(LOG_TAG_SYSTEM, "Failed to fetch remote configuration. Using default values.");
+
+        // Still check for sleep time even if config fetch failed
+        bool sleepTimeCheck = isSleepTime();
+        Logger.info(LOG_TAG_SYSTEM, "Sleep check after failed config fetch: isSleepTime()=%s, currentHour=%d, sleepWindow=%02d:00-%02d:00",
+                    sleepTimeCheck ? "true" : "false", currentHour, dynamicSleepStartHour, dynamicSleepEndHour);
+
+        if (sleepTimeCheck)
+        {
+            Logger.info(LOG_TAG_SYSTEM, "Sleep time detected after failed config fetch. Entering deep sleep...");
+            enterDeepSleepUntil(dynamicSleepEndHour, 0);
+            // Note: This will cause the device to restart, so execution won't continue past this point
+            return;
+        }
     }
 }
 
@@ -616,9 +670,54 @@ bool isSleepTime()
     Logger.debug(LOG_TAG_SYSTEM, "isSleepTime(): DEBUG_MODE enabled, sleep disabled");
     return false;
 #else
-    bool inSleepWindow = (currentHour >= dynamicSleepStartHour || currentHour < dynamicSleepEndHour);
-    Logger.debug(LOG_TAG_SYSTEM, "isSleepTime(): currentHour=%d, sleepStart=%d, sleepEnd=%d, inWindow=%s",
-                 currentHour, dynamicSleepStartHour, dynamicSleepEndHour, inSleepWindow ? "true" : "false");
+    // Check if we have valid time information (network time has been obtained)
+    // If currentHour, currentMinute, and currentSecond are all 0, it's likely we haven't obtained network time yet
+    if (currentHour == 0 && currentMinute == 0 && currentSecond == 0)
+    {
+        Logger.debug(LOG_TAG_SYSTEM, "isSleepTime(): No valid time information available, assuming not sleep time");
+        return false;
+    }
+
+    // Check if network time is too old (more than 2 hours since last update)
+    if (lastNetworkTimeUpdate > 0 && (millis() - lastNetworkTimeUpdate) > 2 * 3600 * 1000)
+    {
+        Logger.debug(LOG_TAG_SYSTEM, "isSleepTime(): Network time is too old (%.1f hours), assuming not sleep time",
+                     (millis() - lastNetworkTimeUpdate) / 3600000.0);
+        return false;
+    }
+
+    // Additional validation: check if hour values are reasonable
+    if (currentHour < 0 || currentHour > 23 ||
+        dynamicSleepStartHour < 0 || dynamicSleepStartHour > 23 ||
+        dynamicSleepEndHour < 0 || dynamicSleepEndHour > 23)
+    {
+        Logger.warn(LOG_TAG_SYSTEM, "isSleepTime(): Invalid hour values detected, assuming not sleep time");
+        return false;
+    }
+
+    bool inSleepWindow;
+
+    if (dynamicSleepStartHour == dynamicSleepEndHour)
+    {
+        // If start and end hours are the same, no sleep window is defined
+        inSleepWindow = false;
+        Logger.debug(LOG_TAG_SYSTEM, "isSleepTime(): Sleep start and end hours are the same, no sleep window");
+    }
+    else if (dynamicSleepStartHour < dynamicSleepEndHour)
+    {
+        // Sleep window is within the same day (e.g., 02:00 to 06:00)
+        inSleepWindow = (currentHour >= dynamicSleepStartHour && currentHour < dynamicSleepEndHour);
+        Logger.debug(LOG_TAG_SYSTEM, "isSleepTime(): Same-day sleep window (%02d:00-%02d:00), currentHour=%d, inWindow=%s",
+                     dynamicSleepStartHour, dynamicSleepEndHour, currentHour, inSleepWindow ? "true" : "false");
+    }
+    else
+    {
+        // Sleep window crosses midnight (e.g., 23:00 to 06:00)
+        inSleepWindow = (currentHour >= dynamicSleepStartHour || currentHour < dynamicSleepEndHour);
+        Logger.debug(LOG_TAG_SYSTEM, "isSleepTime(): Midnight-crossing sleep window (%02d:00-%02d:00), currentHour=%d, inWindow=%s",
+                     dynamicSleepStartHour, dynamicSleepEndHour, currentHour, inSleepWindow ? "true" : "false");
+    }
+
     return inSleepWindow;
 #endif
 }
@@ -633,6 +732,21 @@ void enterDeepSleepUntil(int hour, int minute)
 {
     Logger.info(LOG_TAG_SYSTEM, "Entering deep sleep until %02d:%02d", hour, minute);
 
+    // Validate input parameters
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59)
+    {
+        Logger.error(LOG_TAG_SYSTEM, "Invalid wake-up time: %02d:%02d. Aborting sleep.", hour, minute);
+        return;
+    }
+
+    // Validate current time
+    if (currentHour < 0 || currentHour > 23 || currentMinute < 0 || currentMinute > 59)
+    {
+        Logger.error(LOG_TAG_SYSTEM, "Invalid current time: %02d:%02d:%02d. Aborting sleep.",
+                     currentHour, currentMinute, currentSecond);
+        return;
+    }
+
     // Calculate time to sleep
     int targetSeconds = (hour * 3600) + (minute * 60);
     int currentSeconds = (currentHour * 3600) + (currentMinute * 60) + currentSecond;
@@ -643,7 +757,21 @@ void enterDeepSleepUntil(int hour, int minute)
         sleepSeconds += 24 * 3600; // Add one day if target time is earlier
     }
 
-    Logger.info(LOG_TAG_SYSTEM, "Sleeping for %d seconds", sleepSeconds);
+    // Validate sleep duration (minimum 1 minute, maximum 23 hours)
+    if (sleepSeconds < 60)
+    {
+        Logger.warn(LOG_TAG_SYSTEM, "Sleep duration too short (%d seconds). Extending to 1 minute.", sleepSeconds);
+        sleepSeconds = 60;
+    }
+    else if (sleepSeconds > 23 * 3600)
+    {
+        Logger.warn(LOG_TAG_SYSTEM, "Sleep duration too long (%d seconds). Limiting to 23 hours.", sleepSeconds);
+        sleepSeconds = 23 * 3600;
+    }
+
+    Logger.info(LOG_TAG_SYSTEM, "Current time: %02d:%02d:%02d, Wake-up time: %02d:%02d",
+                currentHour, currentMinute, currentSecond, hour, minute);
+    Logger.info(LOG_TAG_SYSTEM, "Sleeping for %d seconds (%.1f hours)", sleepSeconds, sleepSeconds / 3600.0);
 
     // Disconnect GPRS to save power before sleeping
     modemManager.maintainConnection(false);
