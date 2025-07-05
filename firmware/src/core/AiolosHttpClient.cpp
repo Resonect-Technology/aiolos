@@ -222,6 +222,67 @@ int AiolosHttpClient::_performRequest(const char *method, const char *path, cons
 }
 
 /**
+ * @brief Performs a lightweight HTTP POST request without reading response body.
+ * Optimized for high-frequency data sending where only status code matters.
+ * @param path The URL path for the request.
+ * @param body The request body.
+ * @return The HTTP status code, or 0 on failure.
+ */
+int AiolosHttpClient::_performLightweightPost(const char *path, const char *body)
+{
+    if (this->isConnectionThrottled())
+    {
+        return 0; // Throttled, do not attempt
+    }
+
+    if (!_modemManager)
+    {
+        Logger.error(LOG_TAG_HTTP, "HTTP client not initialized");
+        return 0;
+    }
+
+    if (!_modemManager->isNetworkConnected() || !_modemManager->isGprsConnected())
+    {
+        Logger.error(LOG_TAG_HTTP, "Network not connected, cannot send request");
+        return 0;
+    }
+
+    Logger.debug(LOG_TAG_HTTP, "Sending lightweight POST request to %s", path);
+
+    const char *requestBody = (body != nullptr) ? body : "";
+    int err = _arduinoClient->post(path, "application/json", requestBody);
+
+    if (err != 0)
+    {
+        Logger.error(LOG_TAG_HTTP, "HTTP request failed to connect, error: %d", err);
+        _handleHttpFailure();
+        _arduinoClient->stop();
+        return err;
+    }
+
+    int statusCode = _arduinoClient->responseStatusCode();
+    Logger.debug(LOG_TAG_HTTP, "HTTP Status: %d", statusCode);
+
+    // Skip response headers but don't read the body - we don't need it
+    _arduinoClient->skipResponseHeaders();
+
+    // Important: stop the client immediately to close the connection
+    _arduinoClient->stop();
+
+    if (statusCode >= 200 && statusCode < 300)
+    {
+        _resetBackoff();
+    }
+    else
+    {
+        _handleHttpFailure();
+        Logger.error(LOG_TAG_HTTP, "HTTP request failed with status code: %d", statusCode);
+    }
+
+    return statusCode;
+}
+
+/**
  * @brief Send diagnostics data to the server
  */
 bool AiolosHttpClient::sendDiagnostics(const char *stationId, float batteryVoltage, float solarVoltage, float internalTemp, int signalQuality, unsigned long uptime)
@@ -362,7 +423,7 @@ bool AiolosHttpClient::fetchConfiguration(const char *stationId, unsigned long *
 }
 
 /**
- * @brief Send wind data to the server
+ * @brief Send wind data to the server (optimized for high-frequency sending)
  */
 bool AiolosHttpClient::sendWindData(const char *stationId, float windSpeed, float windDirection)
 {
@@ -380,8 +441,8 @@ bool AiolosHttpClient::sendWindData(const char *stationId, float windSpeed, floa
     char urlPath[64];
     snprintf(urlPath, sizeof(urlPath), "/api/stations/%s/wind", stationId);
 
-    String responseBody;
-    int statusCode = _performRequest("POST", urlPath, jsonBuffer.c_str(), responseBody);
+    // Use lightweight POST method that doesn't read response body for speed
+    int statusCode = _performLightweightPost(urlPath, jsonBuffer.c_str());
 
     if (statusCode >= 200 && statusCode < 300)
     {

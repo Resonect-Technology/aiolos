@@ -144,6 +144,7 @@ private:
     void _handleHttpFailure();
     void _resetBackoff();
     int _performRequest(const char *method, const char *path, const char *body, String &responseBody);
+    int _performLightweightPost(const char *path, const char *body); // Fast POST without reading response body
 };
 
 extern AiolosHttpClient httpClient;
