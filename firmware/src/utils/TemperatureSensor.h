@@ -35,6 +35,31 @@ public:
     float readTemperature(uint8_t sensorIndex = 0);
 
     /**
+     * @brief Start non-blocking temperature conversion
+     *
+     * @param sensorIndex Index of the sensor on the bus (default: 0)
+     * @return true if conversion started successfully
+     */
+    bool startConversion(uint8_t sensorIndex = 0);
+
+    /**
+     * @brief Check if temperature conversion is complete and get result
+     *
+     * @param sensorIndex Index of the sensor on the bus (default: 0)
+     * @return float Temperature in Celsius, or NAN if conversion not complete, or DEVICE_DISCONNECTED_C if failed
+     */
+    float getTemperatureNonBlocking(uint8_t sensorIndex = 0);
+
+    /**
+     * @brief Read temperature from the sensor with retry capability
+     *
+     * @param sensorIndex Index of the sensor on the bus (default: 0)
+     * @param maxRetries Maximum number of retry attempts (default: 3)
+     * @return float Temperature in Celsius, or DEVICE_DISCONNECTED_C if failed
+     */
+    float readTemperatureWithRetry(uint8_t sensorIndex = 0, uint8_t maxRetries = 3);
+
+    /**
      * @brief Get the number of sensors detected on the bus
      *
      * @return uint8_t Number of sensors found
@@ -68,6 +93,8 @@ private:
     const char *_name = "Temperature";
     uint8_t _pin = 0;
     uint8_t _sensorCount = 0;
+    unsigned long _conversionStartTime = 0; // For non-blocking operation
+    bool _conversionInProgress = false;     // Track conversion state
 
     /**
      * @brief Detect and count sensors on the bus

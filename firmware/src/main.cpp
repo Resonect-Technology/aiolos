@@ -11,6 +11,7 @@
 
 #include <Arduino.h>
 #include <esp_task_wdt.h>
+#include <math.h> // For isnan()
 #include "config/Config.h"
 #include "core/Logger.h"
 #include "core/ModemManager.h"
@@ -38,6 +39,10 @@ unsigned long lastNetworkTimeUpdate = 0; // Track when we last got network time
 bool otaActive = false;
 unsigned long lastOtaCheck = 0;
 bool isSamplingWind = false; // For wind data averaging
+
+// Non-blocking temperature reading state
+bool tempConversionStarted = false;
+unsigned long tempConversionStartTime = 0;
 
 // Dynamic interval settings, initialized with defaults from Config.h
 unsigned long dynamicTempInterval = DEFAULT_TEMP_INTERVAL;
@@ -257,6 +262,7 @@ void setup()
     if (externalTempSensor.init(TEMP_BUS_EXT, "External"))
     {
         Logger.info(LOG_TAG_SYSTEM, "External temperature sensor initialized successfully");
+        // Use blocking read during initialization for immediate feedback
         float temp = externalTempSensor.readTemperature();
         if (temp != DEVICE_DISCONNECTED_C)
         {
@@ -433,30 +439,87 @@ void loop()
         // Measure and send temperature data periodically
         if (currentMillis - lastTemperatureUpdate >= dynamicTempInterval)
         {
-            lastTemperatureUpdate = currentMillis;
-
-            // Get internal temperature from diagnostics manager
-            float internalTemp = diagnosticsManager.readInternalTemperature();
-
-            // Get external temperature from dedicated sensor
-            float externalTemp = externalTempSensor.readTemperature();
-            if (externalTemp == DEVICE_DISCONNECTED_C)
+            // Check if we need to start a new temperature conversion
+            if (!tempConversionStarted)
             {
-                externalTemp = -127.0; // Use -127 as an indicator of no reading
-                Logger.warn(LOG_TAG_SYSTEM, "Failed to read external temperature");
+                // Start non-blocking temperature conversion
+                if (externalTempSensor.startConversion())
+                {
+                    tempConversionStarted = true;
+                    tempConversionStartTime = currentMillis;
+                    Logger.debug(LOG_TAG_SYSTEM, "Started external temperature conversion");
+                }
+                else
+                {
+                    // Fallback to blocking read if non-blocking fails
+                    Logger.warn(LOG_TAG_SYSTEM, "Non-blocking temperature conversion failed, using blocking read");
+                    float externalTemp = externalTempSensor.readTemperature();
+
+                    // Get internal temperature from diagnostics manager
+                    float internalTemp = diagnosticsManager.readInternalTemperature();
+
+                    if (externalTemp == DEVICE_DISCONNECTED_C)
+                    {
+                        externalTemp = -127.0; // Use -127 as an indicator of no reading
+                        Logger.warn(LOG_TAG_SYSTEM, "Failed to read external temperature");
+                    }
+
+                    Logger.info(LOG_TAG_SYSTEM, "Temperature readings - Internal: %.2f°C, External: %.2f°C",
+                                internalTemp, externalTemp);
+
+                    // Send external temperature data to server (internal temp is sent in diagnostics)
+                    if (httpClient.sendTemperatureData(DEVICE_ID, internalTemp, externalTemp))
+                    {
+                        Logger.info(LOG_TAG_SYSTEM, "Temperature data sent successfully");
+                    }
+                    else
+                    {
+                        Logger.warn(LOG_TAG_SYSTEM, "Failed to send temperature data");
+                    }
+
+                    lastTemperatureUpdate = currentMillis;
+                }
             }
+        }
 
-            Logger.info(LOG_TAG_SYSTEM, "Temperature readings - Internal: %.2f°C, External: %.2f°C",
-                        internalTemp, externalTemp);
+        // Check if temperature conversion is complete
+        if (tempConversionStarted)
+        {
+            float externalTemp = externalTempSensor.getTemperatureNonBlocking();
 
-            // Send external temperature data to server (internal temp is sent in diagnostics)
-            if (httpClient.sendTemperatureData(DEVICE_ID, internalTemp, externalTemp))
+            if (!isnan(externalTemp))
             {
-                Logger.info(LOG_TAG_SYSTEM, "Temperature data sent successfully");
+                // Conversion is complete
+                tempConversionStarted = false;
+                lastTemperatureUpdate = currentMillis;
+
+                // Get internal temperature from diagnostics manager
+                float internalTemp = diagnosticsManager.readInternalTemperature();
+
+                if (externalTemp == DEVICE_DISCONNECTED_C)
+                {
+                    externalTemp = -127.0; // Use -127 as an indicator of no reading
+                    Logger.warn(LOG_TAG_SYSTEM, "Failed to read external temperature");
+                }
+
+                Logger.info(LOG_TAG_SYSTEM, "Temperature readings - Internal: %.2f°C, External: %.2f°C",
+                            internalTemp, externalTemp);
+
+                // Send external temperature data to server (internal temp is sent in diagnostics)
+                if (httpClient.sendTemperatureData(DEVICE_ID, internalTemp, externalTemp))
+                {
+                    Logger.info(LOG_TAG_SYSTEM, "Temperature data sent successfully");
+                }
+                else
+                {
+                    Logger.warn(LOG_TAG_SYSTEM, "Failed to send temperature data");
+                }
             }
-            else
+            else if (currentMillis - tempConversionStartTime > 200)
             {
-                Logger.warn(LOG_TAG_SYSTEM, "Failed to send temperature data");
+                // Timeout after 200ms (should only take ~100ms)
+                Logger.warn(LOG_TAG_SYSTEM, "Temperature conversion timeout, resetting");
+                tempConversionStarted = false;
             }
         }
     }

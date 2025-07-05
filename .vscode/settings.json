@@ -7,5 +7,10 @@
     "arduino.logLevel": "info",
     "github-actions.workflows.pinned.workflows": [
         ".github/workflows/deploy.yml"
-    ]
+    ],
+    "files.associations": {
+        "*.twig": "twig",
+        "*.md": "markdown",
+        "cmath": "cpp"
+    }
 }
