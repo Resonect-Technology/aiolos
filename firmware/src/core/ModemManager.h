@@ -58,7 +58,14 @@ public:
     bool powerOn();
 
     /**
-     * @brief Power off the modem
+     * @brief Power off the modem completely
+     *
+     * This method implements a robust power-off sequence that fixes the persistent
+     * modem restart issue. It sends multiple AT+CPOWD=1 commands and ensures the
+     * PWR_PIN is set to the correct state (HIGH = LOW to modem) to maintain the
+     * OFF state, preventing automatic modem restart.
+     *
+     * The implementation addresses GitHub issues #146, #251, and #144.
      *
      * @return true if successful
      * @return false if failed

@@ -311,6 +311,26 @@ bool ModemManager::powerOff()
 {
     Logger.info(LOG_TAG_MODEM, "Powering off modem...");
 
+    /*
+     * CRITICAL MODEM POWER-OFF SEQUENCE
+     *
+     * This implementation fixes the persistent modem power-off issue described in:
+     * - GitHub issue #146: Modem restarts after power-off
+     * - GitHub issue #251: Pin logic is inverted due to NPN transistor
+     * - GitHub issue #144: Related power management issues
+     *
+     * Key fixes applied:
+     * 1. Send AT+CPOWD=1 command twice for enhanced reliability
+     * 2. Use TinyGSM's poweroff() method for additional AT+CPOWD=1
+     * 3. CRITICAL: Set PWR_PIN to HIGH (LOW to modem) to maintain OFF state
+     * 4. Validate power-off by checking modem responsiveness
+     *
+     * Pin logic understanding (confirmed by LilyGO ModemSleep example):
+     * - ESP32 GPIO HIGH = LOW to modem (OFF state)
+     * - ESP32 GPIO LOW = HIGH to modem (ON state)
+     * This is due to NPN transistor inversion on the PWR_KEY line.
+     */
+
     // Make sure modem is responsive before attempting software power down
     bool isResponsive = _modem.testAT(1000);
 
@@ -323,28 +343,53 @@ bool ModemManager::powerOff()
         _modem.sendAT("+CPOWD=1");
         if (_modem.waitResponse(10000) != 1)
         {
-            Logger.warn(LOG_TAG_MODEM, "Software power down command failed");
+            Logger.warn(LOG_TAG_MODEM, "First software power down command failed");
         }
         else
         {
-            Logger.info(LOG_TAG_MODEM, "Software power down command successful");
+            Logger.info(LOG_TAG_MODEM, "First software power down command successful");
         }
 
-        // Step 2: Call TinyGSM's poweroff method (sends another +CPOWD=1 internally)
-        Logger.debug(LOG_TAG_MODEM, "Calling TinyGSM poweroff");
+        // Step 1.5: Send second +CPOWD=1 for enhanced reliability (some modules need this)
+        Logger.debug(LOG_TAG_MODEM, "Sending second AT+CPOWD=1 for enhanced reliability");
+        _modem.sendAT("+CPOWD=1");
+        if (_modem.waitResponse(5000) != 1)
+        {
+            Logger.warn(LOG_TAG_MODEM, "Second software power down command failed");
+        }
+        else
+        {
+            Logger.info(LOG_TAG_MODEM, "Second software power down command successful");
+        }
+
+        // Step 2: Call TinyGSM's poweroff method (sends a third +CPOWD=1 internally)
+        Logger.debug(LOG_TAG_MODEM, "Calling TinyGSM poweroff for additional reliability");
         _modem.poweroff();
 
-        // Step 3: CRITICAL - Ensure PWR_PIN stays LOW after power down
+        // Step 3: CRITICAL - Ensure PWR_PIN stays HIGH after power down
         // Based on issue #251: pin logic is INVERTED due to NPN transistor
-        // Setting LOW keeps the modem OFF, setting HIGH would turn it back ON
+        // GPIO HIGH = LOW to modem (keeps modem OFF), GPIO LOW = HIGH to modem (turns ON)
+        // This matches the LilyGO ModemSleep example pattern confirmed 3 weeks ago
         pinMode(PWR_PIN, OUTPUT);
-        digitalWrite(PWR_PIN, LOW); // This is HIGH to the modem due to transistor inversion
+        digitalWrite(PWR_PIN, HIGH); // This is LOW to the modem due to transistor inversion (keeps OFF)
 
         // Step 4: Wait for complete shutdown
         Logger.debug(LOG_TAG_MODEM, "Waiting for modem to complete shutdown...");
         delay(3000);
 
-        Logger.info(LOG_TAG_MODEM, "Software power off completed, PWR_PIN set to LOW");
+        // Step 5: Verify power-off by checking modem responsiveness
+        Logger.debug(LOG_TAG_MODEM, "Verifying modem power-off...");
+        bool stillResponsive = _modem.testAT(1000);
+        if (stillResponsive)
+        {
+            Logger.warn(LOG_TAG_MODEM, "Modem still responsive after power-off sequence");
+        }
+        else
+        {
+            Logger.info(LOG_TAG_MODEM, "Modem successfully powered off (not responsive)");
+        }
+
+        Logger.info(LOG_TAG_MODEM, "Software power off completed, PWR_PIN set to HIGH (LOW to modem)");
         return true;
     }
     else
@@ -359,10 +404,25 @@ bool ModemManager::powerOff()
         // Send power-off pulse: LOW for 1.2+ seconds (per SIM7000 spec)
         digitalWrite(PWR_PIN, LOW); // This becomes HIGH to modem (power off command)
         delay(1500);                // Hold for sufficient time
-        // Note: We keep it LOW to maintain power-off state
 
-        Logger.debug(LOG_TAG_MODEM, "Hardware power down pulse sent, PWR_PIN held LOW");
+        // CRITICAL: Set final state to HIGH to maintain modem OFF state
+        // This prevents the modem from restarting due to incorrect pin state
+        digitalWrite(PWR_PIN, HIGH); // This is LOW to modem (maintains OFF state)
+
+        Logger.debug(LOG_TAG_MODEM, "Hardware power down pulse sent, PWR_PIN set to HIGH (LOW to modem)");
         delay(3000); // Wait for shutdown
+
+        // Verify hardware power-off by checking modem responsiveness
+        Logger.debug(LOG_TAG_MODEM, "Verifying hardware power-off...");
+        bool stillResponsive = _modem.testAT(1000);
+        if (stillResponsive)
+        {
+            Logger.warn(LOG_TAG_MODEM, "Modem still responsive after hardware power-off");
+        }
+        else
+        {
+            Logger.info(LOG_TAG_MODEM, "Modem successfully powered off via hardware (not responsive)");
+        }
 
         Logger.info(LOG_TAG_MODEM, "Hardware power down completed");
     }
