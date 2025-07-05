@@ -232,7 +232,7 @@ void loop()
     // Get current time
     unsigned long currentMillis = millis();
 
-    // Handle OTA if active
+    // Handle OTA if active (non-blocking)
     if (otaActive)
     {
         if (!otaManager.handle())
@@ -241,12 +241,8 @@ void loop()
             otaActive = false;
             Logger.info(LOG_TAG_SYSTEM, "OTA mode ended");
         }
-        else
-        {
-            // If OTA is active, only handle OTA and skip other operations
-            delay(100);
-            return;
-        }
+        // Continue with normal operations even during OTA
+        // This allows sensors, modem, and other systems to keep working
     }
 
     // Check for OTA window periodically (every minute)

@@ -23,6 +23,7 @@
 #define PIN_TX 27
 #define PIN_RX 26
 #define PWR_PIN 4
+#define MODEM_RST_PIN 5 // Modem Reset pin - for complete power off
 #define LED_PIN 12
 #define ANEMOMETER_PIN 33  // GPIO33 for anemometer (was 14)
 #define WIND_VANE_PIN 32   // GPIO32 for wind vane (ADC1_CH4) (was 2)
@@ -98,7 +99,7 @@
 #ifdef CONFIG_OTA_MIN_BATTERY_VOLTAGE
 #define OTA_MIN_BATTERY_VOLTAGE CONFIG_OTA_MIN_BATTERY_VOLTAGE
 #else
-#define OTA_MIN_BATTERY_VOLTAGE 3.6 // Minimum battery voltage for OTA updates
+#define OTA_MIN_BATTERY_VOLTAGE 3.8 // Minimum battery voltage for OTA updates
 #endif
 
 // Remote OTA activation
@@ -106,7 +107,7 @@
 #define REMOTE_OTA_FLAG_KEY "remote_ota" // Key for remote OTA flag in configuration
 
 // Power management
-#define LOW_BATTERY_THRESHOLD 3.4 // Volts
+#define LOW_BATTERY_THRESHOLD 3.7 // Volts
 
 #ifdef CONFIG_SLEEP_START_HOUR
 #define DEFAULT_SLEEP_START_HOUR CONFIG_SLEEP_START_HOUR

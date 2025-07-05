@@ -150,9 +150,11 @@ bool ModemManager::_initHardware()
     pinMode(PIN_DTR, OUTPUT);
     digitalWrite(PIN_DTR, LOW); // DTR low to keep modem awake
 
-    // Then set power pin
+    // Then set power pin - CRITICAL: Based on issue #251, pin logic is INVERTED
+    // Due to NPN transistor: GPIO HIGH = LOW to modem, GPIO LOW = HIGH to modem
+    // NOTE: Reset pin also has inverted levels (issue #251 comment)
     pinMode(PWR_PIN, OUTPUT);
-    digitalWrite(PWR_PIN, LOW); // Initial state of the power pin must be LOW
+    digitalWrite(PWR_PIN, HIGH); // This sends LOW to modem (default off state)
 
     // Add delay to ensure pin states are stable
     delay(100);
@@ -227,21 +229,21 @@ bool ModemManager::powerOn()
         SerialAT.read();
     }
 
-    // Make sure modem is in a known power state before attempting to power on
-    Logger.debug(LOG_TAG_MODEM, "Setting up power state...");
+    // CRITICAL: Use correct power-on sequence with inverted logic understanding
+    // Based on issue #251: GPIO levels are inverted due to NPN transistor
+    Logger.debug(LOG_TAG_MODEM, "Setting up power-on sequence...");
     pinMode(PWR_PIN, OUTPUT);
-    digitalWrite(PWR_PIN, LOW);
-    delay(2000);
 
-    // Send power pulse - this is the key to proper power-on
-    Logger.debug(LOG_TAG_MODEM, "Sending power pulse");
-    digitalWrite(PWR_PIN, HIGH);
-    delay(1500); // Stick with the datasheet recommendation of ~1.2s (plus margin)
-    digitalWrite(PWR_PIN, LOW);
+    // Power-on sequence: LOW pulse (which becomes HIGH to modem for power-on)
+    digitalWrite(PWR_PIN, HIGH); // Start with modem OFF (LOW to modem)
+    delay(100);                  // Ensure stable state
+    digitalWrite(PWR_PIN, LOW);  // Send power-on pulse (HIGH to modem)
+    delay(1000);                 // Hold for at least 1 second (SIM7000 requirement)
+    digitalWrite(PWR_PIN, HIGH); // Return to default state (LOW to modem)
 
-    // Critical: Longer wait time for boot
+    // Critical: Wait for boot
     Logger.debug(LOG_TAG_MODEM, "Waiting for modem to boot...");
-    delay(8000); // Increased to 8 seconds - this is crucial
+    delay(3000);
 
     // Clear any boot messages
     while (SerialAT.available())
@@ -267,29 +269,35 @@ bool ModemManager::powerOn()
         // If we didn't get a response, try a different approach
         if (i == 2)
         {
-            // Try hardware reset in the middle of attempts
+            // Try hardware power toggle (considering inverted logic)
             Logger.debug(LOG_TAG_MODEM, "No response, trying hardware toggle...");
-            digitalWrite(PWR_PIN, HIGH);
-            delay(100); // Short pulse
-            digitalWrite(PWR_PIN, LOW);
+            digitalWrite(PWR_PIN, LOW);  // Send power pulse (HIGH to modem)
+            delay(100);                  // Short pulse
+            digitalWrite(PWR_PIN, HIGH); // Return to default (LOW to modem)
             delay(2000);
         }
 
         delay(1000);
     }
 
-    // Last resort: try using TinyGSM's restart
+    // Last resort: try using TinyGSM's restart like manufacturer
     Logger.debug(LOG_TAG_MODEM, "Trying modem restart...");
-    _modem.sendAT("+CFUN=1,1"); // Software reset command
-    _modem.waitResponse(10000);
-
-    delay(5000);
+    if (!_modem.restart())
+    {
+        Logger.warn(LOG_TAG_MODEM, "Modem restart failed, trying init...");
+        if (!_modem.init())
+        {
+            Logger.error(LOG_TAG_MODEM, "Modem init also failed");
+            _setWatchdog(false);
+            return false;
+        }
+    }
 
     // Final check
     _modem.sendAT();
     if (_modem.waitResponse(3000) == 1)
     {
-        Logger.info(LOG_TAG_MODEM, "Modem responsive after software reset");
+        Logger.info(LOG_TAG_MODEM, "Modem responsive after restart/init");
         _setWatchdog(false);
         return true;
     }
@@ -308,46 +316,53 @@ bool ModemManager::powerOff()
 
     if (isResponsive)
     {
-        // First try software power down command as recommended in LilyGO examples
+        // Use LilyGO's recommended power-off sequence from issue #146
         Logger.debug(LOG_TAG_MODEM, "Attempting software power down");
-        _modem.sendAT("+CPOWD=1");
 
-        // Timeout of 10 seconds for power down command (based on LilyGO examples)
+        // Step 1: Send +CPOWD=1 command (as in LilyGO examples)
+        _modem.sendAT("+CPOWD=1");
         if (_modem.waitResponse(10000) != 1)
         {
             Logger.warn(LOG_TAG_MODEM, "Software power down command failed");
-            isResponsive = false; // Fall back to hardware power down
         }
         else
         {
-            Logger.info(LOG_TAG_MODEM, "Software power down successful");
-            // Wait for modem to shut down completely (LilyGO examples suggest 5s)
-            Logger.debug(LOG_TAG_MODEM, "Waiting for modem to complete shutdown...");
-            delay(5000);
-            return true;
+            Logger.info(LOG_TAG_MODEM, "Software power down command successful");
         }
+
+        // Step 2: Call TinyGSM's poweroff method (sends another +CPOWD=1 internally)
+        Logger.debug(LOG_TAG_MODEM, "Calling TinyGSM poweroff");
+        _modem.poweroff();
+
+        // Step 3: CRITICAL - Ensure PWR_PIN stays LOW after power down
+        // Based on issue #251: pin logic is INVERTED due to NPN transistor
+        // Setting LOW keeps the modem OFF, setting HIGH would turn it back ON
+        pinMode(PWR_PIN, OUTPUT);
+        digitalWrite(PWR_PIN, LOW); // This is HIGH to the modem due to transistor inversion
+
+        // Step 4: Wait for complete shutdown
+        Logger.debug(LOG_TAG_MODEM, "Waiting for modem to complete shutdown...");
+        delay(3000);
+
+        Logger.info(LOG_TAG_MODEM, "Software power off completed, PWR_PIN set to LOW");
+        return true;
     }
     else
     {
-        Logger.debug(LOG_TAG_MODEM, "Modem not responsive, skipping software power down");
-    }
+        Logger.debug(LOG_TAG_MODEM, "Modem not responsive, using hardware power down");
 
-    // If modem is not responsive or software power down failed, use hardware power down
-    if (!isResponsive)
-    {
-        Logger.info(LOG_TAG_MODEM, "Using hardware power down method");
+        // Hardware power down using power pin
+        // CRITICAL: Based on issue #251, pin logic is INVERTED
+        // We need to send a LOW pulse to turn OFF (which becomes HIGH to modem)
+        pinMode(PWR_PIN, OUTPUT);
 
-        // Make sure PWR_PIN is LOW first
-        digitalWrite(PWR_PIN, LOW);
-        delay(1000);
+        // Send power-off pulse: LOW for 1.2+ seconds (per SIM7000 spec)
+        digitalWrite(PWR_PIN, LOW); // This becomes HIGH to modem (power off command)
+        delay(1500);                // Hold for sufficient time
+        // Note: We keep it LOW to maintain power-off state
 
-        // Apply power pulse
-        digitalWrite(PWR_PIN, HIGH);
-        delay(1500); // Datasheet Toff time = 1.2s
-        digitalWrite(PWR_PIN, LOW);
-
-        // Wait for modem to shut down completely
-        delay(5000);
+        Logger.debug(LOG_TAG_MODEM, "Hardware power down pulse sent, PWR_PIN held LOW");
+        delay(3000); // Wait for shutdown
 
         Logger.info(LOG_TAG_MODEM, "Hardware power down completed");
     }
@@ -674,10 +689,10 @@ bool ModemManager::wakeUp(bool fromDeepSleep)
     // If still not responsive, try more aggressive wake-up with power pin toggle
     Logger.debug(LOG_TAG_MODEM, "Still not responsive, trying power pin toggle...");
 
-    // Send a short pulse to the power pin (shorter than power-on)
-    digitalWrite(PWR_PIN, HIGH);
-    delay(100); // Just a short pulse to nudge the modem
-    digitalWrite(PWR_PIN, LOW);
+    // Send a short pulse to the power pin (considering inverted logic)
+    digitalWrite(PWR_PIN, LOW);  // Send wake pulse (HIGH to modem)
+    delay(100);                  // Just a short pulse to nudge the modem
+    digitalWrite(PWR_PIN, HIGH); // Return to default (LOW to modem)
     delay(3000);
 
     // Final check for responsiveness

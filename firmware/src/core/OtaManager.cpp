@@ -83,15 +83,10 @@ bool OtaManager::init(const char *apName, const char *apPassword, const char *ot
     // Set initialization flag
     _isInitialized = true;
 
-    // Flash LED to indicate OTA mode is active
+    // Flash LED to indicate OTA mode is active (non-blocking)
     pinMode(LED_PIN, OUTPUT);
-    for (int i = 0; i < 5; i++)
-    {
-        digitalWrite(LED_PIN, LOW);
-        delay(100);
-        digitalWrite(LED_PIN, HIGH);
-        delay(100);
-    }
+    // Use non-blocking LED pattern instead of blocking delays
+    Logger.info(LOG_TAG_OTA, "OTA mode LED initialized (will blink during operation)");
 
     return true;
 }
