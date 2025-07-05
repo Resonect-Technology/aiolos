@@ -217,7 +217,7 @@ public:
      * @param port The port to connect to.
      * @return true if connection is successful, false otherwise.
      */
-    bool testConnectivity(const char *host, uint16_t port);
+    bool testConnectivity(const char *host, int port);
 
     String getNetworkParams();
     String getNetworkAPN();

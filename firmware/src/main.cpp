@@ -786,16 +786,10 @@ void enterDeepSleepUntil(int hour, int minute)
         otaActive = false;
     }
 
-    // Put modem into sleep mode with GPIO hold enabled
-    if (modemManager.enterSleepMode(true))
-    {
-        Logger.info(LOG_TAG_SYSTEM, "Modem entered sleep mode successfully");
-    }
-    else
-    {
-        Logger.warn(LOG_TAG_SYSTEM, "Failed to put modem to sleep, powering off instead");
-        modemManager.powerOff();
-    }
+    // Power off modem completely before deep sleep
+    // This ensures a single, robust shutdown path using our fixed powerOff() function
+    Logger.info(LOG_TAG_SYSTEM, "Powering off modem before deep sleep");
+    modemManager.powerOff();
 
     // Configure deep sleep wake-up timer
     esp_sleep_enable_timer_wakeup(sleepSeconds * 1000000ULL); // Convert to microseconds

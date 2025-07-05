@@ -6,6 +6,7 @@
 #include "ModemManager.h"
 #include "Logger.h"
 #include "config/Config.h" // Include config for APN constant
+#include <Arduino.h>       // For Arduino types and functions
 
 ModemManager modemManager;
 
@@ -756,7 +757,7 @@ bool ModemManager::wakeUp(bool fromDeepSleep)
     return false;
 }
 
-bool ModemManager::testConnectivity(const char *host, uint16_t port)
+bool ModemManager::testConnectivity(const char *host, int port)
 {
     Logger.info(LOG_TAG_MODEM, "Testing connectivity to %s:%d...", host, port);
 
