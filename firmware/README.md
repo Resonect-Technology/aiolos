@@ -171,3 +171,92 @@ The firmware is **production-ready** and has undergone comprehensive testing and
 - **Power Efficiency**: Optimized for solar/battery operation with deep sleep
 - **Network Reliability**: Connection throttling and graceful degradation
 - **Data Integrity**: Comprehensive sensor validation and error reporting
+
+#### Wind Measurement System
+- **Accurate Wind Speed**: Fixed timing issues in pulse counting for precise speed measurements
+- **Smart Direction Filtering**: 1-second stability delay prevents reporting of brief wind gusts
+- **Dual Reporting Modes**: 
+  - **Live Stream**: ≤5s interval readings for real-time monitoring (windSampleInterval ignored)
+  - **Averaged Data**: >5s interval vector-averaged readings for long-term trends
+- **Vector Averaging**: Proper handling of wind direction across the 0°/360° boundary
+
+---
+
+## Technical Details
+
+### Wind Measurement Architecture
+
+#### Wind Speed Calculation
+The anemometer generates pulses that are counted by an interrupt handler. Wind speed is calculated using:
+- **Frequency = (Total Pulses × 1000) / Time Period (ms)**
+- **Wind Speed = Frequency × 0.6667 m/s** (calibrated from datasheet: 2.4 km/h per Hz)
+
+#### Wind Direction Stability
+To filter out brief wind gusts, direction changes must be stable for at least 1 second before being reported. This prevents rapid fluctuations from affecting measurements.
+
+#### Averaging System
+For long-term measurements (5+ minutes), the system uses:
+- **Vector Averaging**: Directions are converted to X,Y components and averaged to handle the 0°/360° boundary correctly
+- **Configurable Sample Rate**: Default 2-second intervals during the averaging period  
+- **Cumulative Pulse Counting**: All pulses are counted over the entire period for accurate speed averaging
+
+The system supports both live streaming (1-second readings) and averaged data (5+ minute periods) for different use cases.
+
+### Wind Measurement Configuration
+
+The wind measurement system operates in two distinct modes based on the `windSendInterval` configuration parameter:
+
+#### Mode Selection
+- **Live Stream Mode**: `windSendInterval ≤ 5000ms` (≤ 5 seconds)
+- **Averaged Mode**: `windSendInterval > 5000ms` (> 5 seconds)
+
+#### Configuration Parameters
+
+**windSendInterval** - Controls how often wind data is sent to the server:
+- `1000` = Send every 1 second (live stream)
+- `3000` = Send every 3 seconds (live stream)
+- `300000` = Send every 5 minutes (averaged mode)
+
+**windSampleInterval** - Controls internal sampling rate during averaging:
+- **Live Stream Mode**: This parameter is **ignored** (direct sensor readings used)
+- **Averaged Mode**: Controls how often samples are taken during the averaging period
+  - `2000` = Sample every 2 seconds during averaging
+  - `10000` = Sample every 10 seconds during averaging
+
+#### Configuration Examples
+
+**Maximum Real-Time Performance:**
+```json
+{
+  "windSendInterval": 1000,
+  "windSampleInterval": 500
+}
+```
+Result: Sends wind data every 1 second using direct sensor readings (windSampleInterval ignored)
+
+**Balanced Live Monitoring:**
+```json
+{
+  "windSendInterval": 3000,
+  "windSampleInterval": 1000
+}
+```
+Result: Sends wind data every 3 seconds using direct sensor readings (windSampleInterval ignored)
+
+**Low-Power Averaged Mode:**
+```json
+{
+  "windSendInterval": 300000,
+  "windSampleInterval": 10000
+}
+```
+Result: Samples wind every 10 seconds for 5 minutes, then sends one vector-averaged reading
+
+**High-Resolution Averaged Mode:**
+```json
+{
+  "windSendInterval": 300000,
+  "windSampleInterval": 2000
+}
+```
+Result: Samples wind every 2 seconds for 5 minutes, then sends one vector-averaged reading (higher accuracy, slightly more power consumption)

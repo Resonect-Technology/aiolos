@@ -10,9 +10,6 @@
 
 #define LOG_TAG_WIND "WIND"
 
-// Define the static constexpr array (required for C++14 and earlier)
-constexpr WindSensor::WindDirectionEntry WindSensor::WIND_DIRECTIONS[];
-
 // Global instance for the interrupt handler
 WindSensor windSensor;
 
@@ -35,6 +32,7 @@ bool WindSensor::init(uint8_t anemometerPin, uint8_t windVanePin)
     _anemometerPin = anemometerPin;
     _windVanePin = windVanePin;
     _pulseCount = 0;
+    _lastPulseCount = 0; // Initialize pulse tracking
     _lastMeasurementTime = millis();
 
     // Configure wind vane pin as analog input
@@ -188,52 +186,51 @@ float WindSensor::getWindDirection()
     return direction;
 }
 
-float WindSensor::voltageToDirection(float voltage)
-{
-    // This method is kept for reference but is no longer the primary direction calculation method
-    // Find the closest voltage in the lookup table
-    float minDifference = abs(voltage - WIND_DIRECTIONS[0].voltage);
-    float direction = WIND_DIRECTIONS[0].direction;
-    size_t matchedIndex = 0;
-
-    for (size_t i = 1; i < WIND_DIRECTIONS_COUNT; i++)
-    {
-        float difference = abs(voltage - WIND_DIRECTIONS[i].voltage);
-        if (difference < minDifference)
-        {
-            minDifference = difference;
-            direction = WIND_DIRECTIONS[i].direction;
-            matchedIndex = i;
-        }
-    }
-
-    return direction;
-}
-
 float WindSensor::getWindSpeed(unsigned long samplePeriodMs)
 {
-    // Get pulse count during the sample period
-    noInterrupts(); // Disable interrupts to safely read volatile variable
-    unsigned long pulseCount = _pulseCount;
-    _pulseCount = 0; // Reset counter
-    interrupts();    // Re-enable interrupts
+    /*
+     * FIXED WIND SPEED TIMING LOGIC
+     *
+     * Previous Issue: The function reset _pulseCount immediately but used elapsedTime
+     * since the last function call, creating a timing mismatch where pulse count
+     * and time period didn't correspond to the same measurement window.
+     *
+     * Fixed Approach: We now track cumulative pulse count and calculate the difference
+     * since the last measurement, ensuring pulse count and time period are synchronized.
+     */
 
-    // Calculate time elapsed since last measurement
     unsigned long currentTime = millis();
+
+    // Safely read current cumulative pulse count without resetting it
+    noInterrupts();
+    unsigned long currentTotalPulses = _pulseCount;
+    interrupts();
+
+    // Calculate actual elapsed time since last measurement
     unsigned long elapsedTime = currentTime - _lastMeasurementTime;
+
+    // Calculate pulses that occurred during this specific time period
+    unsigned long pulsesInPeriod = currentTotalPulses - _lastPulseCount;
+
+    // Update tracking variables for next measurement
     _lastMeasurementTime = currentTime;
+    _lastPulseCount = currentTotalPulses;
 
-    // Ensure elapsed time is at least the sample period
-    elapsedTime = max(elapsedTime, 1UL); // Avoid division by zero
+    // Ensure elapsed time is reasonable to avoid division by zero or unrealistic speeds
+    if (elapsedTime < 100)
+    { // Less than 100ms is unreliable
+        Logger.debug(LOG_TAG_WIND, "Wind speed measurement too frequent (%lu ms), returning 0", elapsedTime);
+        return 0.0;
+    }
 
-    // Calculate frequency (pulses per second)
-    float frequency = (float)pulseCount * 1000.0 / elapsedTime;
+    // Calculate frequency (pulses per second) using synchronized pulse count and time
+    float frequency = (float)pulsesInPeriod * 1000.0 / elapsedTime;
 
     // Convert frequency to wind speed using calibration factor
     float windSpeed = frequency * ANEMOMETER_FACTOR;
 
-    Logger.debug(LOG_TAG_WIND, "Anemometer pulses: %lu in %lu ms, Speed: %.2f m/s",
-                 pulseCount, elapsedTime, windSpeed);
+    Logger.debug(LOG_TAG_WIND, "Anemometer: %lu pulses in %lu ms (total: %lu), Speed: %.2f m/s",
+                 pulsesInPeriod, elapsedTime, currentTotalPulses, windSpeed);
 
     return windSpeed;
 }
@@ -466,6 +463,14 @@ void WindSensor::startSamplingPeriod()
 bool WindSensor::getAveragedWindData(unsigned long samplingPeriodMs, float &avgSpeed, float &avgDirection)
 {
     unsigned long currentTime = millis();
+
+    // Check if sampling period has been started
+    if (_samplingStartTime == 0)
+    {
+        Logger.debug(LOG_TAG_WIND, "No active sampling period - call startSamplingPeriod() first");
+        return false;
+    }
+
     unsigned long elapsedTime = currentTime - _samplingStartTime;
 
     // Check if it's time to take a new sample (based on configured interval)
@@ -521,6 +526,13 @@ bool WindSensor::getAveragedWindData(unsigned long samplingPeriodMs, float &avgS
 
     Logger.info(LOG_TAG_WIND, "Sampling complete: Avg Speed: %.2f m/s, Avg Direction: %.1f° (Samples: %d, Pulses: %lu)",
                 avgSpeed, avgDirection, _directionSampleCount, _totalPulseCount);
+
+    // Reset sampling period data for next measurement
+    _directionSumX = 0.0;
+    _directionSumY = 0.0;
+    _directionSampleCount = 0;
+    _totalPulseCount = 0;
+    _samplingStartTime = 0; // Mark sampling as complete/inactive
 
     return true; // Sampling complete
 }
