@@ -323,7 +323,7 @@ bool ModemManager::powerOff()
      * 1. Send AT+CPOWD=1 command twice for enhanced reliability
      * 2. Use TinyGSM's poweroff() method for additional AT+CPOWD=1
      * 3. CRITICAL: Set PWR_PIN to HIGH (LOW to modem) to maintain OFF state
-     * 4. Validate power-off by checking modem responsiveness
+     * 4. NO validation via AT commands (could wake up the modem)
      *
      * Pin logic understanding (confirmed by LilyGO ModemSleep example):
      * - ESP32 GPIO HIGH = LOW to modem (OFF state)
@@ -377,17 +377,8 @@ bool ModemManager::powerOff()
         Logger.debug(LOG_TAG_MODEM, "Waiting for modem to complete shutdown...");
         delay(3000);
 
-        // Step 5: Verify power-off by checking modem responsiveness
-        Logger.debug(LOG_TAG_MODEM, "Verifying modem power-off...");
-        bool stillResponsive = _modem.testAT(1000);
-        if (stillResponsive)
-        {
-            Logger.warn(LOG_TAG_MODEM, "Modem still responsive after power-off sequence");
-        }
-        else
-        {
-            Logger.info(LOG_TAG_MODEM, "Modem successfully powered off (not responsive)");
-        }
+        // NOTE: We do NOT validate power-off by sending AT commands as this could wake up the modem.
+        // The power-off sequence (multiple AT+CPOWD=1 + correct PWR_PIN state) should be sufficient.
 
         Logger.info(LOG_TAG_MODEM, "Software power off completed, PWR_PIN set to HIGH (LOW to modem)");
         return true;
@@ -412,17 +403,8 @@ bool ModemManager::powerOff()
         Logger.debug(LOG_TAG_MODEM, "Hardware power down pulse sent, PWR_PIN set to HIGH (LOW to modem)");
         delay(3000); // Wait for shutdown
 
-        // Verify hardware power-off by checking modem responsiveness
-        Logger.debug(LOG_TAG_MODEM, "Verifying hardware power-off...");
-        bool stillResponsive = _modem.testAT(1000);
-        if (stillResponsive)
-        {
-            Logger.warn(LOG_TAG_MODEM, "Modem still responsive after hardware power-off");
-        }
-        else
-        {
-            Logger.info(LOG_TAG_MODEM, "Modem successfully powered off via hardware (not responsive)");
-        }
+        // NOTE: We do NOT validate power-off by sending AT commands as this could wake up the modem.
+        // The hardware power-off sequence (LOW pulse + correct final PWR_PIN state) should be sufficient.
 
         Logger.info(LOG_TAG_MODEM, "Hardware power down completed");
     }
