@@ -40,6 +40,12 @@ bool otaActive = false;
 unsigned long lastOtaCheck = 0;
 bool isSamplingWind = false; // For wind data averaging
 
+// Emergency connection failure tracking
+unsigned long lastConnectionFailureTime = 0;
+int connectionFailureCount = 0;
+const int MAX_CONNECTION_FAILURES = 10;
+const unsigned long CONNECTION_FAILURE_RESET_TIME = 600000; // 10 minutes
+
 // Non-blocking temperature reading state
 bool tempConversionStarted = false;
 unsigned long tempConversionStartTime = 0;
@@ -362,11 +368,88 @@ void loop()
         }
     }
 
+    // EMERGENCY: Check for catastrophic connection failure loop
+    // (currentMillis already declared above)
+
+    // Reset connection failure counter if enough time has passed
+    if (currentMillis - lastConnectionFailureTime > CONNECTION_FAILURE_RESET_TIME)
+    {
+        if (connectionFailureCount > 0)
+        {
+            Logger.info(LOG_TAG_SYSTEM, "Resetting connection failure count after %lu ms",
+                        currentMillis - lastConnectionFailureTime);
+            connectionFailureCount = 0;
+        }
+    }
+
+    // Check if we've had too many connection failures recently
+    if (connectionFailureCount >= MAX_CONNECTION_FAILURES)
+    {
+        Logger.error(LOG_TAG_SYSTEM, "EMERGENCY: Too many connection failures (%d), entering recovery mode",
+                     connectionFailureCount);
+
+        // Force modem reset
+        if (modemManager.needsReset())
+        {
+            Logger.warn(LOG_TAG_SYSTEM, "EMERGENCY: Attempting modem reset");
+            if (modemManager.resetModem())
+            {
+                Logger.info(LOG_TAG_SYSTEM, "EMERGENCY: Modem reset successful, clearing failure count");
+                connectionFailureCount = 0;
+            }
+            else
+            {
+                Logger.error(LOG_TAG_SYSTEM, "EMERGENCY: Modem reset failed, entering extended backoff");
+                // Enter extended backoff - don't attempt connections for 10 minutes
+                delay(600000);              // 10 minutes
+                connectionFailureCount = 0; // Reset after backoff
+            }
+        }
+        else
+        {
+            Logger.warn(LOG_TAG_SYSTEM, "EMERGENCY: Extended backoff period active");
+            delay(60000); // 1 minute delay
+            return;       // Skip this loop iteration
+        }
+    }
+
     // Maintain the connection, ensuring GPRS is active for data transmission.
-    modemManager.maintainConnection(true);
+    bool connectionSuccess = false;
+    if (modemManager.isGprsConnected())
+    {
+        connectionSuccess = true;
+    }
+    else
+    {
+        // Only try to maintain connection if not in failure state
+        if (connectionFailureCount < MAX_CONNECTION_FAILURES)
+        {
+            modemManager.maintainConnection(true);
+            connectionSuccess = modemManager.isGprsConnected();
+        }
+    }
+
+    // Track connection failures
+    if (!connectionSuccess && connectionFailureCount < MAX_CONNECTION_FAILURES)
+    {
+        connectionFailureCount++;
+        lastConnectionFailureTime = currentMillis;
+        Logger.warn(LOG_TAG_SYSTEM, "Connection failure #%d recorded", connectionFailureCount);
+
+        // If we've reached the limit, log it
+        if (connectionFailureCount >= MAX_CONNECTION_FAILURES)
+        {
+            Logger.error(LOG_TAG_SYSTEM, "EMERGENCY: Connection failure limit reached, will trigger recovery next loop");
+        }
+    }
+    else if (connectionSuccess && connectionFailureCount > 0)
+    {
+        Logger.info(LOG_TAG_SYSTEM, "Connection restored after %d failures", connectionFailureCount);
+        connectionFailureCount = 0; // Reset on successful connection
+    }
 
     // Only proceed with network operations if GPRS is connected and not in backoff
-    if (modemManager.isGprsConnected() && !httpClient.isConnectionThrottled())
+    if (connectionSuccess && !httpClient.isConnectionThrottled())
     {
         // Send diagnostics data periodically
         if (currentMillis - lastDiagnosticsUpdate >= dynamicDiagInterval)

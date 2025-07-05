@@ -328,3 +328,67 @@ The system includes robust error handling for diagnostic operations:
 - **ADC Reading Validation**: Out-of-range values are detected and logged
 - **HTTP Transmission Failures**: Logged and retried on next cycle
 - **Watchdog Management**: Temporarily disabled during network operations to prevent false resets
+
+## Connection Recovery and Stability
+
+The system includes comprehensive connection recovery mechanisms to prevent infinite loops and handle modem failures:
+
+### Failure Detection and Recovery
+
+**Connection Failure Tracking:**
+- Tracks consecutive connection failures
+- Implements exponential backoff (30s to 5 minutes)
+- Prevents infinite connection retry loops
+
+**Modem Reset Conditions:**
+- After 5 consecutive connection failures
+- After 3 minutes of modem unresponsiveness
+- Minimum 5 minutes between resets to prevent reset loops
+
+**Recovery Sequence:**
+1. **Backoff Period**: Exponential delays between connection attempts
+2. **Modem Reset**: Complete power cycle if failures persist
+3. **Emergency Recovery**: Hardware reset with full re-initialization
+4. **Graceful Degradation**: System continues with limited functionality if modem fails
+
+### Configuration for Field Deployment
+
+**Stable Connection Settings:**
+```json
+{
+  "windSendInterval": 5000,
+  "diagInterval": 300000,
+  "tempInterval": 600000
+}
+```
+- Reduces modem load while maintaining functionality
+- Allows recovery time between operations
+- Balances data frequency with stability
+
+**High-Reliability Mode:**
+```json
+{
+  "windSendInterval": 10000,
+  "diagInterval": 600000,
+  "tempInterval": 900000
+}
+```
+- Maximum stability for remote deployments
+- Minimal modem stress
+- Suitable for locations with poor signal quality
+
+### Monitoring and Diagnostics
+
+The system logs comprehensive connection health information:
+- Connection failure counts and backoff periods
+- Modem reset events and recovery success rates
+- Signal quality trends and network stability metrics
+- Unresponsive modem detection and recovery timing
+
+### Field Operation Recommendations
+
+1. **Monitor Initial Deployment**: Check logs for connection patterns in the first 24 hours
+2. **Signal Quality**: Ensure signal strength > -100 dBm for stable operation
+3. **Power Management**: Use conservative intervals in low-power scenarios
+4. **Remote Recovery**: System will automatically recover from most failure modes
+5. **Manual Intervention**: Only needed if hardware faults occur

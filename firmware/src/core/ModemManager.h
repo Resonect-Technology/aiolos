@@ -117,10 +117,29 @@ public:
     /**
      * @brief Maintain the modem's connection state (network and GPRS)
      *
+     * This method includes intelligent failure detection and recovery mechanisms
+     * to prevent infinite connection loops and handle unresponsive modem states.
+     *
      * @param active If true, ensures network and GPRS are connected.
      *               If false, disconnects GPRS to save power.
      */
     void maintainConnection(bool active);
+
+    /**
+     * @brief Check if the modem is in a failure state requiring reset
+     *
+     * @return true if modem needs reset due to consecutive failures
+     * @return false if modem is operating normally
+     */
+    bool needsReset();
+
+    /**
+     * @brief Reset the modem completely (power cycle)
+     *
+     * @return true if reset successful
+     * @return false if reset failed
+     */
+    bool resetModem();
 
     /**
      * @brief Get the current time from the network
@@ -215,8 +234,27 @@ private:
     bool _initialized = false;
     unsigned long _lastReconnectAttempt = 0;
 
+    // Connection failure tracking and recovery
+    unsigned long _lastConnectionAttempt = 0;
+    int _consecutiveFailures = 0;
+    unsigned long _backoffDelay = 0;
+    unsigned long _lastModemReset = 0;
+    unsigned long _lastResponsiveTime = 0;
+    static const int MAX_CONSECUTIVE_FAILURES = 5;
+    static const unsigned long MIN_BACKOFF_DELAY = 30000;     // 30 seconds
+    static const unsigned long MAX_BACKOFF_DELAY = 300000;    // 5 minutes
+    static const unsigned long MIN_RESET_INTERVAL = 300000;   // 5 minutes between resets
+    static const unsigned long UNRESPONSIVE_TIMEOUT = 180000; // 3 minutes of unresponsiveness
+
     bool _initHardware();     // Declaration for the private hardware init function
     SimStatus getSimStatus(); // Declaration for getSimStatus
+
+    // Connection management methods
+    bool _shouldAttemptConnection();
+    void _recordConnectionFailure();
+    void _recordConnectionSuccess();
+    bool _performModemReset();
+    void _updateResponsiveTime();
 
     /**
      * @brief Temporarily disable the watchdog for long modem operations

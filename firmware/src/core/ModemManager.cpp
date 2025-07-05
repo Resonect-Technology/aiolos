@@ -362,7 +362,7 @@ bool ModemManager::powerOff()
         _modem.poweroff();
 
         // Step 3: Ensure PWR_PIN stays HIGH (already set above, but reinforce)
-        digitalWrite(PWR_PIN, HIGH); // This is LOW to the modem due to transistor inversion (keeps OFF)
+        digitalWrite(PWR_PIN, HIGH); // This is LOW to modem due to transistor inversion (keeps OFF)
 
         // Step 4: Minimal wait - just enough for shutdown to take effect
         Logger.debug(LOG_TAG_MODEM, "Brief wait for shutdown to take effect...");
@@ -607,12 +607,14 @@ bool ModemManager::isResponsive()
     if (res == 1)
     {
         Logger.debug(LOG_TAG_MODEM, "Modem is responsive");
+        _updateResponsiveTime(); // Update responsive time
         return true;
     }
     else if (res == 2)
     {
         Logger.debug(LOG_TAG_MODEM, "Modem returned ERROR but is responsive");
-        return true; // Still consider responsive if it returns ERROR
+        _updateResponsiveTime(); // Update responsive time
+        return true;             // Still consider responsive if it returns ERROR
     }
     else
     {
@@ -888,15 +890,48 @@ void ModemManager::maintainConnection(bool active)
 {
     if (active)
     {
+        // Check if we should attempt connection based on failure tracking
+        if (!_shouldAttemptConnection())
+        {
+            Logger.debug(LOG_TAG_MODEM, "Skipping connection attempt due to backoff (failures: %d)", _consecutiveFailures);
+            return;
+        }
+
+        // Check if modem needs reset due to being unresponsive
+        if (needsReset())
+        {
+            Logger.warn(LOG_TAG_MODEM, "Modem requires reset due to consecutive failures or unresponsiveness");
+            if (!resetModem())
+            {
+                Logger.error(LOG_TAG_MODEM, "Modem reset failed");
+                _recordConnectionFailure();
+                return;
+            }
+        }
+
         // If we need an active connection, ensure network and GPRS are up
         if (!isNetworkConnected())
         {
-            connectNetwork();
+            Logger.info(LOG_TAG_MODEM, "Network not connected, attempting to connect...");
+            if (!connectNetwork(1)) // Only try once to avoid loops
+            {
+                _recordConnectionFailure();
+                return;
+            }
         }
+
         if (!isGprsConnected())
         {
-            connectGprs();
+            Logger.info(LOG_TAG_MODEM, "GPRS not connected, attempting to connect...");
+            if (!connectGprs(1)) // Only try once to avoid loops
+            {
+                _recordConnectionFailure();
+                return;
+            }
         }
+
+        // If we reach here, connection is successful
+        _recordConnectionSuccess();
     }
     else
     {
@@ -927,4 +962,173 @@ bool ModemManager::disconnectGprs()
     }
 
     return true;
+}
+
+/**
+ * @brief Check if we should attempt a connection based on failure tracking
+ */
+bool ModemManager::_shouldAttemptConnection()
+{
+    unsigned long currentTime = millis();
+
+    // Always allow first attempt
+    if (_lastConnectionAttempt == 0)
+    {
+        _lastConnectionAttempt = currentTime;
+        return true;
+    }
+
+    // Check if we're still in backoff period
+    if (_backoffDelay > 0 && (currentTime - _lastConnectionAttempt) < _backoffDelay)
+    {
+        return false;
+    }
+
+    // Update last attempt time
+    _lastConnectionAttempt = currentTime;
+    return true;
+}
+
+/**
+ * @brief Record a connection failure and update backoff
+ */
+void ModemManager::_recordConnectionFailure()
+{
+    _consecutiveFailures++;
+
+    // Calculate exponential backoff
+    _backoffDelay = MIN_BACKOFF_DELAY * (1 << min(_consecutiveFailures - 1, 4)); // Max 16x multiplier
+    _backoffDelay = min(_backoffDelay, MAX_BACKOFF_DELAY);
+
+    Logger.warn(LOG_TAG_MODEM, "Connection failure #%d, backoff: %lu ms", _consecutiveFailures, _backoffDelay);
+}
+
+/**
+ * @brief Record a successful connection and reset failure tracking
+ */
+void ModemManager::_recordConnectionSuccess()
+{
+    if (_consecutiveFailures > 0)
+    {
+        Logger.info(LOG_TAG_MODEM, "Connection successful after %d failures", _consecutiveFailures);
+    }
+
+    _consecutiveFailures = 0;
+    _backoffDelay = 0;
+    _updateResponsiveTime();
+}
+
+/**
+ * @brief Check if modem needs reset due to consecutive failures
+ */
+bool ModemManager::needsReset()
+{
+    unsigned long currentTime = millis();
+
+    // Check consecutive failures
+    if (_consecutiveFailures >= MAX_CONSECUTIVE_FAILURES)
+    {
+        // Only reset if enough time has passed since last reset
+        if (currentTime - _lastModemReset >= MIN_RESET_INTERVAL)
+        {
+            Logger.warn(LOG_TAG_MODEM, "Modem reset needed due to %d consecutive failures", _consecutiveFailures);
+            return true;
+        }
+    }
+
+    // Check if modem has been unresponsive for too long
+    if (_lastResponsiveTime > 0 && (currentTime - _lastResponsiveTime) > UNRESPONSIVE_TIMEOUT)
+    {
+        if (currentTime - _lastModemReset >= MIN_RESET_INTERVAL)
+        {
+            Logger.warn(LOG_TAG_MODEM, "Modem reset needed due to unresponsiveness (%lu ms)",
+                        currentTime - _lastResponsiveTime);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * @brief Reset the modem completely (power cycle)
+ */
+bool ModemManager::resetModem()
+{
+    Logger.warn(LOG_TAG_MODEM, "Performing emergency modem reset...");
+
+    unsigned long currentTime = millis();
+    _lastModemReset = currentTime;
+
+    // Disable watchdog for reset operation
+    _setWatchdog(true);
+
+    // Step 1: Force power off
+    Logger.debug(LOG_TAG_MODEM, "Emergency power off...");
+    pinMode(PWR_PIN, OUTPUT);
+    digitalWrite(PWR_PIN, HIGH); // OFF state
+    delay(2000);
+
+    // Step 2: Send power-off pulse
+    digitalWrite(PWR_PIN, LOW); // Power off pulse
+    delay(1500);
+    digitalWrite(PWR_PIN, HIGH); // Return to OFF state
+    delay(3000);
+
+    // Step 3: Re-initialize hardware
+    Logger.debug(LOG_TAG_MODEM, "Re-initializing hardware...");
+    _initHardware();
+    delay(1000);
+
+    // Step 4: Power on sequence
+    Logger.debug(LOG_TAG_MODEM, "Emergency power on...");
+    digitalWrite(PWR_PIN, LOW); // Power on pulse
+    delay(1000);
+    digitalWrite(PWR_PIN, HIGH); // Return to default state
+    delay(3000);
+
+    // Step 5: Test responsiveness
+    Logger.debug(LOG_TAG_MODEM, "Testing modem responsiveness...");
+    bool responsive = false;
+    for (int i = 0; i < 10; i++)
+    {
+        if (isResponsive())
+        {
+            responsive = true;
+            break;
+        }
+        delay(1000);
+    }
+
+    // Re-enable watchdog
+    _setWatchdog(false);
+
+    if (responsive)
+    {
+        Logger.info(LOG_TAG_MODEM, "Emergency modem reset successful");
+        _consecutiveFailures = 0; // Reset failure count
+        _updateResponsiveTime();
+        return true;
+    }
+    else
+    {
+        Logger.error(LOG_TAG_MODEM, "Emergency modem reset failed - modem still unresponsive");
+        return false;
+    }
+}
+
+/**
+ * @brief Update the last responsive time
+ */
+void ModemManager::_updateResponsiveTime()
+{
+    _lastResponsiveTime = millis();
+}
+
+/**
+ * @brief Internal method to perform modem reset
+ */
+bool ModemManager::_performModemReset()
+{
+    return resetModem();
 }
