@@ -19,24 +19,43 @@ bool DiagnosticsManager::init(ModemManager &modemManager, AiolosHttpClient &http
     _modemManager = &modemManager;
     _httpClient = &httpClient;
     _interval = interval;
+    _internalTempAvailable = false;
+    _externalTempAvailable = false;
 
     // Initialize internal temperature sensor
-    if (!_internalTempSensor.init(TEMP_BUS_INT, "internal"))
+    if (_internalTempSensor.init(TEMP_BUS_INT, "internal"))
+    {
+        _internalTempAvailable = true;
+        Logger.info(LOG_TAG_DIAG, "Internal temperature sensor initialized successfully");
+    }
+    else
     {
         Logger.error(LOG_TAG_DIAG, "Failed to initialize internal temperature sensor");
-        return false;
+        // Don't fail initialization - we can still send other diagnostics
     }
 
     // Initialize external temperature sensor
-    if (!_externalTempSensor.init(TEMP_BUS_EXT, "external"))
+    if (_externalTempSensor.init(TEMP_BUS_EXT, "external"))
+    {
+        _externalTempAvailable = true;
+        Logger.info(LOG_TAG_DIAG, "External temperature sensor initialized successfully");
+    }
+    else
     {
         Logger.warn(LOG_TAG_DIAG, "Failed to initialize external temperature sensor (optional)");
         // Continue initialization even if external sensor fails
     }
 
+    // Configure ADC for solar voltage reading once
+    configureSolarAdc();
+
     _initialized = true;
 
     Logger.info(LOG_TAG_DIAG, "Diagnostics manager initialized with interval of %lu ms", _interval);
+    Logger.info(LOG_TAG_DIAG, "Temperature sensors - Internal: %s, External: %s",
+                _internalTempAvailable ? "available" : "unavailable",
+                _externalTempAvailable ? "available" : "unavailable");
+
     return true;
 }
 
@@ -60,6 +79,34 @@ bool DiagnosticsManager::sendDiagnostics()
         return false;
     }
 
+    // Read internal temperature if available
+    float internalTemp = _internalTempAvailable ? readInternalTemperature() : -127.0f;
+
+    // Read external temperature if available
+    float externalTemp = _externalTempAvailable ? readExternalTemperature() : -127.0f;
+
+    return sendDiagnosticsInternal(internalTemp, externalTemp);
+}
+
+/**
+ * @brief Send diagnostics with external temperature readings
+ */
+bool DiagnosticsManager::sendDiagnostics(float internalTemp, float externalTemp)
+{
+    if (!_initialized || !_modemManager || !_httpClient)
+    {
+        Logger.error(LOG_TAG_DIAG, "Diagnostics manager not initialized");
+        return false;
+    }
+
+    return sendDiagnosticsInternal(internalTemp, externalTemp);
+}
+
+/**
+ * @brief Internal method to send diagnostics data
+ */
+bool DiagnosticsManager::sendDiagnosticsInternal(float internalTemp, float externalTemp)
+{
     Logger.info(LOG_TAG_DIAG, "Collecting and sending diagnostics data...");
 
     // Get signal quality
@@ -69,14 +116,14 @@ bool DiagnosticsManager::sendDiagnostics()
     float batteryVoltage = readBatteryVoltage();
     float solarVoltage = readSolarVoltage();
 
-    // Read internal temperature
-    float internalTemp = readInternalTemperature();
-
-    // Read external temperature (optional)
-    float externalTemp = readExternalTemperature();
-
     // Get system uptime in seconds
-    unsigned long uptime = millis() / 1000;
+    unsigned long uptime = getSystemUptime();
+
+    // Log diagnostic values before sending
+    Logger.info(LOG_TAG_DIAG, "Diagnostics - Battery: %.2fV, Solar: %.2fV, Signal: %d, Uptime: %lus",
+                batteryVoltage, solarVoltage, signalQuality, uptime);
+    Logger.info(LOG_TAG_DIAG, "Diagnostics - Internal temp: %.1f°C, External temp: %.1f°C",
+                internalTemp, externalTemp);
 
 #ifdef DISABLE_WDT_FOR_MODEM
     Logger.debug(LOG_TAG_DIAG, "Disabling watchdog for diagnostics");
@@ -95,7 +142,6 @@ bool DiagnosticsManager::sendDiagnostics()
     if (success)
     {
         Logger.info(LOG_TAG_DIAG, "Diagnostics data sent successfully");
-        Logger.info(LOG_TAG_DIAG, "Internal temp: %.1f°C, External temp: %.1f°C", internalTemp, externalTemp);
     }
     else
     {
@@ -118,33 +164,64 @@ float DiagnosticsManager::readBatteryVoltage()
  */
 float DiagnosticsManager::readSolarVoltage()
 {
-    // Configure ADC
-    analogSetWidth(12);                               // Set ADC resolution to 12 bits
-    analogSetPinAttenuation(ADC_SOLAR_PIN, ADC_11db); // Set attenuation for higher voltage range
-
     // Read multiple samples for better accuracy
-    const int numSamples = 10;
+    const int numSamples = 5; // Reduced from 10 to minimize blocking time
     int solarRawTotal = 0;
 
     for (int i = 0; i < numSamples; i++)
     {
-        solarRawTotal += analogRead(ADC_SOLAR_PIN);
-        delay(5);
+        int reading = analogRead(ADC_SOLAR_PIN);
+
+        // Validate reading is within expected ADC range
+        if (reading < 0 || reading > 4095)
+        {
+            Logger.warn(LOG_TAG_DIAG, "Invalid solar ADC reading: %d", reading);
+            continue;
+        }
+
+        solarRawTotal += reading;
+        delay(2); // Reduced delay from 5ms to 2ms
     }
 
     int solarRaw = solarRawTotal / numSamples;
 
-    // Calculate solar voltage (4.4V to 6V range according to docs)
-    float solarCalibration = 2.0; // This factor needs calibration with a multimeter
-    float solarVoltage = (float)solarRaw * 3.3 / 4095.0 * solarCalibration;
+    // Calculate solar voltage with calibration factor
+    float solarVoltage = (float)solarRaw * 3.3 / 4095.0 * _solarVoltageCalibration;
 
-    // Limit to expected range based on documentation
+    // Limit to expected range based on documentation (0V to 6.5V)
     solarVoltage = constrain(solarVoltage, 0.0, 6.5);
 
     // Log the raw and converted values
-    Logger.debug(LOG_TAG_DIAG, "Solar ADC: %d, Voltage: %.2fV", solarRaw, solarVoltage);
+    Logger.debug(LOG_TAG_DIAG, "Solar ADC: %d, Voltage: %.2fV (cal: %.2f)",
+                 solarRaw, solarVoltage, _solarVoltageCalibration);
 
     return solarVoltage;
+}
+
+/**
+ * @brief Configure ADC for solar voltage reading
+ */
+void DiagnosticsManager::configureSolarAdc()
+{
+    static bool adcConfigured = false;
+
+    if (!adcConfigured)
+    {
+        // Configure ADC
+        analogSetWidth(12);                               // Set ADC resolution to 12 bits
+        analogSetPinAttenuation(ADC_SOLAR_PIN, ADC_11db); // Set attenuation for higher voltage range
+
+        adcConfigured = true;
+        Logger.debug(LOG_TAG_DIAG, "Solar ADC configured (12-bit, 11dB attenuation)");
+    }
+}
+
+/**
+ * @brief Get system uptime in seconds
+ */
+unsigned long DiagnosticsManager::getSystemUptime() const
+{
+    return millis() / 1000;
 }
 
 /**
@@ -152,11 +229,24 @@ float DiagnosticsManager::readSolarVoltage()
  */
 float DiagnosticsManager::readInternalTemperature()
 {
+    if (!_internalTempAvailable)
+    {
+        Logger.debug(LOG_TAG_DIAG, "Internal temperature sensor not available");
+        return -127.0;
+    }
+
     float temp = _internalTempSensor.readTemperature();
 
     if (temp == DEVICE_DISCONNECTED_C)
     {
-        Logger.error(LOG_TAG_DIAG, "Failed to read internal temperature sensor");
+        Logger.warn(LOG_TAG_DIAG, "Failed to read internal temperature sensor");
+        return -127.0;
+    }
+
+    // Validate temperature reading is within reasonable range
+    if (temp < -40.0 || temp > 85.0)
+    {
+        Logger.warn(LOG_TAG_DIAG, "Internal temperature reading out of range: %.2f°C", temp);
         return -127.0;
     }
 
@@ -169,11 +259,24 @@ float DiagnosticsManager::readInternalTemperature()
  */
 float DiagnosticsManager::readExternalTemperature()
 {
+    if (!_externalTempAvailable)
+    {
+        Logger.debug(LOG_TAG_DIAG, "External temperature sensor not available");
+        return -127.0;
+    }
+
     float temp = _externalTempSensor.readTemperature();
 
     if (temp == DEVICE_DISCONNECTED_C)
     {
-        Logger.debug(LOG_TAG_DIAG, "External temperature sensor not available");
+        Logger.debug(LOG_TAG_DIAG, "External temperature sensor disconnected");
+        return -127.0;
+    }
+
+    // Validate temperature reading is within reasonable range
+    if (temp < -40.0 || temp > 85.0)
+    {
+        Logger.warn(LOG_TAG_DIAG, "External temperature reading out of range: %.2f°C", temp);
         return -127.0;
     }
 

@@ -201,8 +201,14 @@ void setup()
         // Only proceed with network operations if GPRS is connected and not in backoff
         if (modemManager.isGprsConnected() && !httpClient.isConnectionThrottled())
         {
-            // Send initial diagnostics data
-            diagnosticsManager.sendDiagnostics();
+            // Send initial diagnostics data with minimal temperature reading
+            float internalTemp = diagnosticsManager.readInternalTemperature();
+            float externalTemp = externalTempSensor.readTemperature();
+            if (externalTemp == DEVICE_DISCONNECTED_C)
+            {
+                externalTemp = -127.0f;
+            }
+            diagnosticsManager.sendDiagnostics(internalTemp, externalTemp);
 
             // Initialize configuration update time
             lastConfigUpdate = millis();
@@ -366,7 +372,36 @@ void loop()
         if (currentMillis - lastDiagnosticsUpdate >= dynamicDiagInterval)
         {
             lastDiagnosticsUpdate = currentMillis;
-            diagnosticsManager.sendDiagnostics();
+
+            // Get temperature readings from main loop sensors to avoid conflicts
+            float internalTemp = -127.0f; // Default to "no reading"
+            float externalTemp = -127.0f; // Default to "no reading"
+
+            // Try to get current temperature readings without blocking
+            if (tempConversionStarted)
+            {
+                // If conversion is in progress, try to get non-blocking result
+                externalTemp = externalTempSensor.getTemperatureNonBlocking();
+                if (isnan(externalTemp))
+                {
+                    externalTemp = -127.0f; // Conversion still in progress
+                }
+            }
+            else
+            {
+                // No conversion in progress, use last known values or start new reading
+                externalTemp = externalTempSensor.readTemperature();
+                if (externalTemp == DEVICE_DISCONNECTED_C)
+                {
+                    externalTemp = -127.0f;
+                }
+            }
+
+            // Get internal temperature (this uses a different bus, so should be safe)
+            internalTemp = diagnosticsManager.readInternalTemperature();
+
+            // Send diagnostics with temperature readings to avoid sensor conflicts
+            diagnosticsManager.sendDiagnostics(internalTemp, externalTemp);
         }
 
         // Fetch remote configuration periodically

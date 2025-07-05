@@ -260,3 +260,71 @@ Result: Samples wind every 10 seconds for 5 minutes, then sends one vector-avera
 }
 ```
 Result: Samples wind every 2 seconds for 5 minutes, then sends one vector-averaged reading (higher accuracy, slightly more power consumption)
+
+## Diagnostics and System Health
+
+The DiagnosticsManager handles system health monitoring and reporting. It collects and sends critical system metrics to the server for monitoring and alerting.
+
+### Diagnostic Data Collected
+
+- **Battery Voltage**: Calibrated ADC reading from the battery monitoring circuit
+- **Solar Panel Voltage**: Calibrated ADC reading from the solar panel input
+- **Internal Temperature**: DS18B20 sensor reading from inside the weather station enclosure
+- **External Temperature**: DS18B20 sensor reading from the external environment (optional)
+- **Signal Quality**: Cellular signal strength (RSSI) from the modem
+- **System Uptime**: Time since last system restart (seconds)
+
+### Configuration Parameters
+
+**diagInterval** - Controls how often diagnostics are sent:
+- `300000` = Send every 5 minutes (recommended for production)
+- `60000` = Send every minute (useful for debugging)
+- `3600000` = Send every hour (low-power mode)
+
+### Temperature Sensor Management
+
+The system manages temperature sensors to avoid conflicts between the main loop and diagnostics:
+
+- **Internal Temperature**: Read via DiagnosticsManager using TEMP_BUS_INT (GPIO21)
+- **External Temperature**: Primary reading via main loop using TEMP_BUS_EXT (GPIO13)
+- **Sensor Conflict Avoidance**: DiagnosticsManager can accept external temperature readings to prevent OneWire bus conflicts
+
+### Solar Voltage Calibration
+
+The solar voltage reading uses a calibration factor that may need adjustment based on the actual hardware:
+
+- **Default Calibration**: 2.0x multiplier
+- **Expected Range**: 0V to 6.5V
+- **Calibration Method**: Compare DiagnosticsManager readings with multimeter measurements and adjust
+
+### Field Operation Recommendations
+
+**Production Configuration:**
+```json
+{
+  "diagInterval": 300000
+}
+```
+
+**Development/Debug Configuration:**
+```json
+{
+  "diagInterval": 60000
+}
+```
+
+**Low-Power Configuration:**
+```json
+{
+  "diagInterval": 3600000
+}
+```
+
+### Diagnostic Error Handling
+
+The system includes robust error handling for diagnostic operations:
+
+- **Temperature Sensor Failures**: System continues operation with -127.0°C indicating sensor unavailable
+- **ADC Reading Validation**: Out-of-range values are detected and logged
+- **HTTP Transmission Failures**: Logged and retried on next cycle
+- **Watchdog Management**: Temporarily disabled during network operations to prevent false resets
