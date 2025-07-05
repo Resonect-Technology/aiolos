@@ -121,6 +121,9 @@ private:
     // Response buffer size for the HTTP client
     static const int RESPONSE_BUFFER_SIZE = 1024;
 
+    // URL path buffer size
+    static const size_t URL_PATH_SIZE = 64;
+
     // Backoff constants
     static const unsigned long BASE_BACKOFF_DELAY_MS = 5000;  // 5 seconds
     static const unsigned long MAX_BACKOFF_DELAY_MS = 300000; // 5 minutes
@@ -144,7 +147,7 @@ private:
     void _handleHttpFailure();
     void _resetBackoff();
     int _performRequest(const char *method, const char *path, const char *body, String &responseBody);
-    int _performLightweightPost(const char *path, const char *body); // Fast POST without reading response body
+    int _performLightweightPost(const char *path, const char *body);
 };
 
 extern AiolosHttpClient httpClient;

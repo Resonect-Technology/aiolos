@@ -105,6 +105,12 @@ bool AiolosHttpClient::init(ModemManager &modemManager, const char *serverAddres
     // Initialize the ArduinoHttpClient as a pointer
     _arduinoClient = new HttpClient(*_client, _serverAddress, _serverPort);
 
+    if (!_arduinoClient)
+    {
+        Logger.error(LOG_TAG_HTTP, "Failed to allocate HttpClient");
+        return false;
+    }
+
     // Set the connection timeout. This is important for cellular connections.
     _arduinoClient->setTimeout(30000L); // 30 seconds
 
@@ -183,7 +189,7 @@ int AiolosHttpClient::_performRequest(const char *method, const char *path, cons
     responseBody = ""; // Clear the string
 
     unsigned long lastRead = millis();
-    const unsigned long readTimeout = 5000; // 5 seconds timeout
+    const unsigned long readTimeout = 30000; // 30 seconds timeout - matches HttpClient timeout
 
     while (_arduinoClient->connected() && (millis() - lastRead < readTimeout))
     {
@@ -263,9 +269,6 @@ int AiolosHttpClient::_performLightweightPost(const char *path, const char *body
     int statusCode = _arduinoClient->responseStatusCode();
     Logger.debug(LOG_TAG_HTTP, "HTTP Status: %d", statusCode);
 
-    // Skip response headers but don't read the body - we don't need it
-    _arduinoClient->skipResponseHeaders();
-
     // Important: stop the client immediately to close the connection
     _arduinoClient->stop();
 
@@ -289,8 +292,9 @@ bool AiolosHttpClient::sendDiagnostics(const char *stationId, float batteryVolta
 {
     Logger.info(LOG_TAG_HTTP, "Sending diagnostics data for station %s", stationId);
 
-    // Create JSON payload using ArduinoJson
+    // Create JSON payload using ArduinoJson with fixed-size document
     JsonDocument doc;
+    doc.to<JsonObject>(); // Ensure it's an object
     doc["battery_voltage"] = batteryVoltage;
     doc["solar_voltage"] = solarVoltage;
     doc["internal_temperature"] = internalTemp;
@@ -301,7 +305,7 @@ bool AiolosHttpClient::sendDiagnostics(const char *stationId, float batteryVolta
     serializeJson(doc, jsonBuffer);
 
     // Build the URL path
-    char urlPath[64];
+    char urlPath[URL_PATH_SIZE];
     snprintf(urlPath, sizeof(urlPath), "/api/stations/%s/diagnostics", stationId);
 
     String responseBody;
@@ -330,7 +334,7 @@ bool AiolosHttpClient::fetchConfiguration(const char *stationId, unsigned long *
     Logger.info(LOG_TAG_HTTP, "Fetching configuration for station %s", stationId);
 
     // Build the URL path with the station ID
-    char urlPath[64];
+    char urlPath[URL_PATH_SIZE];
     snprintf(urlPath, sizeof(urlPath), "/api/stations/%s/config", stationId);
 
     String responseBody;
@@ -340,7 +344,7 @@ bool AiolosHttpClient::fetchConfiguration(const char *stationId, unsigned long *
     {
         Logger.info(LOG_TAG_HTTP, "Configuration data received.");
 
-        // Use a JsonDocument with enough capacity for the configuration data
+        // Use a JsonDocument for configuration data
         JsonDocument doc;
         Logger.debug(LOG_TAG_HTTP, "About to parse JSON with length: %d", responseBody.length());
         DeserializationError error = deserializeJson(doc, responseBody);
@@ -429,8 +433,9 @@ bool AiolosHttpClient::sendWindData(const char *stationId, float windSpeed, floa
 {
     Logger.info(LOG_TAG_HTTP, "Sending wind data for station %s", stationId);
 
-    // Create JSON payload using ArduinoJson
+    // Create JSON payload using ArduinoJson with fixed-size document
     JsonDocument doc;
+    doc.to<JsonObject>(); // Ensure it's an object
     doc["wind_speed"] = windSpeed;
     doc["wind_direction"] = windDirection;
 
@@ -438,7 +443,7 @@ bool AiolosHttpClient::sendWindData(const char *stationId, float windSpeed, floa
     serializeJson(doc, jsonBuffer);
 
     // Build the URL path
-    char urlPath[64];
+    char urlPath[URL_PATH_SIZE];
     snprintf(urlPath, sizeof(urlPath), "/api/stations/%s/wind", stationId);
 
     // Use lightweight POST method that doesn't read response body for speed
@@ -463,15 +468,16 @@ bool AiolosHttpClient::sendTemperatureData(const char *stationId, float internal
 {
     Logger.info(LOG_TAG_HTTP, "Sending temperature data for station %s", stationId);
 
-    // Create JSON payload using ArduinoJson
+    // Create JSON payload using ArduinoJson with fixed-size document
     JsonDocument doc;
+    doc.to<JsonObject>(); // Ensure it's an object
     doc["temperature"] = externalTemp;
 
     String jsonBuffer;
     serializeJson(doc, jsonBuffer);
 
     // Build the URL path
-    char urlPath[64];
+    char urlPath[URL_PATH_SIZE];
     snprintf(urlPath, sizeof(urlPath), "/api/stations/%s/temperature", stationId);
 
     // Use lightweight POST method that doesn't read response body for speed
@@ -497,7 +503,7 @@ bool AiolosHttpClient::confirmOtaStarted(const char *stationId)
     Logger.info(LOG_TAG_HTTP, "Confirming OTA start for station %s", stationId);
 
     // Build the URL path
-    char urlPath[64];
+    char urlPath[URL_PATH_SIZE];
     snprintf(urlPath, sizeof(urlPath), "/api/stations/%s/ota-confirm", stationId);
 
     String responseBody;
