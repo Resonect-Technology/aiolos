@@ -19,12 +19,7 @@ function App() {
       <WindDashboard stationId={stationId} />
 
       <footer className="mt-12 text-center text-muted-foreground text-sm">
-        <p>Aiolos Project &copy; {new Date().getFullYear()}</p>
-        <p className="mt-1">
-          <a href="https://github.com/antoniolago/react-gauge-component" target="_blank" rel="noopener noreferrer" className="underline">
-            Gauge Component by antoniolago
-          </a>
-        </p>
+        <p>Resonect Technology s.r.o. &copy; {new Date().getFullYear()}</p>
       </footer>
     </div>
   )
