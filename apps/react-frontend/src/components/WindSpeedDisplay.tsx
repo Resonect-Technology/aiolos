@@ -3,8 +3,8 @@ import GaugeComponent from 'react-gauge-component';
 import { convertWindSpeed, WIND_UNIT_LABELS, getGaugeMinValue, getGaugeMaxValue, getWindSpeedColorByValue } from '../lib/wind-utils';
 
 interface WindData {
-  wind_speed: number;
-  wind_direction: number;
+  windSpeed: number;
+  windDirection: number;
   timestamp: string;
 }
 
@@ -37,7 +37,7 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
 
   // Convert wind speed to selected unit
   const convertedValue = useMemo(
-    () => convertWindSpeed(windData?.wind_speed || 0, selectedUnit),
+    () => convertWindSpeed(windData?.windSpeed || 0, selectedUnit),
     [windData, selectedUnit]
   );
 

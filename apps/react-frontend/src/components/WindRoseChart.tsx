@@ -13,8 +13,8 @@ import {
 import './WindRoseChart.css';
 
 interface WindData {
-  wind_speed: number;
-  wind_direction: number;
+  windSpeed: number;
+  windDirection: number;
   timestamp: string;
 }
 
@@ -34,8 +34,8 @@ export function WindRoseChart({ windHistory, selectedUnit }: WindRoseChartProps)
     }
     
     const data = {
-      direction: windHistory.map(data => data.wind_direction),
-      speed: windHistory.map(data => data.wind_speed)
+      direction: windHistory.map(data => data.windDirection),
+      speed: windHistory.map(data => data.windSpeed)
     };
     
     return calculateCustomWindRose(data);
