@@ -1,6 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import transmit from '@adonisjs/transmit/services/main'
-import StationDiagnostic from '#app/models/StationDiagnostic'
+import StationDiagnostic from '#app/models/station_diagnostic'
 
 export default class StationDiagnosticsController {
     /**

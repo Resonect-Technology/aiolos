@@ -1,4 +1,4 @@
-import SensorReading from '#models/SensorReading'
+import SensorReading from '#models/sensor_reading'
 import type { HttpContext } from '@adonisjs/core/http'
 
 export default class StationTemperatureController {
