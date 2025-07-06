@@ -6,19 +6,19 @@ export default class StationDiagnostic extends BaseModel {
     declare id: number
 
     @column()
-    declare station_id: string
+    declare stationId: string
 
     @column()
-    declare battery_voltage: number
+    declare batteryVoltage: number
 
     @column()
-    declare solar_voltage: number
+    declare solarVoltage: number
 
     @column()
-    declare internal_temperature: number | null
+    declare internalTemperature: number | null
 
     @column()
-    declare signal_quality: number
+    declare signalQuality: number
 
     @column()
     declare uptime: number

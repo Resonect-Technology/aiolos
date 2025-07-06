@@ -181,8 +181,8 @@ test.group('Station Configs Controller', (group) => {
         const stationId = 'test-station-004'
 
         const configData = {
-            temp_interval: 600,
-            wind_send_interval: 30
+            tempInterval: 600,
+            windSendInterval: 30
         }
 
         const response = await client
@@ -215,8 +215,8 @@ test.group('Station Configs Controller', (group) => {
         process.env.ADMIN_API_KEY = apiKey
 
         const configData = {
-            temp_interval: 'invalid-number', // Invalid data type
-            wind_send_interval: 30
+            tempInterval: 'invalid-number', // Invalid data type
+            windSendInterval: 30
         }
 
         const response = await client
@@ -231,7 +231,7 @@ test.group('Station Configs Controller', (group) => {
         // Validate error response structure
         assert.property(body, 'error')
         assert.equal(typeof body.error, 'string')
-        assert.include(body.error, 'Invalid value for temp_interval')
+        assert.include(body.error, 'Invalid value for tempInterval')
         assert.notProperty(body, 'ok', 'Success field should not be present in error response')
     })
 

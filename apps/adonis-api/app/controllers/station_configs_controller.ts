@@ -64,48 +64,38 @@ export default class StationConfigsController {
             // Validate data types if values are provided
             const configData: Record<string, any> = {}
 
-            // Map snake_case input fields to camelCase model properties for backward compatibility
-            const fieldMapping = {
-                'temp_interval': 'tempInterval',
-                'wind_send_interval': 'windSendInterval',
-                'wind_sample_interval': 'windSampleInterval',
-                'diag_interval': 'diagInterval',
-                'time_interval': 'timeInterval',
-                'restart_interval': 'restartInterval',
-                'sleep_start_hour': 'sleepStartHour',
-                'sleep_end_hour': 'sleepEndHour',
-                'ota_hour': 'otaHour',
-                'ota_minute': 'otaMinute',
-                'ota_duration': 'otaDuration',
-                'remote_ota': 'remoteOta'
-            }
-
-            // Support both snake_case (for backward compatibility) and camelCase
-            const allPossibleFields = [
-                ...Object.keys(fieldMapping), // snake_case
-                ...Object.values(fieldMapping) // camelCase
+            // Define all valid camelCase field names
+            const validFields = [
+                'tempInterval',
+                'windSendInterval',
+                'windSampleInterval',
+                'diagInterval',
+                'timeInterval',
+                'restartInterval',
+                'sleepStartHour',
+                'sleepEndHour',
+                'otaHour',
+                'otaMinute',
+                'otaDuration',
+                'remoteOta'
             ]
 
-            for (const inputField of allPossibleFields) {
-                if (data[inputField] !== undefined) {
-                    // Determine the model property name (always camelCase)
-                    const modelProperty = fieldMapping[inputField as keyof typeof fieldMapping] || inputField
+            // Process numeric fields
+            for (const field of validFields) {
+                if (data[field] !== undefined) {
+                    // Skip the boolean field (handle separately)
+                    if (field === 'remoteOta') continue
 
-                    // Skip if it's the boolean field (handle separately)
-                    if (modelProperty === 'remoteOta') continue
-
-                    const value = Number(data[inputField])
+                    const value = Number(data[field])
                     if (isNaN(value)) {
-                        return response.badRequest({ error: `Invalid value for ${inputField}. Must be a number.` })
+                        return response.badRequest({ error: `Invalid value for ${field}. Must be a number.` })
                     }
-                    configData[modelProperty] = value
+                    configData[field] = value
                 }
             }
 
-            // Handle remoteOta flag (boolean) - support both naming conventions
-            if (data.remote_ota !== undefined) {
-                configData.remoteOta = Boolean(data.remote_ota)
-            } else if (data.remoteOta !== undefined) {
+            // Handle remoteOta flag (boolean)
+            if (data.remoteOta !== undefined) {
                 configData.remoteOta = Boolean(data.remoteOta)
             }
 

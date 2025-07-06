@@ -13,24 +13,24 @@ export default class StationLiveController {
     /**
      * Receives live wind data for a station and broadcasts it via Transmit SSE.
      * POST /stations/:station_id/live/wind
-     * Body: { wind_speed: number, wind_direction: number, timestamp?: string }
+     * Body: { windSpeed: number, windDirection: number, timestamp?: string }
      */
     async wind({ params, request, response }: HttpContext) {
         const { station_id } = params
-        const { wind_speed, wind_direction, timestamp } = request.only([
-            'wind_speed',
-            'wind_direction',
+        const { windSpeed, windDirection, timestamp } = request.only([
+            'windSpeed',
+            'windDirection',
             'timestamp',
         ])
         if (
-            typeof wind_speed !== 'number' ||
-            typeof wind_direction !== 'number'
+            typeof windSpeed !== 'number' ||
+            typeof windDirection !== 'number'
         ) {
             return response.badRequest({ error: 'Invalid wind data' })
         }
         await transmit.broadcast(`wind/live/${station_id}`, {
-            wind_speed,
-            wind_direction,
+            windSpeed,
+            windDirection,
             timestamp: timestamp || new Date().toISOString(),
         })
         return { ok: true }
@@ -39,32 +39,32 @@ export default class StationLiveController {
     /**
      * Mocks live wind data for a station and broadcasts it via Transmit SSE.
      * POST /stations/:station_id/live/wind/mock
-     * Body: { wind_speed?: number, wind_direction?: number, timestamp?: string }
+     * Body: { windSpeed?: number, windDirection?: number, timestamp?: string }
      * If not provided, random values will be used.
      */
     async mockWind({ params, request }: HttpContext) {
         const { station_id } = params
-        let { wind_speed, wind_direction, timestamp } = request.only([
-            'wind_speed',
-            'wind_direction',
+        let { windSpeed, windDirection, timestamp } = request.only([
+            'windSpeed',
+            'windDirection',
             'timestamp',
         ])
         // Generate random values if not provided
-        if (typeof wind_speed !== 'number') {
-            wind_speed = Math.round((Math.random() * 20 + 1) * 10) / 10 // 1.0 - 21.0 m/s
+        if (typeof windSpeed !== 'number') {
+            windSpeed = Math.round((Math.random() * 20 + 1) * 10) / 10 // 1.0 - 21.0 m/s
         }
-        if (typeof wind_direction !== 'number') {
-            wind_direction = Math.floor(Math.random() * 360) // 0 - 359 degrees
+        if (typeof windDirection !== 'number') {
+            windDirection = Math.floor(Math.random() * 360) // 0 - 359 degrees
         }
         if (!timestamp) {
             timestamp = new Date().toISOString()
         }
         await transmit.broadcast(`wind/live/${station_id}`, {
-            wind_speed,
-            wind_direction,
+            windSpeed,
+            windDirection,
             timestamp,
         })
-        return { ok: true, wind_speed, wind_direction, timestamp }
+        return { ok: true, windSpeed, windDirection, timestamp }
     }
 
     /**
@@ -85,7 +85,7 @@ export default class StationLiveController {
 
         const sendData = async (speed: number, direction: number) => {
             const timestamp = new Date().toISOString()
-            const data = { wind_speed: speed, wind_direction: direction, timestamp }
+            const data = { windSpeed: speed, windDirection: direction, timestamp }
             console.log(`Broadcasting wind data for ${station_id}:`, data)
             await transmit.broadcast(`wind/live/${station_id}`, data)
             return data

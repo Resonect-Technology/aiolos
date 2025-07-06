@@ -12,7 +12,7 @@ export default class SensorReading extends BaseModel {
      * @summary Sensor ID
      */
     @column()
-    declare sensor_id: string
+    declare sensorId: string
 
     /**
      * @summary Reading type
@@ -31,13 +31,13 @@ export default class SensorReading extends BaseModel {
      * @summary Wind speed (nullable)
      */
     @column()
-    declare wind_speed: number | null
+    declare windSpeed: number | null
 
     /**
      * @summary Wind direction (nullable)
      */
     @column()
-    declare wind_direction: number | null
+    declare windDirection: number | null
 
     /**
      * @summary Creation timestamp
