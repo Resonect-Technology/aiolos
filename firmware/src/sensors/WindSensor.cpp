@@ -94,50 +94,50 @@ float WindSensor::getWindDirection()
     Logger.debug(LOG_TAG_WIND, "Wind vane raw ADC value: %d", adcValue);
 
     // Map ADC value to wind direction based on calibrated ranges
-    // Updated with calibration results from wizard
+    // Updated with calibration results from wizard (July 2025)
     // Calibration data (sorted by ADC):
-    // SOUTHEAST(135°): 584, EAST(90°): 612, SOUTH(180°): 1023,
-    // NORTHEAST(45°): 2156, SOUTHWEST(225°): 2426, NORTH(0°): 3070,
-    // NORTHWEST(315°): 3583, WEST(270°): 3921
+    // EAST(90°): 330, SOUTHEAST(135°): 586, SOUTH(180°): 1023,
+    // NORTHEAST(45°): 1909, SOUTHWEST(225°): 2427, NORTH(0°): 3071,
+    // NORTHWEST(315°): 3546, WEST(270°): 3927
 
-    if (adcValue < 598) // Below 598 (midpoint of 584 and 612)
+    if (adcValue < 458) // Below 458 (midpoint of 330 and 586)
     {
-        direction = 90; // EAST (swapped: was SOUTHEAST)
+        direction = 90; // EAST
         Logger.debug(LOG_TAG_WIND, "ADC %d -> EAST (90°)", adcValue);
     }
-    else if (adcValue < 818) // 598-817 (midpoint of 612 and 1023)
+    else if (adcValue < 804) // 458-804 (midpoint of 586 and 1023)
     {
-        direction = 135; // SOUTHEAST (swapped: was EAST)
+        direction = 135; // SOUTHEAST
         Logger.debug(LOG_TAG_WIND, "ADC %d -> SOUTHEAST (135°)", adcValue);
     }
-    else if (adcValue < 1590) // 818-1589 (midpoint of 1023 and 2156)
+    else if (adcValue < 1466) // 804-1466 (midpoint of 1023 and 1909)
     {
         direction = 180; // SOUTH
         Logger.debug(LOG_TAG_WIND, "ADC %d -> SOUTH (180°)", adcValue);
     }
-    else if (adcValue < 2291) // 1590-2290 (midpoint of 2156 and 2426)
+    else if (adcValue < 2168) // 1466-2168 (midpoint of 1909 and 2427)
     {
         direction = 45; // NORTHEAST
         Logger.debug(LOG_TAG_WIND, "ADC %d -> NORTHEAST (45°)", adcValue);
     }
-    else if (adcValue < 2748) // 2291-2747 (midpoint of 2426 and 3070)
+    else if (adcValue < 2749) // 2168-2749 (midpoint of 2427 and 3071)
     {
         direction = 225; // SOUTHWEST
         Logger.debug(LOG_TAG_WIND, "ADC %d -> SOUTHWEST (225°)", adcValue);
     }
-    else if (adcValue < 3327) // 2748-3326 (midpoint of 3070 and 3583)
+    else if (adcValue < 3308) // 2749-3308 (midpoint of 3071 and 3546)
     {
         direction = 0; // NORTH
         Logger.debug(LOG_TAG_WIND, "ADC %d -> NORTH (0°)", adcValue);
     }
-    else if (adcValue < 3752) // 3327-3751 (midpoint of 3583 and 3921)
+    else if (adcValue < 3736) // 3308-3736 (midpoint of 3546 and 3927)
     {
         direction = 315; // NORTHWEST
         Logger.debug(LOG_TAG_WIND, "ADC %d -> NORTHWEST (315°)", adcValue);
     }
     else
     {
-        direction = 270; // WEST (3752+)
+        direction = 270; // WEST (3736+)
         Logger.debug(LOG_TAG_WIND, "ADC %d -> WEST (270°)", adcValue);
     }
 

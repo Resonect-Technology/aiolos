@@ -10,6 +10,13 @@
 
 ModemManager modemManager;
 
+// Static const member definitions
+const int ModemManager::MAX_CONSECUTIVE_FAILURES;
+const unsigned long ModemManager::MIN_BACKOFF_DELAY;
+const unsigned long ModemManager::MAX_BACKOFF_DELAY;
+const unsigned long ModemManager::MIN_RESET_INTERVAL;
+const unsigned long ModemManager::UNRESPONSIVE_TIMEOUT;
+
 bool ModemManager::init()
 {
     Logger.info(LOG_TAG_MODEM, "Initializing modem...");
