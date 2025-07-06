@@ -1,13 +1,11 @@
 import { memo } from 'react';
 
 interface ConnectionStatusProps {
-  stationId: string;
   isConnected: boolean;
   error: string | null;
 }
 
 export const ConnectionStatus = memo(function ConnectionStatus({
-  stationId,
   isConnected,
   error
 }: ConnectionStatusProps) {
@@ -25,7 +23,7 @@ export const ConnectionStatus = memo(function ConnectionStatus({
         
         <div className="bg-slate-50 dark:bg-slate-700 rounded-xl p-4">
           <h2 className="text-xl font-semibold text-slate-700 dark:text-slate-300 mb-2">
-            Station: {stationId}
+            Station: Vasiliki Weather Station
           </h2>
           <div className={`inline-flex items-center px-6 py-3 rounded-full text-sm font-medium transition-all duration-200 ${
             isConnected 

@@ -93,7 +93,6 @@ export function WindDashboard({ stationId }: WindDashboardProps) {
         {/* Header Section */}
         <div className="mb-10">
           <ConnectionStatus 
-            stationId={stationId}
             isConnected={isConnected}
             error={error}
           />
