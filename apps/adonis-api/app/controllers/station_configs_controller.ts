@@ -14,25 +14,25 @@ export default class StationConfigsController {
         try {
             // Get the latest config for the station
             const config = await StationConfig.query()
-                .where('station_id', stationId)
-                .orderBy('created_at', 'desc')
+                .where('stationId', stationId)
+                .orderBy('id', 'desc')
                 .first()
 
             if (!config) {
                 return {
-                    station_id: stationId,
-                    temp_interval: null,
-                    wind_send_interval: null,
-                    wind_sample_interval: null,
-                    diag_interval: null,
-                    time_interval: null,
-                    restart_interval: null,
-                    sleep_start_hour: null,
-                    sleep_end_hour: null,
-                    ota_hour: null,
-                    ota_minute: null,
-                    ota_duration: null,
-                    remote_ota: false,
+                    stationId: stationId,
+                    tempInterval: null,
+                    windSendInterval: null,
+                    windSampleInterval: null,
+                    diagInterval: null,
+                    timeInterval: null,
+                    restartInterval: null,
+                    sleepStartHour: null,
+                    sleepEndHour: null,
+                    otaHour: null,
+                    otaMinute: null,
+                    otaDuration: null,
+                    remoteOta: false,
                     message: 'No configuration found for this station. Default values will be used.'
                 }
             }
@@ -64,16 +64,28 @@ export default class StationConfigsController {
             // Validate data types if values are provided
             const configData: Record<string, any> = {}
 
-            // Only include fields that are provided and are valid numbers
-            const configFields = [
-                'temp_interval', 'wind_send_interval', 'wind_sample_interval', 'diag_interval',
-                'time_interval', 'restart_interval',
-                'sleep_start_hour', 'sleep_end_hour',
-                'ota_hour', 'ota_minute', 'ota_duration'
+            // Define all valid camelCase field names
+            const validFields = [
+                'tempInterval',
+                'windSendInterval',
+                'windSampleInterval',
+                'diagInterval',
+                'timeInterval',
+                'restartInterval',
+                'sleepStartHour',
+                'sleepEndHour',
+                'otaHour',
+                'otaMinute',
+                'otaDuration',
+                'remoteOta'
             ]
 
-            for (const field of configFields) {
+            // Process numeric fields
+            for (const field of validFields) {
                 if (data[field] !== undefined) {
+                    // Skip the boolean field (handle separately)
+                    if (field === 'remoteOta') continue
+
                     const value = Number(data[field])
                     if (isNaN(value)) {
                         return response.badRequest({ error: `Invalid value for ${field}. Must be a number.` })
@@ -82,13 +94,13 @@ export default class StationConfigsController {
                 }
             }
 
-            // Handle remote_ota flag (boolean)
-            if (data.remote_ota !== undefined) {
-                configData.remote_ota = Boolean(data.remote_ota)
+            // Handle remoteOta flag (boolean)
+            if (data.remoteOta !== undefined) {
+                configData.remoteOta = Boolean(data.remoteOta)
             }
 
-            // Add station_id to the data
-            configData.station_id = stationId
+            // Add stationId to the data
+            configData.stationId = stationId
 
             // Create new config record
             await StationConfig.create(configData)
@@ -115,8 +127,8 @@ export default class StationConfigsController {
         try {
             // Get the latest config for the station
             const config = await StationConfig.query()
-                .where('station_id', stationId)
-                .orderBy('created_at', 'desc')
+                .where('stationId', stationId)
+                .orderBy('id', 'desc')
                 .first()
 
             if (!config) {
@@ -125,22 +137,22 @@ export default class StationConfigsController {
                 })
             }
 
-            // Create a new config record with remote_ota set to false
+            // Create a new config record with remoteOta set to false
             // We create a new record to maintain the audit trail
             const configData = {
-                station_id: stationId,
-                temp_interval: config.temp_interval,
-                wind_send_interval: config.wind_send_interval,
-                wind_sample_interval: config.wind_sample_interval,
-                diag_interval: config.diag_interval,
-                time_interval: config.time_interval,
-                restart_interval: config.restart_interval,
-                sleep_start_hour: config.sleep_start_hour,
-                sleep_end_hour: config.sleep_end_hour,
-                ota_hour: config.ota_hour,
-                ota_minute: config.ota_minute,
-                ota_duration: config.ota_duration,
-                remote_ota: false  // Reset the OTA flag
+                stationId: stationId,
+                tempInterval: config.tempInterval,
+                windSendInterval: config.windSendInterval,
+                windSampleInterval: config.windSampleInterval,
+                diagInterval: config.diagInterval,
+                timeInterval: config.timeInterval,
+                restartInterval: config.restartInterval,
+                sleepStartHour: config.sleepStartHour,
+                sleepEndHour: config.sleepEndHour,
+                otaHour: config.otaHour,
+                otaMinute: config.otaMinute,
+                otaDuration: config.otaDuration,
+                remoteOta: false  // Reset the OTA flag
             }
 
             await StationConfig.create(configData)

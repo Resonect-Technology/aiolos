@@ -1,8 +1,8 @@
 import { memo } from 'react';
 
 interface WindData {
-  wind_speed: number;
-  wind_direction: number;
+  windSpeed: number;
+  windDirection: number;
   timestamp: string;
 }
 

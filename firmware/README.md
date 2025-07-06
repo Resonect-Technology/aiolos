@@ -413,3 +413,110 @@ The system logs comprehensive connection health information:
 3. **Power Management**: Use conservative intervals in low-power scenarios
 4. **Remote Recovery**: System will automatically recover from most failure modes
 5. **Manual Intervention**: Only needed if hardware faults occur
+
+## JSON Communication Protocol
+
+The Aiolos firmware communicates with the backend API using **camelCase** JSON field names for all HTTP requests. This ensures consistency with the backend API and modern web development practices.
+
+### HTTP JSON Payloads
+
+All JSON data sent by the firmware uses camelCase field naming:
+
+#### Wind Data Transmission
+```json
+POST /api/stations/vasiliki-001/wind
+{
+  "windSpeed": 15.2,     // m/s
+  "windDirection": 270   // degrees (0-360)
+}
+```
+
+#### Diagnostics Data Transmission  
+```json
+POST /api/stations/vasiliki-001/diagnostics
+{
+  "batteryVoltage": 3.85,        // volts
+  "solarVoltage": 4.12,          // volts
+  "internalTemperature": 45.2,   // celsius
+  "signalQuality": 20,           // CSQ value (0-31)
+  "uptime": 86400               // seconds
+}
+```
+
+#### Temperature Data Transmission
+```json
+POST /api/stations/vasiliki-001/temperature
+{
+  "internalTemperature": 45.2,   // celsius
+  "externalTemperature": 22.1    // celsius
+}
+```
+
+#### Configuration Fetching
+```json
+GET /api/stations/vasiliki-001/config
+// Response:
+{
+  "tempInterval": 60000,         // milliseconds
+  "windInterval": 30000,         // milliseconds  
+  "windSampleInterval": 10000,   // milliseconds
+  "diagInterval": 120000,        // milliseconds
+  "timeInterval": 3600000,       // milliseconds
+  "restartInterval": 86400,      // seconds
+  "sleepStartHour": 1,           // hour (0-23)
+  "sleepEndHour": 6,            // hour (0-23)
+  "otaHour": 3,                 // hour (0-23)
+  "otaMinute": 0,               // minute (0-59)
+  "otaDuration": 30,            // minutes
+  "remoteOta": false            // boolean
+}
+```
+
+### Implementation Details
+
+The `AiolosHttpClient` class handles all JSON serialization and HTTP communication:
+
+- **JSON Serialization**: Uses ArduinoJson library with camelCase field names
+- **HTTP Headers**: Sends `Content-Type: application/json`
+- **Error Handling**: Robust HTTP response validation and retry logic
+- **Connection Management**: Integrates with ModemManager for GPRS connectivity
+
+### Code Examples
+
+```cpp
+// Wind data transmission in AiolosHttpClient.cpp
+bool AiolosHttpClient::sendWindData(const String& deviceId, float windSpeed, float windDirection) {
+    JsonDocument doc;
+    doc["windSpeed"] = windSpeed;
+    doc["windDirection"] = windDirection;
+    
+    String jsonString;
+    serializeJson(doc, jsonString);
+    return sendPostRequest("/api/stations/" + deviceId + "/wind", jsonString);
+}
+
+// Diagnostics data transmission
+bool AiolosHttpClient::sendDiagnostics(float internalTemp, float externalTemp) {
+    JsonDocument doc;
+    doc["batteryVoltage"] = BatteryUtils::getVoltage();
+    doc["solarVoltage"] = BatteryUtils::getSolarVoltage();
+    doc["internalTemperature"] = internalTemp;
+    doc["signalQuality"] = modemManager.getSignalQuality();
+    doc["uptime"] = millis() / 1000;
+    
+    String jsonString;
+    serializeJson(doc, jsonString);
+    return sendPostRequest("/api/stations/" + String(DEVICE_ID) + "/diagnostics", jsonString);
+}
+```
+
+### Signal Quality Reporting
+
+The firmware reports signal quality as **CSQ values** (0-31 scale from AT+CSQ command):
+- **0-4**: Very Poor signal
+- **5-9**: Poor signal  
+- **10-14**: Fair signal
+- **15-19**: Good signal
+- **20-31**: Excellent signal
+
+This provides accurate 2G/GPRS signal strength information that the frontend displays with appropriate quality labels.

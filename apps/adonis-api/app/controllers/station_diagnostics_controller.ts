@@ -1,6 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import transmit from '@adonisjs/transmit/services/main'
-import StationDiagnostic from '#app/models/StationDiagnostic'
+import StationDiagnostic from '#app/models/station_diagnostic'
 
 export default class StationDiagnosticsController {
     /**
@@ -12,14 +12,14 @@ export default class StationDiagnosticsController {
 
         try {
             // Validate required fields
-            const { battery_voltage, solar_voltage, signal_quality, uptime } = data
+            const { batteryVoltage, solarVoltage, signalQuality, uptime } = data
             if (
-                typeof battery_voltage !== 'number' ||
-                typeof solar_voltage !== 'number' ||
-                typeof signal_quality !== 'number' ||
+                typeof batteryVoltage !== 'number' ||
+                typeof solarVoltage !== 'number' ||
+                typeof signalQuality !== 'number' ||
                 typeof uptime !== 'number'
             ) {
-                return response.badRequest({ error: 'Invalid diagnostics data. Required fields: battery_voltage, solar_voltage, signal_quality, uptime' })
+                return response.badRequest({ error: 'Invalid diagnostics data. Required fields: batteryVoltage, solarVoltage, signalQuality, uptime' })
             }
 
             // Prepare diagnostics data with timestamp
@@ -30,11 +30,11 @@ export default class StationDiagnosticsController {
 
             // Save diagnostics to database
             await StationDiagnostic.create({
-                station_id: stationId,
-                battery_voltage: battery_voltage,
-                solar_voltage: solar_voltage,
-                internal_temperature: data.internal_temperature || null,
-                signal_quality: signal_quality,
+                stationId: stationId,
+                batteryVoltage: batteryVoltage,
+                solarVoltage: solarVoltage,
+                internalTemperature: data.internalTemperature || null,
+                signalQuality: signalQuality,
                 uptime: uptime
             })
 
@@ -62,13 +62,13 @@ export default class StationDiagnosticsController {
         try {
             // Get the latest diagnostics for the station
             const latestDiagnostics = await StationDiagnostic.query()
-                .where('station_id', stationId)
-                .orderBy('created_at', 'desc')
+                .where('stationId', stationId)
+                .orderBy('createdAt', 'desc')
                 .first()
 
             if (!latestDiagnostics) {
                 return {
-                    station_id: stationId,
+                    stationId: stationId,
                     message: 'No diagnostics found for this station'
                 }
             }

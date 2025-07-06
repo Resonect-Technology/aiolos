@@ -93,19 +93,25 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
     return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
   };
 
-  // Convert signal quality from dBm to a human-readable format
-  const formatSignalQuality = (dbm: number) => {
-    if (dbm === undefined || dbm === null) return 'N/A';
+  // Convert CSQ signal quality to a human-readable format for 2G/GPRS
+  const formatSignalQuality = (csq: number) => {
+    if (csq === undefined || csq === null) return 'N/A';
     
-    // Convert dBm to signal bars (1-5)
-    const bars = getSignalBars(dbm);
+    // CSQ values are typically 0-31 for 2G/GPRS modems
+    let quality = '';
+    if (csq >= 20) {
+      quality = 'Excellent';
+    } else if (csq >= 15) {
+      quality = 'Good';
+    } else if (csq >= 10) {
+      quality = 'Fair';
+    } else if (csq >= 5) {
+      quality = 'Poor';
+    } else {
+      quality = 'Very Poor';
+    }
     
-    // Return a descriptive string based on signal quality
-    if (bars <= 1) return `${dbm} dBm (Poor)`;
-    if (bars <= 2) return `${dbm} dBm (Fair)`;
-    if (bars <= 3) return `${dbm} dBm (Good)`;
-    if (bars <= 4) return `${dbm} dBm (Very Good)`;
-    return `${dbm} dBm (Excellent)`;
+    return `CSQ: ${csq} (${quality})`;
   };
 
   return (
@@ -147,17 +153,6 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
                     ? `${diagnosticsData.solarVoltage.toFixed(2)}V` 
                     : 'N/A'}
                 </span>
-              </div>
-              
-              {/* Battery Level Visual Indicator */}
-              <div className="mt-2">
-                <div className="text-sm text-slate-600 dark:text-slate-300 mb-1">Battery Level</div>
-                <div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-2.5">
-                  <div 
-                    className={`h-2.5 rounded-full ${getBatteryColorClass(diagnosticsData.batteryVoltage)}`} 
-                    style={{ width: `${getBatteryPercentage(diagnosticsData.batteryVoltage || 0)}%` }}
-                  ></div>
-                </div>
               </div>
             </div>
           </div>
@@ -201,32 +196,6 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
                     : 'N/A'}
                 </span>
               </div>
-              
-              {/* Signal Strength Visual Indicator */}
-              <div className="mt-2">
-                <div className="text-sm text-slate-600 dark:text-slate-300 mb-1">Signal Strength</div>
-                <div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-2.5">
-                  <div 
-                    className={`h-2.5 rounded-full ${getSignalColorClass(diagnosticsData.signalQuality)}`} 
-                    style={{ width: `${getSignalPercentage(diagnosticsData.signalQuality || -120)}%` }}
-                  ></div>
-                </div>
-              </div>
-              
-              {/* Signal Bars Visualization */}
-              <div className="flex space-x-1 mt-2">
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <div 
-                    key={index}
-                    className={`w-2 rounded-sm ${
-                      index < getSignalBars(diagnosticsData.signalQuality || -120) 
-                        ? getSignalColorClass(diagnosticsData.signalQuality || -120) 
-                        : 'bg-slate-200 dark:bg-slate-600'
-                    }`}
-                    style={{ height: `${6 + (index * 3)}px` }}
-                  ></div>
-                ))}
-              </div>
             </div>
           </div>
         </div>
@@ -239,65 +208,4 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
       )}
     </div>
   );
-}
-
-// Helper functions for styling
-function getBatteryPercentage(voltage: number): number {
-  if (voltage === undefined || voltage === null) return 0;
-  // Assuming battery range is approximately 3.0V (empty) to 4.2V (full)
-  const minVoltage = 3.0;
-  const maxVoltage = 4.2;
-  const percentage = Math.min(100, Math.max(0, ((voltage - minVoltage) / (maxVoltage - minVoltage)) * 100));
-  return Math.round(percentage);
-}
-
-function getBatteryColorClass(voltage: number): string {
-  if (voltage === undefined || voltage === null) return 'bg-gray-500';
-  const percentage = getBatteryPercentage(voltage);
-  if (percentage < 20) return 'bg-red-500';
-  if (percentage < 50) return 'bg-yellow-500';
-  return 'bg-green-500';
-}
-
-// Convert dBm signal strength to a percentage
-// Typical cellular dBm ranges from -50 (excellent) to -120 (very poor)
-function getSignalPercentage(dbm: number): number {
-  if (dbm === undefined || dbm === null) return 0;
-  
-  // Note: Higher dBm values are better (less negative)
-  // -50 dBm is excellent (~100%), -120 dBm is very poor (~0%)
-  const minDbm = -120; // Very poor signal
-  const maxDbm = -50;  // Excellent signal
-  
-  // Handle edge cases where reported signal might be outside expected range
-  if (dbm > maxDbm) return 100;
-  if (dbm < minDbm) return 0;
-  
-  // Convert to percentage (0-100)
-  const percentage = ((dbm - minDbm) / (maxDbm - minDbm)) * 100;
-  return Math.round(percentage);
-}
-
-// Convert dBm to signal bars (1-5)
-function getSignalBars(dbm: number): number {
-  if (dbm === undefined || dbm === null) return 0;
-  
-  // Map dBm ranges to signal bars
-  if (dbm >= -70) return 5;  // Excellent: -70 to -50 dBm
-  if (dbm >= -85) return 4;  // Very good: -85 to -71 dBm
-  if (dbm >= -95) return 3;  // Good: -95 to -86 dBm
-  if (dbm >= -105) return 2; // Fair: -105 to -96 dBm
-  if (dbm >= -120) return 1; // Poor: -120 to -106 dBm
-  return 0; // No signal or extremely poor
-}
-
-function getSignalColorClass(dbm: number): string {
-  if (dbm === undefined || dbm === null) return 'bg-gray-500';
-  
-  const bars = getSignalBars(dbm);
-  if (bars <= 1) return 'bg-red-500';
-  if (bars <= 2) return 'bg-orange-500';
-  if (bars <= 3) return 'bg-yellow-500';
-  if (bars <= 4) return 'bg-green-500';
-  return 'bg-green-500';
 }

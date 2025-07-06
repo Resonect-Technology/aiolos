@@ -1,4 +1,4 @@
-import SensorReading from '#models/SensorReading'
+import SensorReading from '#models/sensor_reading'
 import type { HttpContext } from '@adonisjs/core/http'
 
 export default class StationTemperatureController {
@@ -19,7 +19,7 @@ export default class StationTemperatureController {
         const data = {
             type: 'temperature' as const,
             temperature,
-            sensor_id: params.station_id,
+            sensorId: params.station_id,
         }
 
         const reading = await SensorReading.create(data)
@@ -35,9 +35,9 @@ export default class StationTemperatureController {
      */
     async latest({ params, response }: HttpContext) {
         const reading = await SensorReading.query()
-            .where('sensor_id', params.station_id)
+            .where('sensorId', params.station_id)
             .where('type', 'temperature')
-            .orderBy('created_at', 'desc')
+            .orderBy('createdAt', 'desc')
             .first()
 
         if (!reading) return response.notFound({ message: 'No temperature readings found' })
@@ -59,17 +59,17 @@ export default class StationTemperatureController {
         const to = request.input('to')
 
         const query = SensorReading.query()
-            .where('sensor_id', params.station_id)
+            .where('sensorId', params.station_id)
             .where('type', 'temperature')
-            .orderBy('created_at', 'desc')
+            .orderBy('createdAt', 'desc')
             .limit(limit)
 
         if (from) {
-            query.where('created_at', '>=', new Date(from))
+            query.where('createdAt', '>=', new Date(from))
         }
 
         if (to) {
-            query.where('created_at', '<=', new Date(to))
+            query.where('createdAt', '<=', new Date(to))
         }
 
         return query

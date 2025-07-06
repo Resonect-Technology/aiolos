@@ -6,43 +6,43 @@ export default class StationConfig extends BaseModel {
   declare id: number
 
   @column()
-  declare station_id: string
+  declare stationId: string
 
   @column()
-  declare temp_interval: number
+  declare tempInterval: number
 
   @column()
-  declare wind_send_interval: number
+  declare windSendInterval: number
 
   @column()
-  declare wind_sample_interval: number
+  declare windSampleInterval: number
 
   @column()
-  declare diag_interval: number
+  declare diagInterval: number
 
   @column()
-  declare time_interval: number
+  declare timeInterval: number
 
   @column()
-  declare restart_interval: number
+  declare restartInterval: number
 
   @column()
-  declare sleep_start_hour: number
+  declare sleepStartHour: number
 
   @column()
-  declare sleep_end_hour: number
+  declare sleepEndHour: number
 
   @column()
-  declare ota_hour: number
+  declare otaHour: number
 
   @column()
-  declare ota_minute: number
+  declare otaMinute: number
 
   @column()
-  declare ota_duration: number
+  declare otaDuration: number
 
   @column()
-  declare remote_ota: boolean
+  declare remoteOta: boolean
 
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime

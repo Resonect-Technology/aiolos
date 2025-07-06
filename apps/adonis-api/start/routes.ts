@@ -13,11 +13,11 @@ import swagger from '#config/swagger'
 import transmit from '@adonisjs/transmit/services/main'
 
 // Import controllers
-const StationLiveController = () => import('#app/controllers/StationLiveController')
-const StationDiagnosticsController = () => import('#app/controllers/StationDiagnosticsController')
+const StationLiveController = () => import('#app/controllers/station_live_controller')
+const StationDiagnosticsController = () => import('#app/controllers/station_diagnostics_controller')
 const StationConfigsController = () => import('#app/controllers/station_configs_controller')
 const SystemConfigsController = () => import('#app/controllers/system_configs_controller')
-const StationTemperatureController = () => import('#app/controllers/StationTemperatureController')
+const StationTemperatureController = () => import('#app/controllers/station_temperature_controller')
 
 /**
  * Home route

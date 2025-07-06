@@ -11,8 +11,8 @@ import { TemperatureDisplay } from './TemperatureDisplay';
 import './WindDirectionCompass.css';
 
 interface WindData {
-  wind_speed: number;
-  wind_direction: number;
+  windSpeed: number;
+  windDirection: number;
   timestamp: string;
 }
 
@@ -59,12 +59,12 @@ export function WindDashboard({ stationId }: WindDashboardProps) {
         setError(null);
 
         newSubscription.onMessage((data: WindData) => {
-          if (data && typeof data.wind_speed === 'number') {
+          if (data && typeof data.windSpeed === 'number') {
              setWindData(data);
              setWindHistory(prev => [...prev.slice(-99), data]); // Keep last 100 readings
           } else {
             const messagePayload = (data as any).data;
-            if (messagePayload && typeof messagePayload.wind_speed === 'number') {
+            if (messagePayload && typeof messagePayload.windSpeed === 'number') {
               setWindData(messagePayload);
               setWindHistory(prev => [...prev.slice(-99), messagePayload]); // Keep last 100 readings
             } else {
@@ -93,7 +93,6 @@ export function WindDashboard({ stationId }: WindDashboardProps) {
         {/* Header Section */}
         <div className="mb-10">
           <ConnectionStatus 
-            stationId={stationId}
             isConnected={isConnected}
             error={error}
           />
@@ -131,7 +130,7 @@ export function WindDashboard({ stationId }: WindDashboardProps) {
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-2xl transition-shadow duration-300">
               <div className="p-8">
                 <WindDirectionCompass 
-                  windDirection={windData?.wind_direction} 
+                  windDirection={windData?.windDirection} 
                 />
               </div>
             </div>

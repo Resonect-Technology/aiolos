@@ -295,10 +295,10 @@ bool AiolosHttpClient::sendDiagnostics(const char *stationId, float batteryVolta
     // Create JSON payload using ArduinoJson with fixed-size document
     JsonDocument doc;
     doc.to<JsonObject>(); // Ensure it's an object
-    doc["battery_voltage"] = batteryVoltage;
-    doc["solar_voltage"] = solarVoltage;
-    doc["internal_temperature"] = internalTemp;
-    doc["signal_quality"] = signalQuality;
+    doc["batteryVoltage"] = batteryVoltage;
+    doc["solarVoltage"] = solarVoltage;
+    doc["internalTemperature"] = internalTemp;
+    doc["signalQuality"] = signalQuality;
     doc["uptime"] = uptime;
 
     String jsonBuffer;
@@ -436,8 +436,8 @@ bool AiolosHttpClient::sendWindData(const char *stationId, float windSpeed, floa
     // Create JSON payload using ArduinoJson with fixed-size document
     JsonDocument doc;
     doc.to<JsonObject>(); // Ensure it's an object
-    doc["wind_speed"] = windSpeed;
-    doc["wind_direction"] = windDirection;
+    doc["windSpeed"] = windSpeed;
+    doc["windDirection"] = windDirection;
 
     String jsonBuffer;
     serializeJson(doc, jsonBuffer);

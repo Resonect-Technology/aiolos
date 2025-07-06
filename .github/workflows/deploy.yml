@@ -2,6 +2,8 @@ name: Build and Deploy Aiolos
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
 
 jobs:
   build-and-push-backend:
