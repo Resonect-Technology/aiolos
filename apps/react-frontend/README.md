@@ -197,3 +197,64 @@ export default tseslint.config({
   },
 })
 ```
+
+## Data Interface Conventions
+
+The React frontend follows **camelCase** naming conventions for all data interfaces and API communication to maintain consistency with modern JavaScript/TypeScript practices.
+
+### Interface Definitions
+
+All TypeScript interfaces use camelCase field names that match the backend API:
+
+```typescript
+interface WindData {
+  windSpeed: number;      // m/s
+  windDirection: number;  // degrees (0-360)
+  timestamp: string;      // ISO string
+}
+
+interface DiagnosticsData {
+  id?: number;
+  stationId: string;
+  batteryVoltage: number;        // volts
+  solarVoltage: number;          // volts  
+  internalTemperature: number;   // celsius
+  signalQuality: number;         // CSQ value (0-31)
+  uptime: number;                // seconds
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface TemperatureData {
+  temperature: number;    // celsius
+  timestamp: string;      // ISO string
+}
+```
+
+### API Communication
+
+All API requests and responses use camelCase field names:
+
+- **Real-time Wind Data**: Received via Server-Sent Events (SSE) using `@adonisjs/transmit-client`
+- **REST API Calls**: Temperature and diagnostics data fetched via standard HTTP requests
+- **WebSocket Channels**: Subscribed to channels like `wind/live/vasiliki-001`
+
+### Data Flow
+1. **Backend API** → sends camelCase JSON
+2. **Frontend Components** → receive and display data using camelCase interfaces
+3. **Type Safety** → TypeScript ensures consistent field naming throughout the application
+
+### Component Examples
+
+```typescript
+// WindSpeedDisplay component
+export function WindSpeedDisplay({ windData }: { windData: WindData | null }) {
+  const speed = windData?.windSpeed || 0;
+  const direction = windData?.windDirection || 0;
+  // ...
+}
+
+// DiagnosticsPanel component  
+const batteryVoltage = diagnosticsData.batteryVoltage;
+const signalQuality = diagnosticsData.signalQuality;
+```

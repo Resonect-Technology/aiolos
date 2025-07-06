@@ -265,3 +265,63 @@ docker run -d \
 3. **Container unhealthy status**
    - Usually caused by missing `/healthcheck` route or `wget` not being available
    - Check server logs for actual startup status
+
+## JSON API Naming Conventions
+
+The Aiolos backend API follows **camelCase** naming conventions for all JSON field names in both input and output. This ensures consistency and follows modern JavaScript/TypeScript best practices.
+
+### Field Naming Standard
+- **All JSON fields use camelCase**: `windSpeed`, `windDirection`, `batteryVoltage`
+- **Database columns use snake_case**: `wind_speed`, `wind_direction`, `battery_voltage`
+- **Model properties use camelCase**: Lucid ORM automatically maps between conventions
+
+### API Examples
+
+#### Wind Data Endpoint
+```json
+POST /api/stations/vasiliki-001/wind
+{
+  "windSpeed": 15.2,
+  "windDirection": 270
+}
+```
+
+#### Diagnostics Data
+```json
+GET /api/stations/vasiliki-001/diagnostics
+{
+  "id": 123,
+  "stationId": "vasiliki-001",
+  "batteryVoltage": 3.85,
+  "solarVoltage": 4.12,
+  "internalTemperature": 45.2,
+  "signalQuality": 20,
+  "uptime": 86400,
+  "createdAt": "2025-01-01T12:00:00.000Z"
+}
+```
+
+#### Station Configuration
+```json
+GET /api/stations/vasiliki-001/config
+{
+  "tempInterval": 60000,
+  "windInterval": 30000,
+  "windSampleInterval": 10000,
+  "diagInterval": 120000,
+  "timeInterval": 3600000,
+  "restartInterval": 86400,
+  "sleepStartHour": 1,
+  "sleepEndHour": 6,
+  "otaHour": 3,
+  "otaMinute": 0,
+  "otaDuration": 30,
+  "remoteOta": false
+}
+```
+
+### Implementation Notes
+- **Controllers**: All request validation and response formatting uses camelCase
+- **Models**: Lucid ORM models define camelCase properties that map to snake_case database columns
+- **Tests**: All test cases validate camelCase field names in requests and responses
+- **No Backward Compatibility**: The API only accepts camelCase; snake_case fields are rejected
