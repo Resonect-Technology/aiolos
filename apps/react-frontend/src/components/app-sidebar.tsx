@@ -1,12 +1,9 @@
-import * as React from "react"
-import {
-  Github,
-  ChevronUp,
-} from "lucide-react"
-import { IconWind } from "@tabler/icons-react"
+import * as React from "react";
+import { Github, ChevronUp } from "lucide-react";
+import { IconWind } from "@tabler/icons-react";
 
-import { NavMain } from "@/components/nav-main"
-import { NavUser } from "@/components/nav-user"
+import { NavMain } from "@/components/nav-main";
+import { NavUser } from "@/components/nav-user";
 import {
   Sidebar,
   SidebarContent,
@@ -15,13 +12,13 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar"
+} from "@/components/ui/sidebar";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@/components/ui/dropdown-menu";
 
 const data = {
   user: {
@@ -36,7 +33,7 @@ const data = {
       icon: IconWind,
     },
   ],
-}
+};
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
@@ -69,12 +66,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <Github className="h-4 w-4" />
                 <span>GitHub</span>
               </SidebarMenuButton>
-              <DropdownMenuContent
-                side="top"
-                className="w-[--radix-popper-anchor-width]"
-              >
+              <DropdownMenuContent side="top" className="w-[--radix-popper-anchor-width]">
                 <DropdownMenuItem>
-                  <a href="https://github.com/resonect/aiolos" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 w-full">
+                  <a
+                    href="https://github.com/resonect/aiolos"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 w-full"
+                  >
                     <Github className="h-4 w-4" />
                     View Repository
                   </a>
@@ -86,5 +85,5 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {/* <NavUser user={data.user} /> */}
       </SidebarFooter>
     </Sidebar>
-  )
+  );
 }

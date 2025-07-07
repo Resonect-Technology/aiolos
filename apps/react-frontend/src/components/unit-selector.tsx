@@ -12,19 +12,15 @@ interface UnitSelectorProps {
   className?: string;
 }
 
-export function UnitSelector({ selectedUnit, onUnitChange, className = '' }: UnitSelectorProps) {
+export function UnitSelector({ selectedUnit, onUnitChange, className = "" }: UnitSelectorProps) {
   return (
     <div className={className}>
       <div className="space-y-2">
         <div>
-          <h3 className="text-sm font-medium text-muted-foreground">
-            Wind Speed Units
-          </h3>
-          <p className="text-xs text-muted-foreground">
-            Choose your preferred measurement unit
-          </p>
+          <h3 className="text-2xl font-semibold text-foreground">Wind Speed Units</h3>
+          <p className="text-md text-muted-foreground">Choose your preferred measurement unit</p>
         </div>
-        
+
         <Select value={selectedUnit} onValueChange={onUnitChange}>
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Select unit" />

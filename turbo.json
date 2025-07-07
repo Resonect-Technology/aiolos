@@ -16,6 +16,12 @@
             "outputs": [
                 "dist/**"
             ]
+        },
+        "format": {
+            "cache": false
+        },
+        "format:check": {
+            "cache": false
         }
     }
 }

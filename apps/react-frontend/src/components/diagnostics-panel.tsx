@@ -1,21 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
-import { Transmit } from '@adonisjs/transmit-client';
+import { useState, useEffect, useRef } from "react";
+import { Transmit } from "@adonisjs/transmit-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import { 
-  Activity, 
-  Battery, 
-  Sun, 
-  Thermometer, 
-  Wifi, 
-  Clock,
-  AlertTriangle 
-} from "lucide-react";
-import { formatLastUpdated } from '../lib/time-utils';
+import { Activity, Battery, Sun, Thermometer, Wifi, Clock, AlertTriangle } from "lucide-react";
+import { formatLastUpdated } from "../lib/time-utils";
 
 interface DiagnosticsData {
   id?: number;
@@ -49,7 +41,7 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
 
     // Initialize Transmit instance if it doesn't exist
     if (!transmitInstanceRef.current) {
-      console.log('Creating new Transmit instance for diagnostics');
+      console.log("Creating new Transmit instance for diagnostics");
       transmitInstanceRef.current = new Transmit({
         baseUrl: window.location.origin,
       });
@@ -61,39 +53,41 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
     const newSubscription = transmit.subscription(channelName);
     subscriptionRef.current = newSubscription;
 
-    newSubscription.create()
+    newSubscription
+      .create()
       .then(() => {
         setLoading(false);
         setError(null);
         console.log(`Connected to diagnostics channel: ${channelName}`);
 
         newSubscription.onMessage((data: DiagnosticsData) => {
-          console.log('Diagnostics data received:', data);
-          if (data && typeof data.batteryVoltage === 'number') {
+          console.log("Diagnostics data received:", data);
+          if (data && typeof data.batteryVoltage === "number") {
             setDiagnosticsData(data);
           } else {
             // Handle wrapped message format
             const messagePayload = (data as any).data;
-            if (messagePayload && typeof messagePayload.batteryVoltage === 'number') {
+            if (messagePayload && typeof messagePayload.batteryVoltage === "number") {
               setDiagnosticsData(messagePayload);
             } else {
-              console.warn('Received diagnostics message in unexpected format:', data);
+              console.warn("Received diagnostics message in unexpected format:", data);
             }
           }
         });
       })
       .catch(err => {
-        console.error('Failed to connect to diagnostics channel:', err);
-        setError(`Failed to connect: ${err.message || 'Unknown error'}`);
+        console.error("Failed to connect to diagnostics channel:", err);
+        setError(`Failed to connect: ${err.message || "Unknown error"}`);
         setLoading(false);
-        
+
         // Fallback to API polling if SSE fails
         fetchDiagnosticsFromAPI();
       });
 
     return () => {
       if (subscriptionRef.current) {
-        subscriptionRef.current.delete()
+        subscriptionRef.current
+          .delete()
           .catch((err: Error) => console.error(`Failed to unsubscribe from ${channelName}:`, err));
         subscriptionRef.current = null;
       }
@@ -106,20 +100,20 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
       console.log(`Fetching diagnostics from API for station: ${stationId}`);
       const url = `/api/stations/${stationId}/diagnostics`;
       const response = await fetch(url);
-      
+
       if (!response.ok) {
         if (response.status === 404) {
-          console.log('No diagnostics data found for this station');
+          console.log("No diagnostics data found for this station");
           setDiagnosticsData(null);
           return;
         }
         console.log(`API Error (${response.status}): Could not fetch diagnostics data`);
         return;
       }
-      
+
       const data = await response.json();
-      console.log('Diagnostics data from API:', data);
-      
+      console.log("Diagnostics data from API:", data);
+
       // Convert API response to expected format
       if (data.batteryVoltage !== undefined) {
         setDiagnosticsData({
@@ -128,18 +122,18 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
         });
       }
     } catch (err) {
-      console.error('Error fetching diagnostics from API:', err);
+      console.error("Error fetching diagnostics from API:", err);
     }
   };
 
   // Format uptime from seconds to a human-readable format
   const formatUptime = (seconds: number) => {
-    if (seconds === undefined || seconds === null || isNaN(seconds)) return 'N/A';
-    
+    if (seconds === undefined || seconds === null || isNaN(seconds)) return "N/A";
+
     const days = Math.floor(seconds / (24 * 60 * 60));
     const hours = Math.floor((seconds % (24 * 60 * 60)) / (60 * 60));
     const minutes = Math.floor((seconds % (60 * 60)) / 60);
-    
+
     return `${days}d ${hours}h ${minutes}m`;
   };
 
@@ -152,26 +146,28 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
 
   // Convert CSQ signal quality to a human-readable format for 2G/GPRS
   const formatSignalQuality = (csq: number) => {
-    if (csq === undefined || csq === null) return 'N/A';
-    
+    if (csq === undefined || csq === null) return "N/A";
+
     // CSQ values are typically 0-31 for 2G/GPRS modems
-    let quality = '';
+    let quality = "";
     if (csq >= 20) {
-      quality = 'Excellent';
+      quality = "Excellent";
     } else if (csq >= 15) {
-      quality = 'Good';
+      quality = "Good";
     } else if (csq >= 10) {
-      quality = 'Fair';
+      quality = "Fair";
     } else if (csq >= 5) {
-      quality = 'Poor';
+      quality = "Poor";
     } else {
-      quality = 'Very Poor';
+      quality = "Very Poor";
     }
-    
+
     return `CSQ: ${csq} (${quality})`;
   };
 
-  const getSignalQualityVariant = (csq: number): "default" | "secondary" | "destructive" | "outline" => {
+  const getSignalQualityVariant = (
+    csq: number
+  ): "default" | "secondary" | "destructive" | "outline" => {
     if (csq >= 15) return "default";
     if (csq >= 10) return "secondary";
     if (csq >= 5) return "outline";
@@ -182,11 +178,9 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-2">
         <Activity className="h-5 w-5 text-primary" />
-        <h2 className="text-2xl font-bold text-foreground">
-          Station Diagnostics
-        </h2>
+        <h2 className="text-2xl font-bold text-foreground">Station Diagnostics</h2>
       </div>
-      
+
       {loading && !diagnosticsData && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[...Array(3)].map((_, i) => (
@@ -203,14 +197,14 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
           ))}
         </div>
       )}
-      
+
       {error && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      
+
       {diagnosticsData && (
         <div className="space-y-6">
           {/* Timestamp */}
@@ -221,7 +215,7 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
               </Badge>
             </div>
           )}
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Battery Status */}
             <Card>
@@ -236,35 +230,40 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Battery:</span>
                     <span className="font-medium">
-                      {diagnosticsData.batteryVoltage !== null && diagnosticsData.batteryVoltage !== undefined 
-                        ? `${diagnosticsData.batteryVoltage.toFixed(2)}V` 
-                        : 'N/A'}
+                      {diagnosticsData.batteryVoltage !== null &&
+                      diagnosticsData.batteryVoltage !== undefined
+                        ? `${diagnosticsData.batteryVoltage.toFixed(2)}V`
+                        : "N/A"}
                     </span>
                   </div>
                   {diagnosticsData.batteryVoltage && (
-                    <Progress 
-                      value={Math.min(100, Math.max(0, ((diagnosticsData.batteryVoltage - 3.0) / (4.2 - 3.0)) * 100))} 
+                    <Progress
+                      value={Math.min(
+                        100,
+                        Math.max(0, ((diagnosticsData.batteryVoltage - 3.0) / (4.2 - 3.0)) * 100)
+                      )}
                       className="h-2"
                     />
                   )}
                 </div>
-                
+
                 <Separator />
-                
+
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground flex items-center gap-1">
                     <Sun className="h-3 w-3" />
                     Solar:
                   </span>
                   <span className="font-medium">
-                    {diagnosticsData.solarVoltage !== null && diagnosticsData.solarVoltage !== undefined 
-                      ? `${diagnosticsData.solarVoltage.toFixed(2)}V` 
-                      : 'N/A'}
+                    {diagnosticsData.solarVoltage !== null &&
+                    diagnosticsData.solarVoltage !== undefined
+                      ? `${diagnosticsData.solarVoltage.toFixed(2)}V`
+                      : "N/A"}
                   </span>
                 </div>
               </CardContent>
             </Card>
-            
+
             {/* System Status */}
             <Card>
               <CardHeader className="pb-3">
@@ -277,26 +276,27 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Internal Temp:</span>
                   <span className="font-medium">
-                    {diagnosticsData.internalTemperature !== null && diagnosticsData.internalTemperature !== undefined 
-                      ? `${diagnosticsData.internalTemperature.toFixed(1)}°C` 
-                      : 'N/A'}
+                    {diagnosticsData.internalTemperature !== null &&
+                    diagnosticsData.internalTemperature !== undefined
+                      ? `${diagnosticsData.internalTemperature.toFixed(1)}°C`
+                      : "N/A"}
                   </span>
                 </div>
-                
+
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground flex items-center gap-1">
                     <Clock className="h-3 w-3" />
                     Uptime:
                   </span>
                   <span className="font-medium">
-                    {diagnosticsData.uptime !== null && diagnosticsData.uptime !== undefined 
-                      ? formatUptime(diagnosticsData.uptime) 
-                      : 'N/A'}
+                    {diagnosticsData.uptime !== null && diagnosticsData.uptime !== undefined
+                      ? formatUptime(diagnosticsData.uptime)
+                      : "N/A"}
                   </span>
                 </div>
               </CardContent>
             </Card>
-            
+
             {/* Connectivity */}
             <Card>
               <CardHeader className="pb-3">
@@ -310,14 +310,15 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Signal Quality:</span>
                     <Badge variant={getSignalQualityVariant(diagnosticsData.signalQuality)}>
-                      {diagnosticsData.signalQuality !== null && diagnosticsData.signalQuality !== undefined 
-                        ? formatSignalQuality(diagnosticsData.signalQuality) 
-                        : 'N/A'}
+                      {diagnosticsData.signalQuality !== null &&
+                      diagnosticsData.signalQuality !== undefined
+                        ? formatSignalQuality(diagnosticsData.signalQuality)
+                        : "N/A"}
                     </Badge>
                   </div>
                   {diagnosticsData.signalQuality && (
-                    <Progress 
-                      value={Math.min(100, (diagnosticsData.signalQuality / 31) * 100)} 
+                    <Progress
+                      value={Math.min(100, (diagnosticsData.signalQuality / 31) * 100)}
                       className="h-2"
                     />
                   )}
@@ -327,12 +328,13 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
           </div>
         </div>
       )}
-      
+
       {!loading && !error && !diagnosticsData && (
         <Alert>
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            No diagnostics data available for this station. Diagnostics data will appear here once the station has sent its first diagnostics report.
+            No diagnostics data available for this station. Diagnostics data will appear here once
+            the station has sent its first diagnostics report.
           </AlertDescription>
         </Alert>
       )}

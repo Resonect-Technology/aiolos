@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
-import { Transmit } from '@adonisjs/transmit-client';
+import { useState, useEffect, useRef } from "react";
+import { Transmit } from "@adonisjs/transmit-client";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Thermometer } from "lucide-react";
-import { formatLastUpdated } from '../lib/time-utils';
+import { formatLastUpdated } from "../lib/time-utils";
 
 interface TemperatureData {
   temperature: number;
@@ -29,7 +29,7 @@ export function TemperatureDisplay({ stationId }: TemperatureDisplayProps) {
 
     // Initialize Transmit instance if it doesn't exist
     if (!transmitInstanceRef.current) {
-      console.log('Creating new Transmit instance for temperature');
+      console.log("Creating new Transmit instance for temperature");
       transmitInstanceRef.current = new Transmit({
         baseUrl: window.location.origin,
       });
@@ -41,39 +41,41 @@ export function TemperatureDisplay({ stationId }: TemperatureDisplayProps) {
     const newSubscription = transmit.subscription(channelName);
     subscriptionRef.current = newSubscription;
 
-    newSubscription.create()
+    newSubscription
+      .create()
       .then(() => {
         setLoading(false);
         setError(null);
         console.log(`Connected to temperature channel: ${channelName}`);
 
         newSubscription.onMessage((data: TemperatureData) => {
-          console.log('Temperature data received:', data);
-          if (data && typeof data.temperature === 'number') {
+          console.log("Temperature data received:", data);
+          if (data && typeof data.temperature === "number") {
             setTemperatureData(data);
           } else {
             // Handle wrapped message format
             const messagePayload = (data as any).data;
-            if (messagePayload && typeof messagePayload.temperature === 'number') {
+            if (messagePayload && typeof messagePayload.temperature === "number") {
               setTemperatureData(messagePayload);
             } else {
-              console.warn('Received temperature message in unexpected format:', data);
+              console.warn("Received temperature message in unexpected format:", data);
             }
           }
         });
       })
       .catch(err => {
-        console.error('Failed to connect to temperature channel:', err);
-        setError(`Failed to connect: ${err.message || 'Unknown error'}`);
+        console.error("Failed to connect to temperature channel:", err);
+        setError(`Failed to connect: ${err.message || "Unknown error"}`);
         setLoading(false);
-        
+
         // Fallback to API polling if SSE fails
         fetchTemperatureFromAPI();
       });
 
     return () => {
       if (subscriptionRef.current) {
-        subscriptionRef.current.delete()
+        subscriptionRef.current
+          .delete()
           .catch((err: Error) => console.error(`Failed to unsubscribe from ${channelName}:`, err));
         subscriptionRef.current = null;
       }
@@ -86,15 +88,15 @@ export function TemperatureDisplay({ stationId }: TemperatureDisplayProps) {
       console.log(`Fetching temperature from API for station: ${stationId}`);
       const url = `/api/stations/${stationId}/temperature/latest`;
       const response = await fetch(url);
-      
+
       if (!response.ok) {
         console.log(`API Error (${response.status}): Could not fetch temperature data`);
         return;
       }
-      
+
       const data = await response.json();
-      console.log('Temperature data from API:', data);
-      
+      console.log("Temperature data from API:", data);
+
       // Convert API response to expected format
       if (data.temperature !== undefined) {
         setTemperatureData({
@@ -103,7 +105,7 @@ export function TemperatureDisplay({ stationId }: TemperatureDisplayProps) {
         });
       }
     } catch (err) {
-      console.error('Error fetching temperature from API:', err);
+      console.error("Error fetching temperature from API:", err);
     }
   };
 
@@ -111,9 +113,9 @@ export function TemperatureDisplay({ stationId }: TemperatureDisplayProps) {
     <div className="text-center space-y-2">
       <div className="flex items-center justify-center gap-2">
         <Thermometer className="h-4 w-4 text-primary" />
-        <h3 className="text-lg font-semibold text-foreground">Temperature</h3>
+        <h3 className="text-2xl font-semibold text-foreground">Current Temperature</h3>
       </div>
-      
+
       <div className="flex justify-center items-center min-h-[60px]">
         {loading ? (
           <div className="space-y-2">
@@ -123,7 +125,7 @@ export function TemperatureDisplay({ stationId }: TemperatureDisplayProps) {
         ) : error ? (
           <Badge variant="destructive">Error</Badge>
         ) : (
-          <div className="text-3xl font-bold text-center">
+          <div className="text-4xl font-bold text-center">
             {temperatureData?.temperature !== null && temperatureData?.temperature !== undefined ? (
               <>
                 {temperatureData.temperature.toFixed(1)}
@@ -135,7 +137,7 @@ export function TemperatureDisplay({ stationId }: TemperatureDisplayProps) {
           </div>
         )}
       </div>
-      
+
       {temperatureData?.timestamp && (
         <div className="text-center">
           <Badge variant="outline" className="text-xs">

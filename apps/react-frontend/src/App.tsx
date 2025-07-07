@@ -1,16 +1,13 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Transmit } from '@adonisjs/transmit-client';
-import { AppSidebar } from "@/components/app-sidebar"
-import { SectionCards } from "@/components/section-cards-wind"
-import { WindChartInteractive } from "@/components/wind-chart-interactive"
-import { WindDataTable } from "@/components/wind-data-table"
-import { SiteHeader } from "@/components/site-header"
-import { ConstructionModeAlert } from './components/construction-mode-alert'
-import { ThemeProvider } from './components/theme-provider'
-import {
-  SidebarInset,
-  SidebarProvider,
-} from "@/components/ui/sidebar"
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Transmit } from "@adonisjs/transmit-client";
+import { AppSidebar } from "@/components/app-sidebar";
+import { SectionCards } from "@/components/section-cards-wind";
+import { WindChartInteractive } from "@/components/wind-chart-interactive";
+import { WindDataTable } from "@/components/wind-data-table";
+import { SiteHeader } from "@/components/site-header";
+import { ConstructionModeAlert } from "./components/construction-mode-alert";
+import { ThemeProvider } from "./components/theme-provider";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 
 interface WindData {
   windSpeed: number;
@@ -20,8 +17,8 @@ interface WindData {
 
 function App() {
   // Fixed station ID for Vasiliki weather station
-  const stationId = 'vasiliki-001';
-  
+  const stationId = "vasiliki-001";
+
   // Wind data state
   const [windData, setWindData] = useState<WindData | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -43,7 +40,7 @@ function App() {
 
     // Initialize Transmit instance if it doesn't exist
     if (!transmitInstanceRef.current) {
-      console.log('Creating new Transmit instance');
+      console.log("Creating new Transmit instance");
       transmitInstanceRef.current = new Transmit({
         baseUrl: window.location.origin,
       });
@@ -55,34 +52,36 @@ function App() {
     const newSubscription = transmit.subscription(channelName);
     subscriptionRef.current = newSubscription;
 
-    newSubscription.create()
+    newSubscription
+      .create()
       .then(() => {
         setIsConnected(true);
         setError(null);
 
         newSubscription.onMessage((data: WindData) => {
-          if (data && typeof data.windSpeed === 'number') {
-             setWindData(data);
-             setWindHistory(prev => [...prev.slice(-99), data]); // Keep last 100 readings
+          if (data && typeof data.windSpeed === "number") {
+            setWindData(data);
+            setWindHistory(prev => [...prev.slice(-99), data]); // Keep last 100 readings
           } else {
             const messagePayload = (data as any).data;
-            if (messagePayload && typeof messagePayload.windSpeed === 'number') {
+            if (messagePayload && typeof messagePayload.windSpeed === "number") {
               setWindData(messagePayload);
               setWindHistory(prev => [...prev.slice(-99), messagePayload]); // Keep last 100 readings
             } else {
-               console.warn('Received message in unexpected format:', data);
+              console.warn("Received message in unexpected format:", data);
             }
           }
         });
       })
       .catch(err => {
-        setError(`Failed to connect: ${err.message || 'Unknown error'}`);
+        setError(`Failed to connect: ${err.message || "Unknown error"}`);
         setIsConnected(false);
       });
 
     return () => {
       if (subscriptionRef.current) {
-        subscriptionRef.current.delete()
+        subscriptionRef.current
+          .delete()
           .catch((err: Error) => console.error(`Failed to unsubscribe from ${channelName}:`, err));
         subscriptionRef.current = null;
       }
@@ -106,28 +105,24 @@ function App() {
           <div className="flex flex-1 flex-col">
             <div className="@container/main flex flex-1 flex-col gap-2">
               <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-                
                 <div className="px-4 lg:px-6">
                   <ConstructionModeAlert />
                 </div>
-                
-                <SectionCards 
+
+                <SectionCards
                   stationId={stationId}
                   isConnected={isConnected}
                   error={error}
                   selectedUnit={selectedUnit}
                   onUnitChange={handleUnitChange}
                 />
-                
+
                 <div className="px-4 lg:px-6">
-                  <WindChartInteractive 
-                    windData={windData}
-                    selectedUnit={selectedUnit}
-                  />
+                  <WindChartInteractive windData={windData} selectedUnit={selectedUnit} />
                 </div>
-                
+
                 <div className="px-4 lg:px-6">
-                  <WindDataTable 
+                  <WindDataTable
                     windHistory={windHistory}
                     selectedUnit={selectedUnit}
                     stationId={stationId}
@@ -135,7 +130,7 @@ function App() {
                 </div>
               </div>
             </div>
-            
+
             <footer className="mt-12 text-center text-muted-foreground text-sm p-4">
               <p>Resonect Technology s.r.o. &copy; {new Date().getFullYear()}</p>
             </footer>
@@ -143,7 +138,7 @@ function App() {
         </SidebarInset>
       </SidebarProvider>
     </ThemeProvider>
-  )
+  );
 }
 
-export default App
+export default App;

@@ -1,0 +1,61 @@
+# Dependencies
+node_modules/
+pnpm-lock.yaml
+yarn.lock
+package-lock.json
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Cache
+.cache/
+.parcel-cache/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Generated files
+coverage/
+.nyc_output/
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Firmware files
+firmware/
+hardware/
+
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# Terraform
+*.tfstate
+*.tfstate.backup
+.terraform/
+
+# Other
+tmp/
+temp/

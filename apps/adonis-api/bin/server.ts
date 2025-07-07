@@ -38,9 +38,12 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
       const { stationDataCache } = await import('#services/station_data_cache')
 
       // Clean up old data every hour (1 hour = 60 * 60 * 1000 ms)
-      const cleanupInterval = setInterval(() => {
-        stationDataCache.clearOldData(1) // Remove data older than 1 hour
-      }, 60 * 60 * 1000)
+      const cleanupInterval = setInterval(
+        () => {
+          stationDataCache.clearOldData(1) // Remove data older than 1 hour
+        },
+        60 * 60 * 1000
+      )
 
       // Clean up interval when app terminates
       app.terminating(() => {

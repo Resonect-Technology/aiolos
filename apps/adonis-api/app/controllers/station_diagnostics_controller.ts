@@ -4,93 +4,96 @@ import StationDiagnostic from '#app/models/station_diagnostic'
 import { stationDataCache } from '#app/services/station_data_cache'
 
 export default class StationDiagnosticsController {
-    /**
-     * Store new diagnostics data for a station
-     */
-    async store({ params, request, response }: HttpContext) {
-        // Capture arrival timestamp immediately for accuracy
-        const arrivalTimestamp = new Date().toISOString()
+  /**
+   * Store new diagnostics data for a station
+   */
+  async store({ params, request, response }: HttpContext) {
+    // Capture arrival timestamp immediately for accuracy
+    const arrivalTimestamp = new Date().toISOString()
 
-        const stationId = params.station_id
-        const data = request.body()
+    const stationId = params.station_id
+    const data = request.body()
 
-        try {
-            // Validate required fields
-            const { batteryVoltage, solarVoltage, signalQuality, uptime } = data
-            if (
-                typeof batteryVoltage !== 'number' ||
-                typeof solarVoltage !== 'number' ||
-                typeof signalQuality !== 'number' ||
-                typeof uptime !== 'number'
-            ) {
-                return response.badRequest({ error: 'Invalid diagnostics data. Required fields: batteryVoltage, solarVoltage, signalQuality, uptime' })
-            }
+    try {
+      // Validate required fields
+      const { batteryVoltage, solarVoltage, signalQuality, uptime } = data
+      if (
+        typeof batteryVoltage !== 'number' ||
+        typeof solarVoltage !== 'number' ||
+        typeof signalQuality !== 'number' ||
+        typeof uptime !== 'number'
+      ) {
+        return response.badRequest({
+          error:
+            'Invalid diagnostics data. Required fields: batteryVoltage, solarVoltage, signalQuality, uptime',
+        })
+      }
 
-            // Prepare diagnostics data with timestamp
-            const diagnosticsData = {
-                ...data,
-                timestamp: data.timestamp || arrivalTimestamp,
-            }
+      // Prepare diagnostics data with timestamp
+      const diagnosticsData = {
+        ...data,
+        timestamp: data.timestamp || arrivalTimestamp,
+      }
 
-            // Cache the diagnostics data
-            stationDataCache.setDiagnosticsData(stationId, {
-                batteryVoltage,
-                solarVoltage,
-                signalQuality,
-                uptime,
-                internalTemperature: data.internalTemperature,
-                timestamp: diagnosticsData.timestamp,
-            })
+      // Cache the diagnostics data
+      stationDataCache.setDiagnosticsData(stationId, {
+        batteryVoltage,
+        solarVoltage,
+        signalQuality,
+        uptime,
+        internalTemperature: data.internalTemperature,
+        timestamp: diagnosticsData.timestamp,
+      })
 
-            // Save diagnostics to database
-            await StationDiagnostic.create({
-                stationId: stationId,
-                batteryVoltage: batteryVoltage,
-                solarVoltage: solarVoltage,
-                internalTemperature: data.internalTemperature || null,
-                signalQuality: signalQuality,
-                uptime: uptime
-            })
+      // Save diagnostics to database
+      await StationDiagnostic.create({
+        stationId: stationId,
+        batteryVoltage: batteryVoltage,
+        solarVoltage: solarVoltage,
+        internalTemperature: data.internalTemperature || null,
+        signalQuality: signalQuality,
+        uptime: uptime,
+      })
 
-            // Broadcast the diagnostics data via Transmit
-            await transmit.broadcast(`station/diagnostics/${stationId}`, diagnosticsData)
+      // Broadcast the diagnostics data via Transmit
+      await transmit.broadcast(`station/diagnostics/${stationId}`, diagnosticsData)
 
-            // Log diagnostics in development
-            if (process.env.NODE_ENV === 'development') {
-                console.log(`Diagnostics for station ${stationId}:`, diagnosticsData)
-            }
+      // Log diagnostics in development
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`Diagnostics for station ${stationId}:`, diagnosticsData)
+      }
 
-            return { ok: true }
-        } catch (error) {
-            console.error('Error processing diagnostics data:', error)
-            return response.status(500).json({ error: 'Failed to process diagnostics data' })
-        }
+      return { ok: true }
+    } catch (error) {
+      console.error('Error processing diagnostics data:', error)
+      return response.status(500).json({ error: 'Failed to process diagnostics data' })
     }
+  }
 
-    /**
-     * Get the latest diagnostics for a station
-     */
-    async show({ params }: HttpContext) {
-        const stationId = params.station_id
+  /**
+   * Get the latest diagnostics for a station
+   */
+  async show({ params }: HttpContext) {
+    const stationId = params.station_id
 
-        try {
-            // Get the latest diagnostics for the station
-            const latestDiagnostics = await StationDiagnostic.query()
-                .where('stationId', stationId)
-                .orderBy('createdAt', 'desc')
-                .first()
+    try {
+      // Get the latest diagnostics for the station
+      const latestDiagnostics = await StationDiagnostic.query()
+        .where('stationId', stationId)
+        .orderBy('createdAt', 'desc')
+        .first()
 
-            if (!latestDiagnostics) {
-                return {
-                    stationId: stationId,
-                    message: 'No diagnostics found for this station'
-                }
-            }
-
-            return latestDiagnostics
-        } catch (error) {
-            console.error('Error fetching diagnostics data:', error)
-            return { error: 'Failed to fetch diagnostics data' }
+      if (!latestDiagnostics) {
+        return {
+          stationId: stationId,
+          message: 'No diagnostics found for this station',
         }
+      }
+
+      return latestDiagnostics
+    } catch (error) {
+      console.error('Error fetching diagnostics data:', error)
+      return { error: 'Failed to fetch diagnostics data' }
     }
+  }
 }

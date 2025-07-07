@@ -1,18 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Compass, Info } from "lucide-react";
-import './wind-direction-compass.css'; // Uses the CSS provided by the user
+import "./wind-direction-compass.css"; // Uses the CSS provided by the user
 
 interface WindDirectionCompassProps {
   windDirection: number | null | undefined;
 }
 
 export const WindDirectionCompass: React.FC<WindDirectionCompassProps> = ({ windDirection }) => {
-  const [compassCircleTransformStyle, setCompassCircleTransformStyle] = useState(
-    "translate(-50%, -50%)"
-  );
+  const [compassCircleTransformStyle, setCompassCircleTransformStyle] =
+    useState("translate(-50%, -50%)");
 
   useEffect(() => {
     if (windDirection !== null && windDirection !== undefined) {
@@ -30,18 +29,20 @@ export const WindDirectionCompass: React.FC<WindDirectionCompassProps> = ({ wind
         <Compass className="h-5 w-5 text-primary" />
         <h3 className="text-2xl font-bold text-foreground">Wind Direction</h3>
       </div>
-      
+
       <Alert className="mb-6">
         <Info className="h-4 w-4" />
         <AlertDescription>
-          The red arrow shows the direction from which the wind blows. For optimal 
-          Vasiliki conditions, we look for westerly winds (around 270°).
+          The red arrow shows the direction from which the wind blows. For optimal Vasiliki
+          conditions, we look for westerly winds (around 270°).
         </AlertDescription>
       </Alert>
-      
+
       <div className="flex justify-center mb-6">
-        <div className="compass"> {/* Class from user's CSS */}
-          <div className="arrow" /> {/* Class from user's CSS */}
+        <ChevronsDown />
+        <div className="compass">
+          {" "}
+          {/* Class from user's CSS */}
           <div
             className="compass-circle" /* Class from user's CSS */
             style={{ transform: compassCircleTransformStyle }}
@@ -49,7 +50,7 @@ export const WindDirectionCompass: React.FC<WindDirectionCompassProps> = ({ wind
           <div className="my-point" /> {/* Class from user's CSS */}
         </div>
       </div>
-      
+
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg">Current Direction</CardTitle>
@@ -74,9 +75,23 @@ export const WindDirectionCompass: React.FC<WindDirectionCompassProps> = ({ wind
 // Helper function to convert degrees to compass direction
 function getCompassDirection(degrees: number): string {
   const directions = [
-    'N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
-    'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'
+    "N",
+    "NNE",
+    "NE",
+    "ENE",
+    "E",
+    "ESE",
+    "SE",
+    "SSE",
+    "S",
+    "SSW",
+    "SW",
+    "WSW",
+    "W",
+    "WNW",
+    "NW",
+    "NNW",
   ];
   const index = Math.round(degrees / 22.5) % 16;
   return directions[index];
-};
+}

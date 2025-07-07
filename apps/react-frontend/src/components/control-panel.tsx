@@ -1,9 +1,18 @@
-import { memo } from 'react';
+import { memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Settings, Clock, Play, Square, Send, Trash2, CheckCircle, AlertTriangle } from "lucide-react";
+import {
+  Settings,
+  Clock,
+  Play,
+  Square,
+  Send,
+  Trash2,
+  CheckCircle,
+  AlertTriangle,
+} from "lucide-react";
 
 interface WindData {
   windSpeed: number;
@@ -26,7 +35,7 @@ export const ControlPanel = memo(function ControlPanel({
   startMockData,
   stopMockData,
   sendSingleMockData,
-  clearWindHistory
+  clearWindHistory,
 }: ControlPanelProps) {
   return (
     <Card>
@@ -57,20 +66,16 @@ export const ControlPanel = memo(function ControlPanel({
               <div className="space-y-2">
                 <div className="flex items-center gap-2 justify-center lg:justify-start">
                   <AlertTriangle className="h-4 w-4 text-amber-600" />
-                  <span className="text-sm font-medium text-muted-foreground">
-                    Status
-                  </span>
+                  <span className="text-sm font-medium text-muted-foreground">Status</span>
                 </div>
-                <Badge variant="secondary">
-                  Waiting for wind data...
-                </Badge>
+                <Badge variant="secondary">Waiting for wind data...</Badge>
               </div>
             )}
           </div>
-          
+
           <Separator orientation="vertical" className="hidden lg:block h-16" />
           <Separator className="lg:hidden" />
-          
+
           {/* Control Buttons */}
           <div className="flex flex-wrap justify-center gap-3">
             <Button onClick={startMockData} className="gap-2">
