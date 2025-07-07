@@ -1,6 +1,7 @@
 import SensorReading from '#models/sensor_reading'
 import type { HttpContext } from '@adonisjs/core/http'
 import { stationDataCache } from '#app/services/station_data_cache'
+import transmit from '@adonisjs/transmit/services/main'
 
 export default class StationTemperatureController {
     /**
@@ -11,18 +12,28 @@ export default class StationTemperatureController {
      * @responseBody 201 - <SensorReading> - The created temperature reading
      */
     async store({ request, response, params }: HttpContext) {
+        // Capture arrival timestamp immediately for accuracy
+        const arrivalTimestamp = new Date().toISOString()
+
         const temperature = request.input('temperature')
 
         if (temperature === undefined) {
             return response.badRequest({ error: 'Temperature value is required' })
         }
 
-        const timestamp = new Date().toISOString()
+        // Use station-provided timestamp if available, otherwise use server arrival time
+        const temperatureTimestamp = request.input('timestamp') || arrivalTimestamp
 
         // Cache the temperature data
         stationDataCache.setTemperatureData(params.station_id, {
             temperature,
-            timestamp,
+            timestamp: temperatureTimestamp,
+        })
+
+        // Broadcast to SSE subscribers with timestamp
+        await transmit.broadcast(`temperature/live/${params.station_id}`, {
+            temperature,
+            timestamp: temperatureTimestamp,
         })
 
         const data = {
@@ -39,7 +50,7 @@ export default class StationTemperatureController {
      * @summary Get the most recent temperature reading
      * @description Get the most recent temperature reading for the specified station
      * @paramPath station_id - The station's unique ID - @type(string) @required
-     * @responseBody 200 - <SensorReading> - The most recent temperature reading
+     * @responseBody 200 - <SensorReading> - The most recent temperature reading with last update time
      * @responseBody 404 - Not found
      */
     async latest({ params, response }: HttpContext) {
@@ -50,7 +61,12 @@ export default class StationTemperatureController {
             .first()
 
         if (!reading) return response.notFound({ message: 'No temperature readings found' })
-        return reading
+
+        // Include the last update time for the frontend
+        return {
+            ...reading.toJSON(),
+            lastUpdated: reading.createdAt.toISO(),
+        }
     }
 
     /**

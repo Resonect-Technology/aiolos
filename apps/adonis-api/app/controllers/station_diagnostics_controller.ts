@@ -8,6 +8,9 @@ export default class StationDiagnosticsController {
      * Store new diagnostics data for a station
      */
     async store({ params, request, response }: HttpContext) {
+        // Capture arrival timestamp immediately for accuracy
+        const arrivalTimestamp = new Date().toISOString()
+
         const stationId = params.station_id
         const data = request.body()
 
@@ -26,7 +29,7 @@ export default class StationDiagnosticsController {
             // Prepare diagnostics data with timestamp
             const diagnosticsData = {
                 ...data,
-                timestamp: data.timestamp || new Date().toISOString(),
+                timestamp: data.timestamp || arrivalTimestamp,
             }
 
             // Cache the diagnostics data

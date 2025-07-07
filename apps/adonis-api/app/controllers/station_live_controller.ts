@@ -26,6 +26,9 @@ export default class StationLiveController {
      * Body: { windSpeed: number, windDirection: number, timestamp?: string }
      */
     async wind({ params, request, response }: HttpContext) {
+        // Capture arrival timestamp immediately for accuracy
+        const arrivalTimestamp = new Date().toISOString()
+
         const { station_id } = params
         const { windSpeed, windDirection, timestamp } = request.only([
             'windSpeed',
@@ -39,7 +42,8 @@ export default class StationLiveController {
             return response.badRequest({ error: 'Invalid wind data' })
         }
 
-        const windTimestamp = timestamp || new Date().toISOString()
+        // Use station-provided timestamp if available, otherwise use server arrival time
+        const windTimestamp = timestamp || arrivalTimestamp
 
         // Cache the latest wind data using the shared cache service
         stationDataCache.setWindData(station_id, {
@@ -69,6 +73,9 @@ export default class StationLiveController {
      * Broadcasts the mock data to connected clients via SSE.
      */
     async mockWind({ params, request }: HttpContext) {
+        // Capture arrival timestamp immediately for accuracy
+        const arrivalTimestamp = new Date().toISOString()
+
         const { station_id } = params
         let { windSpeed, windDirection, timestamp } = request.only([
             'windSpeed',
@@ -82,8 +89,9 @@ export default class StationLiveController {
         if (typeof windDirection !== 'number') {
             windDirection = Math.floor(Math.random() * 360) // 0 - 359 degrees
         }
+        // Use provided timestamp or server arrival time
         if (!timestamp) {
-            timestamp = new Date().toISOString()
+            timestamp = arrivalTimestamp
         }
 
         // Cache the mock wind data using the shared cache service
