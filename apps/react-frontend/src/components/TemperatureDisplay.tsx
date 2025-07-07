@@ -105,22 +105,22 @@ export function TemperatureDisplay({ stationId }: TemperatureDisplayProps) {
   };
 
   return (
-    <div className="p-6">
-      <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-2 text-center">
-        Current Temperature
-      </h2>
+    <div className="text-center">
+      <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-2">
+        Temperature
+      </h3>
       
-      <div className="flex justify-center items-center h-24">
+      <div className="flex justify-center items-center min-h-[60px]">
         {loading ? (
-          <div className="animate-pulse text-slate-400 dark:text-slate-500">Loading...</div>
+          <div className="animate-pulse text-slate-400 dark:text-slate-500 text-sm">Loading...</div>
         ) : error ? (
-          <div className="text-red-500 dark:text-red-400">Error loading temperature</div>
+          <div className="text-red-500 dark:text-red-400 text-sm">Error</div>
         ) : (
-          <div className="text-5xl font-bold text-center">
+          <div className="text-3xl font-bold text-center">
             {temperatureData?.temperature !== null && temperatureData?.temperature !== undefined ? (
               <>
                 {temperatureData.temperature.toFixed(1)}
-                <span className="text-3xl ml-1">°C</span>
+                <span className="text-xl ml-1">°C</span>
               </>
             ) : (
               <span className="text-slate-400 dark:text-slate-500">N/A</span>
@@ -131,8 +131,8 @@ export function TemperatureDisplay({ stationId }: TemperatureDisplayProps) {
       
       {temperatureData?.timestamp && (
         <div className="text-center mt-2">
-          <span className={`text-sm ${getTimestampClasses(temperatureData.timestamp)}`}>
-            Last updated: {formatLastUpdated(temperatureData.timestamp)}
+          <span className={`text-xs ${getTimestampClasses(temperatureData.timestamp)}`}>
+            {formatLastUpdated(temperatureData.timestamp)}
           </span>
         </div>
       )}

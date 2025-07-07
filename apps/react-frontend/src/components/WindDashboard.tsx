@@ -88,73 +88,78 @@ export function WindDashboard({ stationId }: WindDashboardProps) {
   }, [stationId]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
-        {/* Header Section */}
-        <div className="mb-10">
-          <ConnectionStatus 
-            isConnected={isConnected}
-            error={error}
-          />
-        </div>
-
-        {/* Temperature Display Card */}
-        <div className="mb-10">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-2xl transition-shadow duration-300">
-            <TemperatureDisplay stationId={stationId} />
-          </div>
-        </div>
-
-        {/* Unit Selector */}
-        <div className="mb-10 flex justify-center">
-          <UnitSelector 
-            selectedUnit={selectedUnit} 
-            onUnitChange={handleUnitChange} 
-            className="w-full max-w-md"
-          />
-        </div>
-
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-10">
-          {/* Left column with speed gauge and direction compass */}
-          <div className="space-y-8">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-2xl transition-shadow duration-300">
-              <div className="p-8">
-                <WindSpeedDisplay 
-                  windData={windData} 
-                  selectedUnit={selectedUnit} 
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+      <div className="container mx-auto px-4 py-6 max-w-[1600px]">
+        
+        {/* Main Dashboard Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+          
+          {/* Header Row - Connection Status + Temperature + Unit Selector */}
+          <div className="col-span-full">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Connection Status */}
+              <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4">
+                <ConnectionStatus 
+                  isConnected={isConnected}
+                  error={error}
                 />
               </div>
-            </div>
-            
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-2xl transition-shadow duration-300">
-              <div className="p-8">
-                <WindDirectionCompass 
-                  windDirection={windData?.windDirection} 
-                />
+              
+              {/* Temperature + Unit Selector */}
+              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4">
+                <div className="flex flex-col h-full">
+                  <div className="flex-1">
+                    <TemperatureDisplay stationId={stationId} />
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                    <UnitSelector 
+                      selectedUnit={selectedUnit} 
+                      onUnitChange={handleUnitChange} 
+                      className="w-full"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Right column with wind rose chart */}
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-2xl transition-shadow duration-300">
-            <div className="p-8 h-full min-h-[700px] flex flex-col">
+          {/* Wind Speed Card */}
+          <div className="md:col-span-1 lg:col-span-2 bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border border-slate-200 dark:border-slate-700">
+            <div className="p-6">
+              <WindSpeedDisplay 
+                windData={windData} 
+                selectedUnit={selectedUnit} 
+              />
+            </div>
+          </div>
+
+          {/* Wind Direction Card */}
+          <div className="md:col-span-1 lg:col-span-2 bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border border-slate-200 dark:border-slate-700">
+            <div className="p-6">
+              <WindDirectionCompass 
+                windDirection={windData?.windDirection} 
+              />
+            </div>
+          </div>
+
+          {/* Wind Rose Chart - Spans full width */}
+          <div className="col-span-full bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border border-slate-200 dark:border-slate-700">
+            <div className="p-6">
               <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-6 text-center">
                 Wind Rose Analysis
               </h2>
-              <div className="flex-1">
-                <WindRoseChart 
-                  windHistory={windHistory} 
-                  selectedUnit={selectedUnit} 
-                />
-              </div>
+              <WindRoseChart 
+                windHistory={windHistory} 
+                selectedUnit={selectedUnit} 
+              />
             </div>
           </div>
-        </div>
 
-        {/* Diagnostics Panel */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-2xl transition-shadow duration-300">
-          <DiagnosticsPanel stationId={stationId} />
+          {/* Diagnostics Panel - Full width */}
+          <div className="col-span-full bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border border-slate-200 dark:border-slate-700">
+            <DiagnosticsPanel stationId={stationId} />
+          </div>
+          
         </div>
       </div>
     </div>
