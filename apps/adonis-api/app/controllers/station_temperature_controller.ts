@@ -1,5 +1,6 @@
 import SensorReading from '#models/sensor_reading'
 import type { HttpContext } from '@adonisjs/core/http'
+import { stationDataCache } from '#app/services/station_data_cache'
 
 export default class StationTemperatureController {
     /**
@@ -15,6 +16,14 @@ export default class StationTemperatureController {
         if (temperature === undefined) {
             return response.badRequest({ error: 'Temperature value is required' })
         }
+
+        const timestamp = new Date().toISOString()
+
+        // Cache the temperature data
+        stationDataCache.setTemperatureData(params.station_id, {
+            temperature,
+            timestamp,
+        })
 
         const data = {
             type: 'temperature' as const,

@@ -1,5 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import transmit from '@adonisjs/transmit/services/main'
+import { stationDataCache } from '#app/services/station_data_cache'
 
 // In-memory interval map for dev-only mock streaming
 interface MockStationData {
@@ -11,8 +12,17 @@ const mockStationStates: Record<string, MockStationData> = {}
 
 export default class StationLiveController {
     /**
-     * Receives live wind data for a station and broadcasts it via Transmit SSE.
-     * POST /stations/:station_id/live/wind
+     * Receives wind data and broadcasts it via Transmit SSE for real-time updates.
+     * 
+     * ⚠️ IMPORTANT: This endpoint is used by BOTH routes:
+     * - POST /stations/:station_id/wind (used by firmware - see firmware_endpoints.spec.ts)
+     * - POST /stations/:station_id/live/wind (used for real-time broadcasting & development)
+     * 
+     * The firmware uses the simpler /wind route, while /live/wind is primarily for:
+     * - Real-time data broadcasting to web clients via SSE
+     * - Development and testing purposes
+     * - IoT/CoAP proxy integration
+     * 
      * Body: { windSpeed: number, windDirection: number, timestamp?: string }
      */
     async wind({ params, request, response }: HttpContext) {
@@ -28,19 +38,35 @@ export default class StationLiveController {
         ) {
             return response.badRequest({ error: 'Invalid wind data' })
         }
+
+        const windTimestamp = timestamp || new Date().toISOString()
+
+        // Cache the latest wind data using the shared cache service
+        stationDataCache.setWindData(station_id, {
+            windSpeed,
+            windDirection,
+            timestamp: windTimestamp,
+        })
+
+        // Broadcast to SSE subscribers
         await transmit.broadcast(`wind/live/${station_id}`, {
             windSpeed,
             windDirection,
-            timestamp: timestamp || new Date().toISOString(),
+            timestamp: windTimestamp,
         })
+
         return { ok: true }
     }
 
     /**
-     * Mocks live wind data for a station and broadcasts it via Transmit SSE.
+     * Mocks wind data for development and testing purposes.
+     * 
      * POST /stations/:station_id/live/wind/mock
      * Body: { windSpeed?: number, windDirection?: number, timestamp?: string }
-     * If not provided, random values will be used.
+     * 
+     * Purpose: Generate mock wind data for frontend development and SSE testing.
+     * If values not provided, random values will be used.
+     * Broadcasts the mock data to connected clients via SSE.
      */
     async mockWind({ params, request }: HttpContext) {
         const { station_id } = params
@@ -59,6 +85,14 @@ export default class StationLiveController {
         if (!timestamp) {
             timestamp = new Date().toISOString()
         }
+
+        // Cache the mock wind data using the shared cache service
+        stationDataCache.setWindData(station_id, {
+            windSpeed,
+            windDirection,
+            timestamp,
+        })
+
         await transmit.broadcast(`wind/live/${station_id}`, {
             windSpeed,
             windDirection,

@@ -1,6 +1,7 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import transmit from '@adonisjs/transmit/services/main'
 import StationDiagnostic from '#app/models/station_diagnostic'
+import { stationDataCache } from '#app/services/station_data_cache'
 
 export default class StationDiagnosticsController {
     /**
@@ -27,6 +28,16 @@ export default class StationDiagnosticsController {
                 ...data,
                 timestamp: data.timestamp || new Date().toISOString(),
             }
+
+            // Cache the diagnostics data
+            stationDataCache.setDiagnosticsData(stationId, {
+                batteryVoltage,
+                solarVoltage,
+                signalQuality,
+                uptime,
+                internalTemperature: data.internalTemperature,
+                timestamp: diagnosticsData.timestamp,
+            })
 
             // Save diagnostics to database
             await StationDiagnostic.create({

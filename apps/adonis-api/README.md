@@ -93,11 +93,14 @@ subscription.onMessage((data) => {
 })
 ```
 
-### Ingesting Live Wind Data (for IoT/CoAP Proxy)
+### Ingesting Live Wind Data (Real-time Broadcasting & Development)
+⚠️ **Note**: The firmware uses `POST /stations/:station_id/wind` (not `/live/wind`). The `/live/wind` routes are primarily for real-time data broadcasting to web clients and development/testing purposes.
+
 - **Endpoint:** `POST /stations/:station_id/live/wind`
 - **Body:** `{ wind_speed: number, wind_direction: number, timestamp?: string }`
+- **Purpose**: Receives wind data and broadcasts it via Server-Sent Events (SSE) to connected web clients
+- **Use case**: Real-time dashboard updates, IoT/CoAP proxy integration, development testing
 - Broadcasts to SSE channel: `wind/live/:station_id`
-- Use this endpoint to push new wind data from your IoT/CoAP proxy to all live subscribers.
 
 #### Example (curl)
 ```sh
@@ -109,7 +112,8 @@ curl -X POST http://localhost:3333/stations/station-001/live/wind \
 ### Mocking Live Wind Data (Development Only)
 - **Endpoint:** `POST /stations/:station_id/live/wind/mock`
 - **Body:** Optionally provide `wind_speed`, `wind_direction`, `timestamp` (otherwise random values are used)
-- Use this endpoint to simulate live wind data for frontend or SSE testing.
+- **Purpose**: Simulate live wind data for frontend development and SSE testing
+- Use this endpoint to test real-time dashboard features without actual hardware
 
 #### Example (curl)
 ```sh
