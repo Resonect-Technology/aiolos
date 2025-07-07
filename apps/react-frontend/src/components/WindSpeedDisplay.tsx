@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import GaugeComponent from 'react-gauge-component';
 import { convertWindSpeed, WIND_UNIT_LABELS, getGaugeMinValue, getGaugeMaxValue, getWindSpeedColorByValue } from '../lib/wind-utils';
+import { formatLastUpdated, getTimestampClasses } from '../lib/time-utils';
 
 interface WindData {
   windSpeed: number;
@@ -203,6 +204,13 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
               {currentUnitLabel}
             </span>
           </div>
+          {windData?.timestamp && (
+            <div className="text-center mt-2">
+              <span className={`text-sm ${getTimestampClasses(windData.timestamp)}`}>
+                Last updated: {formatLastUpdated(windData.timestamp)}
+              </span>
+            </div>
+          )}
         </div>
       )}
     </div>

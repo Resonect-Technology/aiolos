@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { Transmit } from '@adonisjs/transmit-client';
+import { formatLastUpdated, getTimestampClasses } from '../lib/time-utils';
 
 interface DiagnosticsData {
   id?: number;
@@ -8,6 +10,7 @@ interface DiagnosticsData {
   internalTemperature: number | null;
   signalQuality: number;
   uptime: number;
+  timestamp: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -21,59 +24,98 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  const transmitInstanceRef = useRef<Transmit | null>(null);
+  const subscriptionRef = useRef<any | null>(null);
+
   useEffect(() => {
-    const fetchDiagnostics = async () => {
-      setLoading(true);
-      setError(null);
-      
-      try {
-        const url = `/api/stations/${stationId}/diagnostics`;
-        console.log(`Fetching diagnostics from: ${url}`);
-        const response = await fetch(url);
-        
-        console.log('Response status:', response.status);
-        console.log('Response headers:', [...response.headers.entries()]);
-        
-        if (!response.ok) {
-          if (response.status === 404) {
-            // Handle 404 specially - it's not really an error, just no data
-            console.log('No diagnostics data found for this station');
-            setDiagnosticsData(null);
-            setLoading(false);
-            return;
-          }
-          
-          // Try to get the error message from the response
-          let errorText = `Failed to fetch diagnostics: ${response.status} ${response.statusText}`;
-          try {
-            const errorData = await response.text();
-            console.log('Error response body:', errorData);
-            errorText += ` - ${errorData}`;
-          } catch (e) {
-            // Ignore errors reading the response body
-          }
-          
-          throw new Error(errorText);
-        }
-        
-        const data = await response.json();
-        console.log('Received diagnostics data:', data);
-        setDiagnosticsData(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch diagnostics');
-        console.error('Error fetching diagnostics:', err);
-      } finally {
+    // Clear any previous connection state
+    setError(null);
+    setLoading(true);
+
+    // Initialize Transmit instance if it doesn't exist
+    if (!transmitInstanceRef.current) {
+      console.log('Creating new Transmit instance for diagnostics');
+      transmitInstanceRef.current = new Transmit({
+        baseUrl: window.location.origin,
+      });
+    }
+
+    const transmit = transmitInstanceRef.current;
+    const channelName = `station/diagnostics/${stationId}`;
+
+    const newSubscription = transmit.subscription(channelName);
+    subscriptionRef.current = newSubscription;
+
+    newSubscription.create()
+      .then(() => {
         setLoading(false);
+        setError(null);
+        console.log(`Connected to diagnostics channel: ${channelName}`);
+
+        newSubscription.onMessage((data: DiagnosticsData) => {
+          console.log('Diagnostics data received:', data);
+          if (data && typeof data.batteryVoltage === 'number') {
+            setDiagnosticsData(data);
+          } else {
+            // Handle wrapped message format
+            const messagePayload = (data as any).data;
+            if (messagePayload && typeof messagePayload.batteryVoltage === 'number') {
+              setDiagnosticsData(messagePayload);
+            } else {
+              console.warn('Received diagnostics message in unexpected format:', data);
+            }
+          }
+        });
+      })
+      .catch(err => {
+        console.error('Failed to connect to diagnostics channel:', err);
+        setError(`Failed to connect: ${err.message || 'Unknown error'}`);
+        setLoading(false);
+        
+        // Fallback to API polling if SSE fails
+        fetchDiagnosticsFromAPI();
+      });
+
+    return () => {
+      if (subscriptionRef.current) {
+        subscriptionRef.current.delete()
+          .catch((err: Error) => console.error(`Failed to unsubscribe from ${channelName}:`, err));
+        subscriptionRef.current = null;
       }
     };
-
-    fetchDiagnostics();
-
-    // Set up a refresh interval (every 2 minutes)
-    const intervalId = setInterval(fetchDiagnostics, 2 * 60 * 1000);
-    
-    return () => clearInterval(intervalId);
   }, [stationId]);
+
+  // Fallback function for API polling
+  const fetchDiagnosticsFromAPI = async () => {
+    try {
+      console.log(`Fetching diagnostics from API for station: ${stationId}`);
+      const url = `/api/stations/${stationId}/diagnostics`;
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.log('No diagnostics data found for this station');
+          setDiagnosticsData(null);
+          return;
+        }
+        console.log(`API Error (${response.status}): Could not fetch diagnostics data`);
+        return;
+      }
+      
+      const data = await response.json();
+      console.log('Diagnostics data from API:', data);
+      
+      // Convert API response to expected format
+      if (data.batteryVoltage !== undefined) {
+        setDiagnosticsData({
+          ...data,
+          timestamp: data.createdAt || new Date().toISOString(),
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching diagnostics from API:', err);
+    }
+  };
 
   // Format uptime from seconds to a human-readable format
   const formatUptime = (seconds: number) => {
@@ -134,6 +176,15 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
       
       {diagnosticsData && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Timestamp */}
+          {diagnosticsData.timestamp && (
+            <div className="md:col-span-3 text-center mb-4">
+              <span className={`text-sm ${getTimestampClasses(diagnosticsData.timestamp)}`}>
+                Last updated: {formatLastUpdated(diagnosticsData.timestamp)}
+              </span>
+            </div>
+          )}
+          
           {/* Battery Status */}
           <div className="bg-white dark:bg-slate-700 rounded-xl shadow p-4">
             <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-2">Power Status</h3>

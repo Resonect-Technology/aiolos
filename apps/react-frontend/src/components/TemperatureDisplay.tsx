@@ -1,47 +1,108 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { Transmit } from '@adonisjs/transmit-client';
+import { formatLastUpdated, getTimestampClasses } from '../lib/time-utils';
+
+interface TemperatureData {
+  temperature: number;
+  timestamp: string;
+}
 
 interface TemperatureDisplayProps {
   stationId: string;
 }
 
 export function TemperatureDisplay({ stationId }: TemperatureDisplayProps) {
-  const [temperature, setTemperature] = useState<number | null>(null);
+  const [temperatureData, setTemperatureData] = useState<TemperatureData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const fetchTemperature = useCallback(async () => {
+  const transmitInstanceRef = useRef<Transmit | null>(null);
+  const subscriptionRef = useRef<any | null>(null);
+
+  useEffect(() => {
+    // Clear any previous connection state
+    setError(null);
+    setLoading(true);
+
+    // Initialize Transmit instance if it doesn't exist
+    if (!transmitInstanceRef.current) {
+      console.log('Creating new Transmit instance for temperature');
+      transmitInstanceRef.current = new Transmit({
+        baseUrl: window.location.origin,
+      });
+    }
+
+    const transmit = transmitInstanceRef.current;
+    const channelName = `temperature/live/${stationId}`;
+
+    const newSubscription = transmit.subscription(channelName);
+    subscriptionRef.current = newSubscription;
+
+    newSubscription.create()
+      .then(() => {
+        setLoading(false);
+        setError(null);
+        console.log(`Connected to temperature channel: ${channelName}`);
+
+        newSubscription.onMessage((data: TemperatureData) => {
+          console.log('Temperature data received:', data);
+          if (data && typeof data.temperature === 'number') {
+            setTemperatureData(data);
+          } else {
+            // Handle wrapped message format
+            const messagePayload = (data as any).data;
+            if (messagePayload && typeof messagePayload.temperature === 'number') {
+              setTemperatureData(messagePayload);
+            } else {
+              console.warn('Received temperature message in unexpected format:', data);
+            }
+          }
+        });
+      })
+      .catch(err => {
+        console.error('Failed to connect to temperature channel:', err);
+        setError(`Failed to connect: ${err.message || 'Unknown error'}`);
+        setLoading(false);
+        
+        // Fallback to API polling if SSE fails
+        fetchTemperatureFromAPI();
+      });
+
+    return () => {
+      if (subscriptionRef.current) {
+        subscriptionRef.current.delete()
+          .catch((err: Error) => console.error(`Failed to unsubscribe from ${channelName}:`, err));
+        subscriptionRef.current = null;
+      }
+    };
+  }, [stationId]);
+
+  // Fallback function for API polling
+  const fetchTemperatureFromAPI = async () => {
     try {
-      setLoading(true);
-      console.log(`Fetching temperature for station: ${stationId}`);
+      console.log(`Fetching temperature from API for station: ${stationId}`);
       const url = `/api/stations/${stationId}/temperature/latest`;
-      console.log(`Request URL: ${url}`);
-      
       const response = await fetch(url);
       
       if (!response.ok) {
         console.log(`API Error (${response.status}): Could not fetch temperature data`);
-        setTemperature(null);
         return;
       }
       
       const data = await response.json();
-      console.log('Temperature data received:', data);
-      setTemperature(data.temperature);
+      console.log('Temperature data from API:', data);
+      
+      // Convert API response to expected format
+      if (data.temperature !== undefined) {
+        setTemperatureData({
+          temperature: data.temperature,
+          timestamp: data.lastUpdated || data.createdAt || new Date().toISOString(),
+        });
+      }
     } catch (err) {
-      console.error('Error fetching temperature:', err);
-      setTemperature(null);
-    } finally {
-      setLoading(false);
+      console.error('Error fetching temperature from API:', err);
     }
-  }, [stationId]);
-
-  useEffect(() => {
-    fetchTemperature();
-    
-    // Refresh temperature data every 60 seconds
-    const intervalId = setInterval(fetchTemperature, 60000);
-    
-    return () => clearInterval(intervalId);
-  }, [fetchTemperature]);
+  };
 
   return (
     <div className="p-6">
@@ -52,11 +113,13 @@ export function TemperatureDisplay({ stationId }: TemperatureDisplayProps) {
       <div className="flex justify-center items-center h-24">
         {loading ? (
           <div className="animate-pulse text-slate-400 dark:text-slate-500">Loading...</div>
+        ) : error ? (
+          <div className="text-red-500 dark:text-red-400">Error loading temperature</div>
         ) : (
           <div className="text-5xl font-bold text-center">
-            {temperature !== null ? (
+            {temperatureData?.temperature !== null && temperatureData?.temperature !== undefined ? (
               <>
-                {temperature.toFixed(1)}
+                {temperatureData.temperature.toFixed(1)}
                 <span className="text-3xl ml-1">°C</span>
               </>
             ) : (
@@ -65,6 +128,14 @@ export function TemperatureDisplay({ stationId }: TemperatureDisplayProps) {
           </div>
         )}
       </div>
+      
+      {temperatureData?.timestamp && (
+        <div className="text-center mt-2">
+          <span className={`text-sm ${getTimestampClasses(temperatureData.timestamp)}`}>
+            Last updated: {formatLastUpdated(temperatureData.timestamp)}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
