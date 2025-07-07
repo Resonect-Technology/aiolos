@@ -33,6 +33,9 @@ jobs:
           NODE_ENV: test
           APP_KEY: test-key-for-ci-testing-only-not-secure
           DB_CONNECTION: sqlite
+          PORT: 3333
+          HOST: localhost
+          LOG_LEVEL: error
 
       - name: Run tests
         working-directory: ./apps/adonis-api
@@ -41,3 +44,6 @@ jobs:
           NODE_ENV: test
           APP_KEY: test-key-for-ci-testing-only-not-secure
           DB_CONNECTION: sqlite
+          PORT: 3333
+          HOST: localhost
+          LOG_LEVEL: error
