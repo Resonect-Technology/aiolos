@@ -26,6 +26,10 @@ jobs:
         working-directory: ./apps/adonis-api
         run: pnpm install --no-frozen-lockfile
 
+      - name: Create database directory
+        working-directory: ./apps/adonis-api
+        run: mkdir -p tmp
+
       - name: Run database migrations
         working-directory: ./apps/adonis-api
         run: node ace migration:run --force
