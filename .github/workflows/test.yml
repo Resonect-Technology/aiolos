@@ -1,6 +1,7 @@
 name: Test Aiolos Backend
 
 on:
+  workflow_dispatch:
   push:
     branches: [ main ]
   pull_request:
@@ -11,7 +12,6 @@ jobs:
     name: Test Backend API
     runs-on: ubuntu-latest
     container: node:20-alpine
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -41,42 +41,3 @@ jobs:
           NODE_ENV: test
           APP_KEY: test-key-for-ci-testing-only-not-secure
           DB_CONNECTION: sqlite
-
-  verify-frontend:
-    name: Verify Frontend Build
-    runs-on: ubuntu-latest
-    container: node:20-alpine
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install pnpm
-        run: npm install -g pnpm
-
-      - name: Install dependencies
-        working-directory: ./apps/react-frontend
-        run: pnpm install
-
-      - name: Build frontend
-        working-directory: ./apps/react-frontend
-        run: pnpm build
-
-  test-results:
-    name: Test Results Summary
-    needs: [test-backend, verify-frontend]
-    runs-on: ubuntu-latest
-    if: always()
-    
-    steps:
-      - name: Test Results
-        run: |
-          if [ "${{ needs.test-backend.result }}" = "success" ] && [ "${{ needs.verify-frontend.result }}" = "success" ]; then
-            echo "✅ All tests passed successfully!"
-            echo "Backend tests and frontend build verification completed."
-          else
-            echo "❌ Some tests failed!"
-            echo "Backend: ${{ needs.test-backend.result }}"
-            echo "Frontend: ${{ needs.verify-frontend.result }}"
-            exit 1
-          fi

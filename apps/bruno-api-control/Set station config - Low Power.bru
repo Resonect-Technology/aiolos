@@ -1,20 +1,5 @@
 meta {
-  name: Sebody:json {
-  {
-    "tempInterval": 300000,
-    "windSendInterval": 600000,
-    "windSampleInterval": 60000,
-    "diagInterval": 1800000,
-    "timeInterval": 7200000,
-    "restartInterval": 43200,
-    "sleepStartHour": 20,
-    "sleepEndHour": 11,
-    "otaHour": 12,
-    "otaMinute": 30,
-    "otaDuration": 30,
-    "remoteOta": false
-  }
-} - Low Power
+  name: Set station config - Low Power
   type: http
   seq: 4
 }
@@ -32,17 +17,17 @@ headers {
 
 body:json {
   {
-    "temp_interval": 900000,
-    "wind_send_interval": 600000,
-    "wind_sample_interval": 120000,
-    "diag_interval": 900000,
-    "time_interval": 7200000,
-    "restart_interval": 43200,
-    "sleep_start_hour": 22,
-    "sleep_end_hour": 9,
-    "ota_hour": 10,
-    "ota_minute": 0,
-    "ota_duration": 60,
-    "remote_ota": false
+    "tempInterval": 300000,
+    "windSendInterval": 300000,
+    "windSampleInterval": 10000,
+    "diagInterval": 300000,
+    "timeInterval": 3600000,
+    "restartInterval": 259200,
+    "sleepStartHour": 21,
+    "sleepEndHour": 9,
+    "otaHour": 11,
+    "otaMinute": 0,
+    "otaDuration": 15,
+    "remoteOta": false
   }
 }
