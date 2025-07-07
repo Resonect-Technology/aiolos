@@ -43,13 +43,15 @@ bool isSamplingWind = false; // For wind data averaging
 // Emergency connection failure tracking
 unsigned long lastConnectionFailureTime = 0;
 int connectionFailureCount = 0;
-const int MAX_CONNECTION_FAILURES = 10;
-const unsigned long CONNECTION_FAILURE_RESET_TIME = 600000; // 10 minutes
 
 // Emergency recovery non-blocking state
 bool emergencyRecoveryMode = false;
 unsigned long emergencyRecoveryStartTime = 0;
-const unsigned long EMERGENCY_RECOVERY_DURATION = 600000; // 10 minutes
+
+// Additional safety mechanisms - Maximum offline time protection
+unsigned long firstOfflineTime = 0;     // When we first went offline
+bool hasBeenOnlineRecently = false;     // Track if we've had a successful connection
+unsigned long lastBackoffResetTime = 0; // Track when we last reset the backoff
 
 // Non-blocking temperature reading state
 bool tempConversionStarted = false;
@@ -90,7 +92,8 @@ void enterDeepSleepUntil(int hour, int minute);
 void testModemConnectivity();
 bool checkAndInitOta();
 bool checkAndInitRemoteOta();
-void handleRemoteConfiguration(); // New function to handle remote config
+void handleRemoteConfiguration();                                               // New function to handle remote config
+void handleOfflineSafetyMechanisms(unsigned long currentMillis, bool isOnline); // New safety function
 
 // Sensor instances
 TemperatureSensor externalTempSensor;
@@ -150,6 +153,11 @@ void setup()
     // Re-enable watchdog after modem initialization
     Logger.debug(LOG_TAG_SYSTEM, "Re-enabling watchdog after modem initialization");
     setupWatchdog();
+
+    // Initialize safety mechanism state
+    hasBeenOnlineRecently = false; // Start assuming we're offline
+    firstOfflineTime = 0;
+    lastBackoffResetTime = millis();
 
     // Run modem connectivity test
     testModemConnectivity();
@@ -467,6 +475,11 @@ void loop()
         connectionFailureCount = 0; // Reset on successful connection
     }
 
+    // SAFETY MECHANISMS: Handle offline safety checks
+    // A device is considered "online" if GPRS is connected AND not in HTTP backoff
+    bool isOnline = connectionSuccess && !httpClient.isConnectionThrottled();
+    handleOfflineSafetyMechanisms(currentMillis, isOnline);
+
     // Only proceed with network operations if GPRS is connected and not in backoff
     if (connectionSuccess && !httpClient.isConnectionThrottled())
     {
@@ -670,6 +683,103 @@ void loop()
 
     // Small delay to prevent excessive looping
     delay(100);
+}
+
+/**
+ * @brief Handle offline safety mechanisms
+ *
+ * Implements three critical safety mechanisms:
+ * 1. Maximum Total Offline Time - Force restart after 1 hour offline
+ * 2. Backoff Reset Timer - Reset HTTP backoff every 30 minutes
+ * 3. Emergency Full System Restart - Complete restart after extended offline time
+ *
+ * @param currentMillis Current time in milliseconds
+ * @param isOnline Whether the device is currently online (GPRS connected and not throttled)
+ */
+void handleOfflineSafetyMechanisms(unsigned long currentMillis, bool isOnline)
+{
+    // Track online/offline state changes
+    if (isOnline)
+    {
+        if (!hasBeenOnlineRecently)
+        {
+            // We just came back online
+            Logger.info(LOG_TAG_SYSTEM, "SAFETY: Device back online, resetting offline tracking");
+            hasBeenOnlineRecently = true;
+            firstOfflineTime = 0;                 // Reset offline timer
+            lastBackoffResetTime = currentMillis; // Reset backoff timer
+        }
+    }
+    else
+    {
+        // We are currently offline
+        if (hasBeenOnlineRecently)
+        {
+            // We just went offline
+            Logger.warn(LOG_TAG_SYSTEM, "SAFETY: Device went offline, starting offline time tracking");
+            firstOfflineTime = currentMillis;
+            hasBeenOnlineRecently = false;
+            lastBackoffResetTime = currentMillis; // Initialize backoff reset timer
+        }
+
+        // Check if we've been offline too long
+        if (firstOfflineTime > 0)
+        {
+            unsigned long offlineTime = currentMillis - firstOfflineTime;
+
+            // Safety Mechanism 1: Maximum Total Offline Time (1 hour)
+            if (offlineTime >= MAX_OFFLINE_TIME)
+            {
+                Logger.error(LOG_TAG_SYSTEM, "SAFETY: Device offline for %.1f hours. FORCING COMPLETE RESTART!",
+                             offlineTime / 3600000.0);
+
+                // Log some diagnostics before restart
+                Logger.error(LOG_TAG_SYSTEM, "SAFETY: Connection failure count: %d", connectionFailureCount);
+                Logger.error(LOG_TAG_SYSTEM, "SAFETY: Emergency recovery mode: %s", emergencyRecoveryMode ? "true" : "false");
+                Logger.error(LOG_TAG_SYSTEM, "SAFETY: HTTP throttled: %s", httpClient.isConnectionThrottled() ? "true" : "false");
+
+                delay(1000);   // Give time for logs to be sent to serial
+                ESP.restart(); // Force complete system restart
+                return;        // This line won't be reached, but good practice
+            }
+
+            // Safety Mechanism 2: Backoff Reset Timer (every 30 minutes while offline)
+            if (currentMillis - lastBackoffResetTime >= BACKOFF_RESET_INTERVAL)
+            {
+                Logger.warn(LOG_TAG_SYSTEM, "SAFETY: Been offline for %.1f minutes. Resetting HTTP backoff to force retry.",
+                            offlineTime / 60000.0);
+
+                // Reset the HTTP client backoff mechanism
+                httpClient.resetBackoffForSafety();
+                lastBackoffResetTime = currentMillis;
+
+                // Also reset connection failure count to allow new attempts
+                if (connectionFailureCount > 0)
+                {
+                    Logger.warn(LOG_TAG_SYSTEM, "SAFETY: Resetting connection failure count from %d to 0", connectionFailureCount);
+                    connectionFailureCount = 0;
+                    lastConnectionFailureTime = 0;
+                }
+
+                // Exit emergency recovery mode if active
+                if (emergencyRecoveryMode)
+                {
+                    Logger.warn(LOG_TAG_SYSTEM, "SAFETY: Exiting emergency recovery mode to allow new connection attempts");
+                    emergencyRecoveryMode = false;
+                    emergencyRecoveryStartTime = 0;
+                }
+            }
+
+            // Log offline status periodically (every 5 minutes)
+            static unsigned long lastOfflineLog = 0;
+            if (currentMillis - lastOfflineLog >= 300000) // 5 minutes
+            {
+                lastOfflineLog = currentMillis;
+                Logger.warn(LOG_TAG_SYSTEM, "SAFETY: Device offline for %.1f minutes (restart in %.1f minutes)",
+                            offlineTime / 60000.0, (MAX_OFFLINE_TIME - offlineTime) / 60000.0);
+            }
+        }
+    }
 }
 
 /**

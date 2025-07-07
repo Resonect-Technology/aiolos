@@ -144,6 +144,13 @@
 // Define this to enable temporary watchdog disabling during modem operations
 #define DISABLE_WDT_FOR_MODEM
 
+// Safety mechanism settings
+#define MAX_CONNECTION_FAILURES 10
+#define CONNECTION_FAILURE_RESET_TIME 600000 // 10 minutes
+#define EMERGENCY_RECOVERY_DURATION 600000   // 10 minutes
+#define MAX_OFFLINE_TIME 3600000             // 1 hour maximum offline time before forced restart
+#define BACKOFF_RESET_INTERVAL 1800000       // 30 minutes - reset HTTP backoff periodically
+
 // Device identification
 #ifdef CONFIG_DEVICE_ID
 #define DEVICE_ID CONFIG_DEVICE_ID

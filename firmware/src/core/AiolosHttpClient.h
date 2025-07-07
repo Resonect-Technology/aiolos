@@ -89,6 +89,14 @@ public:
     bool isConnectionThrottled();
 
     /**
+     * @brief Reset the backoff mechanism for safety purposes
+     *
+     * This method is used by the safety mechanisms to force a backoff reset
+     * when the device has been offline for an extended period.
+     */
+    void resetBackoffForSafety();
+
+    /**
      * @brief Send temperature data to the server
      *
      * @param stationId Station identifier
