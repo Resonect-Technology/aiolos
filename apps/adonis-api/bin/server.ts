@@ -33,6 +33,19 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
   .tap((app) => {
     app.booting(async () => {
       await import('#start/env')
+
+      // Set up periodic cleanup for station data cache
+      const { stationDataCache } = await import('#services/station_data_cache')
+
+      // Clean up old data every hour (1 hour = 60 * 60 * 1000 ms)
+      const cleanupInterval = setInterval(() => {
+        stationDataCache.clearOldData(1) // Remove data older than 1 hour
+      }, 60 * 60 * 1000)
+
+      // Clean up interval when app terminates
+      app.terminating(() => {
+        clearInterval(cleanupInterval)
+      })
     })
     app.listen('SIGTERM', () => app.terminate())
     app.listenIf(app.managedByPm2, 'SIGINT', () => app.terminate())
