@@ -325,3 +325,41 @@ GET /api/stations/vasiliki-001/config
 - **Models**: Lucid ORM models define camelCase properties that map to snake_case database columns
 - **Tests**: All test cases validate camelCase field names in requests and responses
 - **No Backward Compatibility**: The API only accepts camelCase; snake_case fields are rejected
+
+## Firmware Critical Endpoints Tests
+
+⚠️ **CRITICAL: These tests must never be modified or removed** ⚠️
+
+The file `tests/functional/firmware_endpoints.spec.ts` contains tests that validate the **exact JSON contract** between the backend API and the deployed firmware. These tests ensure that:
+
+1. **Deployed firmware continues to work** - Any changes that break these tests will break deployed weather stations
+2. **API contract stability** - The firmware expects specific JSON field names, data types, and response structures
+3. **Production reliability** - Weather stations in the field cannot be easily updated if the API changes
+
+### Protected Endpoints
+The following endpoints are **firmware-critical** and their contracts are protected by these tests:
+
+- `POST /api/stations/{stationId}/wind` - Wind data submission (sendWindData)
+- `POST /api/stations/{stationId}/temperature` - Temperature data submission (sendTemperatureData)  
+- `POST /api/stations/{stationId}/diagnostics` - Diagnostics data submission (sendDiagnostics)
+- `GET /api/stations/{stationId}/config` - Configuration retrieval (fetchConfiguration)
+- `POST /api/stations/{stationId}/ota-confirm` - OTA update confirmation (confirmOtaStarted)
+
+### Test Guidelines
+- **Never modify** these test expectations unless you're certain all deployed firmware supports the changes
+- **Always run** these tests before any API changes to ensure backward compatibility
+- **Consider these tests as the firmware contract specification** - they define what the deployed firmware expects
+- **Add new tests** for new firmware features, but never remove or change existing ones
+
+### Running Firmware Tests
+```bash
+# Run only the firmware-critical tests
+npm test -- tests/functional/firmware_endpoints.spec.ts
+
+# These tests must always pass before any deployment
+npm test
+```
+
+**Remember**: Breaking these tests means breaking deployed weather stations that cannot be easily updated in the field.
+
+---
