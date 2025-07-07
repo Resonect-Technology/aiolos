@@ -1,7 +1,9 @@
 import { useMemo } from 'react';
 import GaugeComponent from 'react-gauge-component';
+import { Badge } from "@/components/ui/badge";
+import { Wind } from "lucide-react";
 import { convertWindSpeed, WIND_UNIT_LABELS, getGaugeMinValue, getGaugeMaxValue, getWindSpeedColorByValue } from '../lib/wind-utils';
-import { formatLastUpdated, getTimestampClasses } from '../lib/time-utils';
+import { formatLastUpdated } from '../lib/time-utils';
 
 interface WindData {
   windSpeed: number;
@@ -143,8 +145,12 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
   }, [selectedUnit]);
 
   return (
-    <div className="text-center">
-      <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-6">Wind Speed</h3>
+    <div className="text-center space-y-6">
+      <div className="flex items-center justify-center gap-2">
+        <Wind className="h-5 w-5 text-primary" />
+        <h3 className="text-2xl font-bold text-foreground">Wind Speed</h3>
+      </div>
+      
       <div className="relative">
         <div className="w-full h-96 flex items-center justify-center px-4">
           <div className="w-full max-w-lg">
@@ -158,7 +164,7 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
                 subArcs: gaugeSubArcs,
               }}
               pointer={{
-                color: "#1e293b",
+                color: "hsl(var(--foreground))",
                 length: 0.8,
                 width: 18,
                 elastic: true
@@ -168,7 +174,7 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
                   formatTextValue: formatGaugeValueLabel,
                   style: {
                     fontSize: "36px",
-                    fill: "#1e293b",
+                    fill: "hsl(var(--foreground))",
                     fontWeight: "bold",
                     textShadow: "0 2px 4px rgba(0,0,0,0.1)",
                   },
@@ -180,7 +186,7 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
                     formatTextValue: formatGaugeValueLabel,
                     style: {
                       fontSize: "15px",
-                      fill: "#64748b"
+                      fill: "hsl(var(--muted-foreground))"
                     }
                   }
                 }
@@ -192,25 +198,25 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
           </div>
         </div>
       </div>
+      
       {windData && (
-        <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-700 rounded-lg">
-          <div className="text-center">
-            <span className="text-4xl font-bold text-slate-800 dark:text-slate-100">
+        <div className="space-y-4">
+          <div className="text-center space-y-2">
+            <div className="text-4xl font-bold">
               {convertedValue !== null && convertedValue !== undefined && !isNaN(convertedValue)
                 ? convertedValue.toFixed(selectedUnit === 'beaufort' ? 0 : 1)
                 : '0'}
-            </span>
-            <span className="text-lg font-medium text-slate-600 dark:text-slate-400 ml-2">
-              {currentUnitLabel}
-            </span>
-          </div>
-          {windData?.timestamp && (
-            <div className="text-center mt-2">
-              <span className={`text-sm ${getTimestampClasses(windData.timestamp)}`}>
-                Last updated: {formatLastUpdated(windData.timestamp)}
+              <span className="text-lg font-medium text-muted-foreground ml-2">
+                {currentUnitLabel}
               </span>
             </div>
-          )}
+            
+            {windData?.timestamp && (
+              <Badge variant="outline" className="text-xs">
+                Last updated: {formatLastUpdated(windData.timestamp)}
+              </Badge>
+            )}
+          </div>
         </div>
       )}
     </div>

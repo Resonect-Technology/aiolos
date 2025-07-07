@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { Transmit } from '@adonisjs/transmit-client';
-import { formatLastUpdated, getTimestampClasses } from '../lib/time-utils';
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Thermometer } from "lucide-react";
+import { formatLastUpdated } from '../lib/time-utils';
 
 interface TemperatureData {
   temperature: number;
@@ -105,35 +108,39 @@ export function TemperatureDisplay({ stationId }: TemperatureDisplayProps) {
   };
 
   return (
-    <div className="text-center">
-      <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-2">
-        Temperature
-      </h3>
+    <div className="text-center space-y-2">
+      <div className="flex items-center justify-center gap-2">
+        <Thermometer className="h-4 w-4 text-primary" />
+        <h3 className="text-lg font-semibold text-foreground">Temperature</h3>
+      </div>
       
       <div className="flex justify-center items-center min-h-[60px]">
         {loading ? (
-          <div className="animate-pulse text-slate-400 dark:text-slate-500 text-sm">Loading...</div>
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-20" />
+            <Skeleton className="h-4 w-16" />
+          </div>
         ) : error ? (
-          <div className="text-red-500 dark:text-red-400 text-sm">Error</div>
+          <Badge variant="destructive">Error</Badge>
         ) : (
           <div className="text-3xl font-bold text-center">
             {temperatureData?.temperature !== null && temperatureData?.temperature !== undefined ? (
               <>
                 {temperatureData.temperature.toFixed(1)}
-                <span className="text-xl ml-1">°C</span>
+                <span className="text-xl ml-1 text-muted-foreground">°C</span>
               </>
             ) : (
-              <span className="text-slate-400 dark:text-slate-500">N/A</span>
+              <span className="text-muted-foreground">N/A</span>
             )}
           </div>
         )}
       </div>
       
       {temperatureData?.timestamp && (
-        <div className="text-center mt-2">
-          <span className={`text-xs ${getTimestampClasses(temperatureData.timestamp)}`}>
+        <div className="text-center">
+          <Badge variant="outline" className="text-xs">
             {formatLastUpdated(temperatureData.timestamp)}
-          </span>
+          </Badge>
         </div>
       )}
     </div>

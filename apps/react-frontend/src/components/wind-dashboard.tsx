@@ -1,14 +1,18 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Transmit } from '@adonisjs/transmit-client';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Wind, Compass } from "lucide-react";
 
-import { WindDirectionCompass } from './WindDirectionCompass';
-import { WindRoseChart } from './WindRoseChart';
-import { UnitSelector } from './UnitSelector';
-import { WindSpeedDisplay } from './WindSpeedDisplay';
-import { ConnectionStatus } from './ConnectionStatus';
-import { DiagnosticsPanel } from './DiagnosticsPanel';
-import { TemperatureDisplay } from './TemperatureDisplay';
-import './WindDirectionCompass.css';
+import { WindDirectionCompass } from './wind-direction-compass';
+import { WindRoseChart } from './wind-rose-chart';
+import { UnitSelector } from './unit-selector';
+import { WindSpeedDisplay } from './wind-speed-display';
+import { ConnectionStatus } from './connection-status';
+import { DiagnosticsPanel } from './diagnostics-panel';
+import { TemperatureDisplay } from './temperature-display';
+import { ThemeToggle } from './theme-toggle';
+import './wind-direction-compass.css';
 
 interface WindData {
   windSpeed: number;
@@ -88,77 +92,98 @@ export function WindDashboard({ stationId }: WindDashboardProps) {
   }, [stationId]);
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
-      <div className="container mx-auto px-4 py-6 max-w-[1600px]">
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-4 py-6 max-w-7xl">
+        
+        {/* Dashboard Header with Theme Toggle */}
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-2">
+            <Wind className="h-6 w-6 text-primary" />
+            <h1 className="text-2xl font-bold text-foreground">Wind Dashboard</h1>
+          </div>
+          <ThemeToggle />
+        </div>
         
         {/* Main Dashboard Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           
           {/* Header Row - Connection Status + Temperature + Unit Selector */}
-          <div className="col-span-full">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Connection Status */}
-              <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4">
-                <ConnectionStatus 
-                  isConnected={isConnected}
-                  error={error}
-                />
-              </div>
+              <Card className="lg:col-span-2">
+                <CardContent className="p-6">
+                  <ConnectionStatus 
+                    isConnected={isConnected}
+                    error={error}
+                  />
+                </CardContent>
+              </Card>
               
               {/* Temperature + Unit Selector */}
-              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4">
-                <div className="flex flex-col h-full">
-                  <div className="flex-1">
+              <Card>
+                <CardContent className="p-6">
+                  <div className="space-y-6">
                     <TemperatureDisplay stationId={stationId} />
-                  </div>
-                  <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                    <Separator />
                     <UnitSelector 
                       selectedUnit={selectedUnit} 
                       onUnitChange={handleUnitChange} 
-                      className="w-full"
                     />
                   </div>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             </div>
           </div>
 
           {/* Wind Speed Card */}
-          <div className="md:col-span-1 lg:col-span-2 bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border border-slate-200 dark:border-slate-700">
-            <div className="p-6">
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Wind className="h-5 w-5 text-primary" />
+                Wind Speed
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
               <WindSpeedDisplay 
                 windData={windData} 
                 selectedUnit={selectedUnit} 
               />
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           {/* Wind Direction Card */}
-          <div className="md:col-span-1 lg:col-span-2 bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border border-slate-200 dark:border-slate-700">
-            <div className="p-6">
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Compass className="h-5 w-5 text-primary" />
+                Wind Direction
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
               <WindDirectionCompass 
                 windDirection={windData?.windDirection} 
               />
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           {/* Wind Rose Chart - Spans full width */}
-          <div className="col-span-full bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border border-slate-200 dark:border-slate-700">
-            <div className="p-6">
-              <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-6 text-center">
-                Wind Rose Analysis
-              </h2>
+          <Card className="lg:col-span-4">
+            <CardHeader>
+              <CardTitle className="text-center">Wind Rose Analysis</CardTitle>
+            </CardHeader>
+            <CardContent>
               <WindRoseChart 
                 windHistory={windHistory} 
                 selectedUnit={selectedUnit} 
               />
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           {/* Diagnostics Panel - Full width */}
-          <div className="col-span-full bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border border-slate-200 dark:border-slate-700">
+          <Card className="lg:col-span-4">
             <DiagnosticsPanel stationId={stationId} />
-          </div>
+          </Card>
           
         </div>
       </div>

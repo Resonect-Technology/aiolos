@@ -46,7 +46,7 @@ export function ConstructionModeAlert() {
 
   // Render the construction mode alert
   return (
-    <Alert variant="construction" className="mb-6 p-5 text-base">
+    <Alert variant="destructive" className="mb-6 p-5 text-base border-amber-200 bg-amber-50 text-amber-800">
       <HardHat />
       <AlertTitle className="text-lg font-bold">Site Under Construction</AlertTitle>
       <AlertDescription className="text-base">

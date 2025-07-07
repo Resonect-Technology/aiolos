@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import './WindDirectionCompass.css'; // Uses the CSS provided by the user
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Compass, Info } from "lucide-react";
+import './wind-direction-compass.css'; // Uses the CSS provided by the user
 
 interface WindDirectionCompassProps {
   windDirection: number | null | undefined;
@@ -21,14 +25,19 @@ export const WindDirectionCompass: React.FC<WindDirectionCompassProps> = ({ wind
   }, [windDirection]);
 
   return (
-    <div className="text-center">
-      <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-4">Wind Direction</h2>
-      <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-        <p className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
+    <div className="text-center space-y-6">
+      <div className="flex items-center justify-center gap-2">
+        <Compass className="h-5 w-5 text-primary" />
+        <h3 className="text-2xl font-bold text-foreground">Wind Direction</h3>
+      </div>
+      
+      <Alert className="mb-6">
+        <Info className="h-4 w-4" />
+        <AlertDescription>
           The red arrow shows the direction from which the wind blows. For optimal 
           Vasiliki conditions, we look for westerly winds (around 270°).
-        </p>
-      </div>
+        </AlertDescription>
+      </Alert>
       
       <div className="flex justify-center mb-6">
         <div className="compass"> {/* Class from user's CSS */}
@@ -41,23 +50,23 @@ export const WindDirectionCompass: React.FC<WindDirectionCompassProps> = ({ wind
         </div>
       </div>
       
-      <div className="p-4 bg-slate-50 dark:bg-slate-700 rounded-lg">
-        <div className="text-center">
-          <span className="text-sm font-medium text-slate-600 dark:text-slate-400 block mb-1">
-            Current Direction
-          </span>
-          <span className="text-3xl font-bold text-slate-800 dark:text-slate-100">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">Current Direction</CardTitle>
+        </CardHeader>
+        <CardContent className="text-center space-y-2">
+          <div className="text-3xl font-bold text-foreground">
             {windDirection !== null && windDirection !== undefined
               ? `${Math.round(windDirection)}°`
               : "---"}
-          </span>
+          </div>
           {windDirection !== null && windDirection !== undefined && (
-            <span className="text-sm text-slate-500 dark:text-slate-400 block mt-1">
+            <Badge variant="outline" className="text-sm">
               {getCompassDirection(windDirection)}
-            </span>
+            </Badge>
           )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

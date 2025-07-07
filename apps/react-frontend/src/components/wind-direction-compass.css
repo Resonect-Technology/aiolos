@@ -8,8 +8,10 @@
   width: 320px;
   height: 320px;
   border-radius: 50%;
-  box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 0 15px hsl(var(--border));
   margin: auto;
+  background: hsl(var(--card));
+  border: 2px solid hsl(var(--border));
 }
 
 .compass > .arrow {
@@ -21,7 +23,7 @@
   transform: translateX(-50%);
   border-style: solid;
   border-width: 30px 20px 0 20px;
-  border-color: #f44242 transparent transparent transparent; /* Using unified wind color scheme - red */
+  border-color: hsl(var(--destructive)) transparent transparent transparent;
   z-index: 1;
 }
 
@@ -43,7 +45,7 @@
   opacity: 0;
   width: 20%;
   height: 20%;
-  background: #42f456; /* Using unified wind color scheme - green */
+  background: hsl(var(--primary));
   border-radius: 50%;
   transition: opacity 0.5s ease-out;
 }
