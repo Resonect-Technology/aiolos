@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import GaugeComponent from "react-gauge-component";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Info } from "lucide-react";
 import { Wind } from "lucide-react";
 import {
   convertWindSpeed,
@@ -344,9 +346,15 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
       <div className="relative">
         <div className="w-full h-96 flex items-center justify-center px-4">
           <div className="w-full max-w-lg">
+            <Alert className="mb-6">
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                For good Vasiliki day the wind speed should be between 8 and 15 m/s
+              </AlertDescription>
+            </Alert>
             <GaugeComponent
               id="wind-speed-gauge"
-              type="semicircle"
+              type="grafana"
               arc={{
                 width: 0.25,
                 padding: 0.005,
@@ -364,7 +372,7 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
                   formatTextValue: formatGaugeValueLabel,
                   style: {
                     fontSize: "36px",
-                    fill: "hsl(var(--foreground))",
+                    fill: "#3a5ba0",
                     fontWeight: "bold",
                     textShadow: "0 2px 4px rgba(0,0,0,0.1)",
                   },
@@ -373,11 +381,7 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
                   type: "outer",
                   ticks: gaugeTicks,
                   defaultTickValueConfig: {
-                    formatTextValue: formatGaugeValueLabel,
-                    style: {
-                      fontSize: "15px",
-                      fill: "hsl(var(--muted-foreground))",
-                    },
+                    hide: true,
                   },
                 },
               }}
@@ -392,7 +396,7 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
       {windData && (
         <div className="space-y-4">
           <div className="text-center space-y-2">
-            <div className="text-4xl font-bold">
+            <div className="text-4xl font-bold text-primary">
               {convertedValue !== null && convertedValue !== undefined && !isNaN(convertedValue)
                 ? convertedValue.toFixed(selectedUnit === "beaufort" ? 0 : 1)
                 : "0"}

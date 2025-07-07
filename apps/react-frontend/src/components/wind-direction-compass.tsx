@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Compass, Info } from "lucide-react";
+import { Compass, Info, ChevronsDown } from "lucide-react";
 import "./wind-direction-compass.css"; // Uses the CSS provided by the user
 
 interface WindDirectionCompassProps {
@@ -33,13 +33,14 @@ export const WindDirectionCompass: React.FC<WindDirectionCompassProps> = ({ wind
       <Alert className="mb-6">
         <Info className="h-4 w-4" />
         <AlertDescription>
-          The red arrow shows the direction from which the wind blows. For optimal Vasiliki
+          The arrow shows the direction from which the wind blows. For optimal Vasiliki
           conditions, we look for westerly winds (around 270°).
         </AlertDescription>
       </Alert>
-
+      <div className="flex justify-center m-1">
+        <ChevronsDown className="w-10 h-10 text-primary" />
+      </div>
       <div className="flex justify-center mb-6">
-        <ChevronsDown />
         <div className="compass">
           {" "}
           {/* Class from user's CSS */}
@@ -51,23 +52,16 @@ export const WindDirectionCompass: React.FC<WindDirectionCompassProps> = ({ wind
         </div>
       </div>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Current Direction</CardTitle>
-        </CardHeader>
-        <CardContent className="text-center space-y-2">
-          <div className="text-3xl font-bold text-foreground">
-            {windDirection !== null && windDirection !== undefined
-              ? `${Math.round(windDirection)}°`
-              : "---"}
-          </div>
-          {windDirection !== null && windDirection !== undefined && (
-            <Badge variant="outline" className="text-sm">
-              {getCompassDirection(windDirection)}
-            </Badge>
-          )}
-        </CardContent>
-      </Card>
+      <div className="text-4xl font-bold text-center text-primary">
+        {windDirection !== null && windDirection !== undefined
+          ? `${Math.round(windDirection)}°`
+          : "---"}
+      </div>
+      {windDirection !== null && windDirection !== undefined && (
+        <Badge variant="outline" className="text-sm">
+          {getCompassDirection(windDirection)}
+        </Badge>
+      )}
     </div>
   );
 };
