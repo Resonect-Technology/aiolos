@@ -15,7 +15,7 @@ export const ConnectionStatus = memo(function ConnectionStatus({
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-primary">Aiolos Vasiliki</h1>
+        <h1 className="text-2xl font-bold card-foreground">Aiolos Vasiliki</h1>
         <p className="text-muted-foreground">Real-time wind data from Vasiliki</p>
       </div>
 
