@@ -1,9 +1,8 @@
 import * as React from "react";
-import { Github, ChevronUp } from "lucide-react";
+import { Github } from "lucide-react";
 import { IconWind } from "@tabler/icons-react";
 
 import { NavMain } from "@/components/nav-main";
-import { NavUser } from "@/components/nav-user";
 import {
   Sidebar,
   SidebarContent,
@@ -17,7 +16,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
 const data = {

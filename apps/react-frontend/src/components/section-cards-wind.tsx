@@ -1,5 +1,4 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { ConnectionStatus } from "./connection-status";
 import { TemperatureDisplay } from "./temperature-display";
 import { UnitSelector } from "./unit-selector";
