@@ -1,5 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Wind, Compass } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { WindSpeedDisplay } from "./wind-speed-display";
 import { WindDirectionCompass } from "./wind-direction-compass";
 
