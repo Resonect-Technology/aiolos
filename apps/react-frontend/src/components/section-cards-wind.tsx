@@ -21,20 +21,20 @@ export function SectionCards({
   return (
     <div className="grid auto-rows-min gap-4 md:grid-cols-3 px-4 lg:px-6">
       {/* Connection Status */}
-      <Card className="p-6">
-        <CardContent className="p-6">
+      <Card >
+        <CardContent >
           <ConnectionStatus isConnected={isConnected} error={error} />
         </CardContent>
       </Card>
 
-      <Card className="p-6">
-        <CardContent className="p-6">
+      <Card >
+        <CardContent >
           <TemperatureDisplay stationId={stationId} />
         </CardContent>
       </Card>
 
-      <Card className="p-6">
-        <CardContent className="p-6">
+      <Card >
+        <CardContent >
           <UnitSelector selectedUnit={selectedUnit} onUnitChange={onUnitChange} />
         </CardContent>
       </Card>

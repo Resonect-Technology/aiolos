@@ -236,76 +236,74 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
   }, [selectedUnit]);
 
   return (
-    <div className="w-full max-w-full overflow-hidden">
-      <div className="text-center space-y-4">
-        <div className="flex items-center justify-center gap-2">
-          <Wind className="h-5 w-5 card-foreground" />
-          <h3 className="text-2xl font-bold card-foreground">Current Wind Speed</h3>
-        </div>
+    <div className="text-center space-y-4">
+      <div className="flex items-center justify-center gap-2">
+        <Wind className="h-5 w-5 card-foreground" />
+        <h3 className="text-2xl font-bold card-foreground">Current Wind Speed</h3>
+      </div>
 
-        <Alert className="mx-2">
-          <Info className="h-4 w-4" />
-          <AlertDescription className="text-sm">
-            For good Vasiliki day the wind speed should be between 8 and 15 m/s
-          </AlertDescription>
-        </Alert>
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertDescription className="text-sm">
+          For good Vasiliki day the wind speed should be between 8 and 15 m/s
+        </AlertDescription>
+      </Alert>
 
-        <div className="flex justify-center px-2">
-          <div className="w-full max-w-xs lg:max-w-md xl:max-w-lg">
-            <GaugeComponent
-              id="wind-speed-gauge"
-              type="radial"
-              style={{ width: "100%", height: "100%" }}
-              arc={{
-                width: 0.2,
-                padding: 0.005,
-                cornerRadius: 1,
-                subArcs: gaugeSubArcs,
-              }}
-              pointer={{
-                color: "hsl(var(--foreground))",
-                length: 0.8,
-                width: 18,
-                elastic: true,
-              }}
-              labels={{
-                valueLabel: {
-                  hide: true,
-                },
-                tickLabels: {
-                  type: "outer",
-                  ticks: gaugeTicks,
-                  defaultTickValueConfig: {
-                    hide: false,
-                    style: {
-                      fontSize: "12px",
-                      fontWeight: "500",
-                      fill: "hsl(var(--muted-foreground))",
-                    },
+      <div className="flex justify-center px-2">
+        <div className="w-full max-w-xs lg:max-w-md xl:max-w-lg">
+          <GaugeComponent
+            id="wind-speed-gauge"
+            type="radial"
+            style={{ width: "100%", height: "100%" }}
+            arc={{
+              width: 0.2,
+              padding: 0.005,
+              cornerRadius: 1,
+              subArcs: gaugeSubArcs,
+            }}
+            pointer={{
+              color: "hsl(var(--foreground))",
+              length: 0.8,
+              width: 18,
+              elastic: true,
+            }}
+            labels={{
+              valueLabel: {
+                hide: true,
+              },
+              tickLabels: {
+                type: "outer",
+                ticks: gaugeTicks,
+                defaultTickValueConfig: {
+                  hide: false,
+                  style: {
+                    fontSize: "12px",
+                    fontWeight: "500",
+                    fill: "hsl(var(--muted-foreground))",
                   },
                 },
-              }}
-              value={convertedValue}
-              minValue={gaugeMinValue}
-              maxValue={gaugeMaxValue}
-            />
-          </div>
+              },
+            }}
+            value={convertedValue}
+            minValue={gaugeMinValue}
+            maxValue={gaugeMaxValue}
+          />
         </div>
-
-        <div className="text-center">
-          <div className="text-5xl font-bold text-primary">
-            {formatDisplayValue(convertedValue)}
-          </div>
-        </div>
-
-        {windData?.timestamp && (
-          <div className="text-center px-2">
-            <Badge variant="outline" className="text-xs">
-              Last updated: {formatLastUpdated(windData.timestamp)}
-            </Badge>
-          </div>
-        )}
       </div>
+
+      <div className="text-center">
+        <div className="text-5xl font-bold text-primary">
+          {formatDisplayValue(convertedValue)}
+        </div>
+      </div>
+
+      {windData?.timestamp && (
+        <div className="text-center px-2">
+          <Badge variant="outline" className="text-xs">
+            Last updated: {formatLastUpdated(windData.timestamp)}
+          </Badge>
+        </div>
+      )}
     </div>
   );
 }

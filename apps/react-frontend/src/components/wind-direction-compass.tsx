@@ -23,57 +23,56 @@ export const WindDirectionCompass: React.FC<WindDirectionCompassProps> = ({ wind
   }, [windDirection]);
 
   return (
-    <div className="w-full max-w-full overflow-hidden">
-      <div className="text-center space-y-4">
-        <div className="flex items-center justify-center gap-2">
-          <Compass className="h-5 w-5 text-primary" />
-          <h3 className="text-xl lg:text-2xl font-bold text-primary">Current Wind Direction</h3>
-        </div>
-
-        <Alert className="mx-2">
-          <Info className="h-4 w-4" />
-          <AlertDescription className="text-sm">
-            The arrow shows the direction from which the wind blows. For optimal Vasiliki
-            conditions, we look for westerly winds (around 270°).
-          </AlertDescription>
-        </Alert>
-
-        <div className="flex justify-center">
-          <ChevronsDown className="w-8 h-8 text-primary" />
-        </div>
-
-        <div className="flex justify-center px-2">
-          <div className="relative w-full max-w-xs lg:max-w-md xl:max-w-lg">
-            <div
-              className="compass"
-              style={{
-                width: '100rem',
-                height: '100rem'
-              }}
-            >
-              <div
-                className="compass-circle"
-                style={{ transform: compassCircleTransformStyle }}
-              />
-              <div className="my-point" />
-            </div>
-          </div>
-        </div>
-
-        <div className="text-3xl lg:text-4xl font-bold text-center text-foreground">
-          {windDirection !== null && windDirection !== undefined
-            ? `${Math.round(windDirection)}°`
-            : "---"}
-        </div>
-
-        {windDirection !== null && windDirection !== undefined && (
-          <div className="text-center px-2">
-            <Badge variant="outline" className="text-sm">
-              {getCompassDirection(windDirection)}
-            </Badge>
-          </div>
-        )}
+    <div className="text-center space-y-4">
+      <div className="flex items-center justify-center gap-2">
+        <Compass className="h-5 w-5 card-foreground" />
+        <h3 className="text-2xl font-bold card-foreground">Current Wind Direction</h3>
       </div>
+
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertDescription className="text-sm">
+          The arrow shows the direction from which the wind blows. For optimal Vasiliki
+          conditions, we look for westerly winds (around 270°).
+        </AlertDescription>
+      </Alert>
+
+      <div className="flex justify-center">
+        <ChevronsDown className="w-16 h-16 text-primary" />
+      </div>
+
+      <div className="flex justify-center px-2">
+        <div className="w-full max-w-xs sm:max-w-sm md:max-w-md lg:max-w-3/4 xl:max-w-3/4">
+          <div
+            className="compass"
+            style={{
+              width: '100%',
+              height: 'auto',
+              aspectRatio: '1 / 1'
+            }}
+          >
+            <div
+              className="compass-circle"
+              style={{ transform: compassCircleTransformStyle }}
+            />
+            <div className="my-point" />
+          </div>
+        </div>
+      </div>
+
+      <div className="text-5xl font-bold text-center text-primary">
+        {windDirection !== null && windDirection !== undefined
+          ? `${Math.round(windDirection)}°`
+          : "---"}
+      </div>
+
+      {windDirection !== null && windDirection !== undefined && (
+        <div className="text-center px-2">
+          <Badge variant="outline" className="text-sm">
+            {getCompassDirection(windDirection)}
+          </Badge>
+        </div>
+      )}
     </div>
   );
 };
