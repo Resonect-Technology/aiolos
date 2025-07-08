@@ -86,6 +86,24 @@ bool AiolosHttpClient::isConnectionThrottled()
 }
 
 /**
+ * @brief Reset the backoff mechanism for safety purposes
+ *
+ * This method is used by the safety mechanisms to force a backoff reset
+ * when the device has been offline for an extended period.
+ */
+void AiolosHttpClient::resetBackoffForSafety()
+{
+    if (_failedAttempts > 0 || _backoffDelay > 0)
+    {
+        Logger.warn(LOG_TAG_HTTP, "SAFETY: Resetting HTTP backoff mechanism (was %u attempts, %lu ms delay)",
+                    _failedAttempts, _backoffDelay);
+        _failedAttempts = 0;
+        _backoffDelay = 0;
+        _lastAttemptTime = 0;
+    }
+}
+
+/**
  * @brief Initialize the HTTP client
  */
 bool AiolosHttpClient::init(ModemManager &modemManager, const char *serverAddress, uint16_t serverPort)

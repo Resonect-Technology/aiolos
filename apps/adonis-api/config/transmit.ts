@@ -5,6 +5,6 @@ import { defineConfig } from '@adonisjs/transmit'
  * using PascalCase controllers: EventStreamController, SubscribeController, UnsubscribeController
  */
 export default defineConfig({
-    pingInterval: '30s',
-    transport: null,
+  pingInterval: '30s',
+  transport: null,
 })

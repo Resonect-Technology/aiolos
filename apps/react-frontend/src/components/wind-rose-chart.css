@@ -5,41 +5,57 @@
  * ["#8e44ad", "#4242f4", "#42c5f4", "#42f4ce", "#42f456", "#adf442", "#f4e242", "#f4a142", "#f44242"]
  *
  * Note: The chart uses these colors in reverse order in the legend, so we've applied them accordingly
+ * These colors are maintained for chart consistency with the wind rose library
  */
 
 /* Legend colors - ordered from lowest wind speed to highest */
 .windrose-legend-item:nth-child(1) .color-box {
   background-color: #8e44ad; /* Purple - for the lowest range */
+  border: 1px solid hsl(var(--border));
 }
 
 .windrose-legend-item:nth-child(2) .color-box {
   background-color: #4242f4; /* Blue */
+  border: 1px solid hsl(var(--border));
 }
 
 .windrose-legend-item:nth-child(3) .color-box {
   background-color: #42c5f4; /* Light Blue */
+  border: 1px solid hsl(var(--border));
 }
 
 .windrose-legend-item:nth-child(4) .color-box {
   background-color: #42f4ce; /* Cyan */
+  border: 1px solid hsl(var(--border));
 }
 
 .windrose-legend-item:nth-child(5) .color-box {
   background-color: #42f456; /* Green */
+  border: 1px solid hsl(var(--border));
 }
 
 .windrose-legend-item:nth-child(6) .color-box {
   background-color: #adf442; /* Light Green/Yellow */
+  border: 1px solid hsl(var(--border));
 }
 
 .windrose-legend-item:nth-child(7) .color-box {
   background-color: #f4e242; /* Yellow */
+  border: 1px solid hsl(var(--border));
 }
 
 .windrose-legend-item:nth-child(8) .color-box {
   background-color: #f4a142; /* Orange */
+  border: 1px solid hsl(var(--border));
 }
 
 .windrose-legend-item:nth-child(9) .color-box {
   background-color: #f44242; /* Red - for the highest range */
+  border: 1px solid hsl(var(--border));
+}
+
+/* Ensure the chart container follows theme */
+.windrose-chart-container {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
 }

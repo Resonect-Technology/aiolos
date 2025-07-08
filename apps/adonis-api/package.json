@@ -10,7 +10,8 @@
     "dev": "node ace serve --hmr",
     "test": "node ace test",
     "lint": "eslint .",
-    "format": "prettier --write .",
+    "format": "prettier --write . --ignore-path ../../.prettierignore",
+    "format:check": "prettier --check . --ignore-path ../../.prettierignore",
     "typecheck": "tsc --noEmit",
     "seed": "node ace db:seed"
   },

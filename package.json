@@ -5,9 +5,14 @@
     "packageManager": "pnpm@10.5.0",
     "scripts": {
         "dev": "turbo run dev",
-        "build": "turbo run build"
+        "build": "turbo run build",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "format:apps": "prettier --write 'apps/**/*.{js,jsx,ts,tsx,json,css,md}'",
+        "format:apps:check": "prettier --check 'apps/**/*.{js,jsx,ts,tsx,json,css,md}'"
     },
     "devDependencies": {
+        "prettier": "^3.5.3",
         "turbo": "^1.13.0"
     },
     "dependencies": {

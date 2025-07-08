@@ -7,16 +7,16 @@ const API_URL = import.meta.env.VITE_API_URL || window.location.origin;
  * Interface for system configuration values
  */
 interface SystemConfig {
-    key: string;
-    value: string | null;
-    message?: string;
+  key: string;
+  value: string | null;
+  message?: string;
 }
 
 /**
  * Interface for all system configurations
  */
 interface SystemConfigs {
-    [key: string]: string;
+  [key: string]: string;
 }
 
 /**
@@ -25,18 +25,18 @@ interface SystemConfigs {
  * @returns Promise with the configuration value
  */
 export const getSystemConfig = async (key: string): Promise<SystemConfig> => {
-    try {
-        const response = await fetch(`${API_URL}/api/system/config/${key}`);
+  try {
+    const response = await fetch(`${API_URL}/api/system/config/${key}`);
 
-        if (!response.ok) {
-            throw new Error(`Failed to fetch system config: ${response.statusText}`);
-        }
-
-        return await response.json();
-    } catch (error) {
-        console.error("Error fetching system config:", error);
-        return { key, value: null, message: "Failed to fetch configuration" };
+    if (!response.ok) {
+      throw new Error(`Failed to fetch system config: ${response.statusText}`);
     }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching system config:", error);
+    return { key, value: null, message: "Failed to fetch configuration" };
+  }
 };
 
 /**
@@ -44,18 +44,18 @@ export const getSystemConfig = async (key: string): Promise<SystemConfig> => {
  * @returns Promise with all system configurations
  */
 export const getAllSystemConfigs = async (): Promise<SystemConfigs> => {
-    try {
-        const response = await fetch(`${API_URL}/api/system/config`);
+  try {
+    const response = await fetch(`${API_URL}/api/system/config`);
 
-        if (!response.ok) {
-            throw new Error(`Failed to fetch system configs: ${response.statusText}`);
-        }
-
-        return await response.json();
-    } catch (error) {
-        console.error("Error fetching system configs:", error);
-        return {};
+    if (!response.ok) {
+      throw new Error(`Failed to fetch system configs: ${response.statusText}`);
     }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching system configs:", error);
+    return {};
+  }
 };
 
 /**
@@ -64,14 +64,11 @@ export const getAllSystemConfigs = async (): Promise<SystemConfigs> => {
  * @returns boolean indicating if the value represents true
  */
 export const parseBooleanConfig = (value: string | null): boolean => {
-    if (!value) return false;
+  if (!value) return false;
 
-    // Convert to lowercase for case-insensitive comparison
-    const lowerValue = value.toLowerCase();
+  // Convert to lowercase for case-insensitive comparison
+  const lowerValue = value.toLowerCase();
 
-    // Check various truthy string representations
-    return lowerValue === 'true' ||
-        lowerValue === '1' ||
-        lowerValue === 'yes' ||
-        lowerValue === 'on';
+  // Check various truthy string representations
+  return lowerValue === "true" || lowerValue === "1" || lowerValue === "yes" || lowerValue === "on";
 };

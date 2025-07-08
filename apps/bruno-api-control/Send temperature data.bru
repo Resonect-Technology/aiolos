@@ -1,0 +1,21 @@
+meta {
+  name: Send temperature data
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{base_url}}/api/stations/{{station_id}}/temperature
+  body: json
+  auth: inherit
+}
+
+headers {
+  content-type: application/json
+}
+
+body:json {
+  {
+    "temperature": 23.5
+  }
+}

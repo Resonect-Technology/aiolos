@@ -5,89 +5,101 @@ This application is the frontend for the Aiolos live wind data monitoring system
 ## Key Features
 
 ### 🌪️ **Comprehensive Wind Dashboard**
--   **Modular Component Architecture**: Clean separation of concerns with dedicated components for each feature
--   **Responsive Design**: Professional layout that adapts beautifully from mobile to desktop
--   **Modern UI**: Polished interface with cards, shadows, rounded corners, and smooth transitions
+
+- **Modular Component Architecture**: Clean separation of concerns with dedicated components for each feature
+- **Responsive Design**: Professional layout that adapts beautifully from mobile to desktop
+- **Modern UI**: Polished interface with cards, shadows, rounded corners, and smooth transitions
 
 ### 📊 **Advanced Wind Visualization**
--   **Dynamic Wind Speed Gauge**:
-    -   Large, prominent semicircular gauge with unified color scheme
-    -   **Multi-Unit Support**: Switch between m/s, km/h, knots, and Beaufort scale
-    -   **Adaptive Scaling**: Automatic scale adjustment with appropriate tick marks and ranges
-    -   **Color-Coded Ranges**: Unified wind speed color palette across all components
-    -   **Informative Tooltips**: Descriptive tooltips for each wind speed range (e.g., "Calm", "Moderate breeze", "Gale")
 
--   **Wind Direction Compass**: 
-    -   Interactive compass with animated wind direction indicator
-    -   Real-time rotation based on incoming wind direction data
-    -   Clean, minimalist design with clear directional markings
+- **Dynamic Wind Speed Gauge**:
 
--   **Wind Rose Chart**:
-    -   Professional wind rose visualization showing wind patterns over time
-    -   Consistent color scheme matching the speed gauge
-    -   Always-visible legend positioned below the chart
-    -   Historical wind data analysis capabilities
+  - Large, prominent semicircular gauge with unified color scheme
+  - **Multi-Unit Support**: Switch between m/s, km/h, knots, and Beaufort scale
+  - **Adaptive Scaling**: Automatic scale adjustment with appropriate tick marks and ranges
+  - **Color-Coded Ranges**: Unified wind speed color palette across all components
+  - **Informative Tooltips**: Descriptive tooltips for each wind speed range (e.g., "Calm", "Moderate breeze", "Gale")
+
+- **Wind Direction Compass**:
+
+  - Interactive compass with animated wind direction indicator
+  - Real-time rotation based on incoming wind direction data
+  - Clean, minimalist design with clear directional markings
+
+- **Wind Rose Chart**:
+  - Professional wind rose visualization showing wind patterns over time
+  - Consistent color scheme matching the speed gauge
+  - Always-visible legend positioned below the chart
+  - Historical wind data analysis capabilities
 
 ### 🎛️ **User Controls & Status**
--   **Unit Selector**: Clean dropdown for switching between wind speed units
--   **Connection Status**: Real-time connection indicator with visual feedback
--   **Control Panel**: Comprehensive mock data controls for testing:
-    -   Start/Stop continuous mock data streams
-    -   Send single mock data events
-    -   Clear historical wind data
-    -   View latest wind data with timestamps
+
+- **Unit Selector**: Clean dropdown for switching between wind speed units
+- **Connection Status**: Real-time connection indicator with visual feedback
+- **Control Panel**: Comprehensive mock data controls for testing:
+  - Start/Stop continuous mock data streams
+  - Send single mock data events
+  - Clear historical wind data
+  - View latest wind data with timestamps
 
 ### 🔧 **Technical Features**
--   **Real-time Data**: SSE connection to AdonisJS backend via `@adonisjs/transmit-client`
--   **Station Selection**: Dynamic station ID input for monitoring specific data channels
--   **Error Handling**: Robust error handling with user-friendly error messages
--   **Development Proxy**: Vite proxy configuration for seamless backend integration
--   **Type Safety**: Full TypeScript implementation with proper type definitions
+
+- **Real-time Data**: SSE connection to AdonisJS backend via `@adonisjs/transmit-client`
+- **Station Selection**: Dynamic station ID input for monitoring specific data channels
+- **Error Handling**: Robust error handling with user-friendly error messages
+- **Development Proxy**: Vite proxy configuration for seamless backend integration
+- **Type Safety**: Full TypeScript implementation with proper type definitions
 
 ## Component Architecture
 
 The application is built with a modular component structure for maintainability and reusability:
 
 ### Core Components
--   **`WindDashboard`**: Main dashboard container with responsive grid layout
--   **`WindSpeedDisplay`**: Large wind speed gauge with unit conversion
--   **`WindDirectionCompass`**: Animated compass showing wind direction
--   **`WindRoseChart`**: Historical wind pattern visualization
--   **`UnitSelector`**: Wind speed unit selection dropdown
--   **`ControlPanel`**: Mock data controls and wind data display
--   **`ConnectionStatus`**: Real-time connection status indicator
+
+- **`WindDashboard`**: Main dashboard container with responsive grid layout
+- **`WindSpeedDisplay`**: Large wind speed gauge with unit conversion
+- **`WindDirectionCompass`**: Animated compass showing wind direction
+- **`WindRoseChart`**: Historical wind pattern visualization
+- **`UnitSelector`**: Wind speed unit selection dropdown
+- **`ControlPanel`**: Mock data controls and wind data display
+- **`ConnectionStatus`**: Real-time connection status indicator
 
 ### Utilities
--   **`wind-utils.ts`**: Centralized wind data utilities including:
-    -   Unit conversion functions
-    -   Unified color scheme for wind speeds
-    -   Gauge configuration helpers
-    -   Wind speed range definitions
+
+- **`wind-utils.ts`**: Centralized wind data utilities including:
+  - Unit conversion functions
+  - Unified color scheme for wind speeds
+  - Gauge configuration helpers
+  - Wind speed range definitions
 
 ## Technologies Used
 
--   [React](https://react.dev/) - UI framework
--   [Vite](https://vitejs.dev/) - Build tool and dev server
--   [TypeScript](https://www.typescriptlang.org/) - Type safety
--   [@adonisjs/transmit-client](https://github.com/adonisjs/transmit-client) - SSE communication
--   [Tailwind CSS](https://tailwindcss.com/) - Utility-first CSS framework
--   [shadcn/ui](https://ui.shadcn.com/) - UI component library
--   [react-gauge-component](https://github.com/antoniolago/react-gauge-component) - Wind speed gauge
--   [Plotly.js](https://plotly.com/javascript/) - Wind rose chart visualization
+- [React](https://react.dev/) - UI framework
+- [Vite](https://vitejs.dev/) - Build tool and dev server
+- [TypeScript](https://www.typescriptlang.org/) - Type safety
+- [@adonisjs/transmit-client](https://github.com/adonisjs/transmit-client) - SSE communication
+- [Tailwind CSS](https://tailwindcss.com/) - Utility-first CSS framework
+- [shadcn/ui](https://ui.shadcn.com/) - UI component library
+- [react-gauge-component](https://github.com/antoniolago/react-gauge-component) - Wind speed gauge
+- [Plotly.js](https://plotly.com/javascript/) - Wind rose chart visualization
 
 ## Setup and Running
 
 ### Prerequisites
--   Node.js (v18 or higher)
--   pnpm (recommended) or npm
+
+- Node.js (v18 or higher)
+- pnpm (recommended) or npm
 
 ### Installation & Development
+
 1.  Navigate to the `apps/react-frontend` directory:
+
     ```bash
     cd apps/react-frontend
     ```
 
 2.  Install dependencies:
+
     ```bash
     pnpm install
     # or
@@ -95,6 +107,7 @@ The application is built with a modular component structure for maintainability 
     ```
 
 3.  Start the development server:
+
     ```bash
     pnpm run dev
     # or
@@ -104,18 +117,20 @@ The application is built with a modular component structure for maintainability 
 4.  Open your browser to `http://localhost:5173`
 
 ### Backend Integration
+
 The frontend is configured to proxy API and SSE requests to the AdonisJS backend:
--   API requests (`/api/*`) → `http://localhost:3333`
--   SSE requests (`/__transmit/*`) → `http://localhost:3333`
+
+- API requests (`/api/*`) → `http://localhost:3333`
+- SSE requests (`/__transmit/*`) → `http://localhost:3333`
 
 Make sure the AdonisJS backend is running on port 3333 for full functionality.
 
 ## Available Scripts
 
--   `pnpm run dev` - Start development server
--   `pnpm run build` - Build for production
--   `pnpm run preview` - Preview production build
--   `pnpm run lint` - Run ESLint
+- `pnpm run dev` - Start development server
+- `pnpm run build` - Build for production
+- `pnpm run preview` - Preview production build
+- `pnpm run lint` - Run ESLint
 
 ## Project Structure
 
@@ -143,12 +158,14 @@ src/
 ## Vite + React + TypeScript Template
 
 This project was bootstrapped with Vite's React TypeScript template, providing:
+
 - ⚡️ Lightning fast HMR (Hot Module Replacement)
 - 🔧 TypeScript support out of the box
 - 📦 Optimized production builds
 - 🎯 ESLint configuration for code quality
 
 ### Available Vite Plugins
+
 - [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) - Uses Babel for Fast Refresh
 - [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) - Uses SWC for Fast Refresh (currently used)
 
@@ -169,33 +186,33 @@ export default tseslint.config({
   languageOptions: {
     // other options...
     parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
+      project: ["./tsconfig.node.json", "./tsconfig.app.json"],
       tsconfigRootDir: import.meta.dirname,
     },
   },
-})
+});
 ```
 
 You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
 
 ```js
 // eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+import reactX from "eslint-plugin-react-x";
+import reactDom from "eslint-plugin-react-dom";
 
 export default tseslint.config({
   plugins: {
     // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
+    "react-x": reactX,
+    "react-dom": reactDom,
   },
   rules: {
     // other rules...
     // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
+    ...reactX.configs["recommended-typescript"].rules,
     ...reactDom.configs.recommended.rules,
   },
-})
+});
 ```
 
 ## Data Interface Conventions
@@ -208,26 +225,26 @@ All TypeScript interfaces use camelCase field names that match the backend API:
 
 ```typescript
 interface WindData {
-  windSpeed: number;      // m/s
-  windDirection: number;  // degrees (0-360)
-  timestamp: string;      // ISO string
+  windSpeed: number; // m/s
+  windDirection: number; // degrees (0-360)
+  timestamp: string; // ISO string
 }
 
 interface DiagnosticsData {
   id?: number;
   stationId: string;
-  batteryVoltage: number;        // volts
-  solarVoltage: number;          // volts  
-  internalTemperature: number;   // celsius
-  signalQuality: number;         // CSQ value (0-31)
-  uptime: number;                // seconds
+  batteryVoltage: number; // volts
+  solarVoltage: number; // volts
+  internalTemperature: number; // celsius
+  signalQuality: number; // CSQ value (0-31)
+  uptime: number; // seconds
   createdAt?: string;
   updatedAt?: string;
 }
 
 interface TemperatureData {
-  temperature: number;    // celsius
-  timestamp: string;      // ISO string
+  temperature: number; // celsius
+  timestamp: string; // ISO string
 }
 ```
 
@@ -240,6 +257,7 @@ All API requests and responses use camelCase field names:
 - **WebSocket Channels**: Subscribed to channels like `wind/live/vasiliki-001`
 
 ### Data Flow
+
 1. **Backend API** → sends camelCase JSON
 2. **Frontend Components** → receive and display data using camelCase interfaces
 3. **Type Safety** → TypeScript ensures consistent field naming throughout the application
@@ -254,7 +272,7 @@ export function WindSpeedDisplay({ windData }: { windData: WindData | null }) {
   // ...
 }
 
-// DiagnosticsPanel component  
+// DiagnosticsPanel component
 const batteryVoltage = diagnosticsData.batteryVoltage;
 const signalQuality = diagnosticsData.signalQuality;
 ```

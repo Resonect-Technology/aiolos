@@ -26,6 +26,10 @@ jobs:
         working-directory: ./apps/adonis-api
         run: pnpm install --no-frozen-lockfile
 
+      - name: Create database directory
+        working-directory: ./apps/adonis-api
+        run: mkdir -p tmp
+
       - name: Run database migrations
         working-directory: ./apps/adonis-api
         run: node ace migration:run --force
@@ -33,6 +37,9 @@ jobs:
           NODE_ENV: test
           APP_KEY: test-key-for-ci-testing-only-not-secure
           DB_CONNECTION: sqlite
+          PORT: 3333
+          HOST: localhost
+          LOG_LEVEL: error
 
       - name: Run tests
         working-directory: ./apps/adonis-api
@@ -41,3 +48,6 @@ jobs:
           NODE_ENV: test
           APP_KEY: test-key-for-ci-testing-only-not-secure
           DB_CONNECTION: sqlite
+          PORT: 3333
+          HOST: localhost
+          LOG_LEVEL: error
