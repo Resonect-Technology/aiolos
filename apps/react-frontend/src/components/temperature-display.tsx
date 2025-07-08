@@ -112,8 +112,8 @@ export function TemperatureDisplay({ stationId }: TemperatureDisplayProps) {
   return (
     <div className="text-center space-y-2">
       <div className="flex items-center justify-center gap-2">
-        <Thermometer className="h-4 w-4 text-primary" />
-        <h3 className="text-2xl font-bold text-primary">Current Temperature</h3>
+        <Thermometer className="h-4 w-4 card-foreground" />
+        <h3 className="text-2xl font-bold card-foreground">Current Temperature</h3>
       </div>
 
       <div className="flex justify-center items-center min-h-[60px]">
@@ -125,14 +125,14 @@ export function TemperatureDisplay({ stationId }: TemperatureDisplayProps) {
         ) : error ? (
           <Badge variant="destructive">Error</Badge>
         ) : (
-          <div className="text-4xl font-bold text-center">
+          <div className="text-5xl font-bold text-center text-primary">
             {temperatureData?.temperature !== null && temperatureData?.temperature !== undefined ? (
               <>
                 {temperatureData.temperature.toFixed(1)}
                 <span> °C</span>
               </>
             ) : (
-              <span className="text-muted-foreground">N/A</span>
+              <span className="text-primary">N/A</span>
             )}
           </div>
         )}

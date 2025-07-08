@@ -9,7 +9,6 @@ import {
   WIND_UNIT_LABELS,
   getGaugeMinValue,
   getGaugeMaxValue,
-  getWindSpeedColorByValue,
 } from "../lib/wind-utils";
 import { formatLastUpdated } from "../lib/time-utils";
 
@@ -52,8 +51,8 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
     [windData, selectedUnit]
   );
 
-  // Format the gauge value label
-  const formatGaugeValueLabel = (value: number): string => {
+  // Format the value for display
+  const formatDisplayValue = (value: number): string => {
     if (value === null || value === undefined || isNaN(value)) {
       return `0 ${currentUnitLabel}`;
     }
@@ -63,248 +62,148 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
     } else {
       return `${value.toFixed(1)} ${currentUnitLabel}`;
     }
-  };
-
-  // Configure gauge arcs based on selected unit using unified color scheme
+  };  // Configure gauge arcs based on selected unit using theme colors
   const gaugeSubArcs = useMemo((): GaugeArc[] => {
     const arcs: GaugeArc[] = [];
+    // Theme colors: light to dark green progression for better visual distribution
+    const themeColors = ["#22c55e", "#10b981", "#059669", "#047857", "#065f46"];
+
     switch (selectedUnit) {
       case "m/s":
         arcs.push(
           {
-            limit: 1,
-            color: getWindSpeedColorByValue(0.5),
-            tooltip: { text: "Calm" },
-            showTick: true,
-          },
-          {
             limit: 3,
-            color: getWindSpeedColorByValue(2),
-            tooltip: { text: "Light air" },
+            color: themeColors[0], // Calm/Light air (0-3 m/s)
+            tooltip: { text: "Calm to Light air" },
             showTick: true,
           },
           {
-            limit: 5,
-            color: getWindSpeedColorByValue(4),
-            tooltip: { text: "Light breeze" },
+            limit: 7,
+            color: themeColors[1], // Light/Gentle breeze (3-7 m/s)
+            tooltip: { text: "Light to Gentle breeze" },
             showTick: true,
           },
           {
-            limit: 8,
-            color: getWindSpeedColorByValue(6.5),
-            tooltip: { text: "Gentle breeze" },
+            limit: 12,
+            color: themeColors[2], // Moderate/Fresh breeze (7-12 m/s)
+            tooltip: { text: "Moderate to Fresh breeze" },
             showTick: true,
           },
           {
-            limit: 11,
-            color: getWindSpeedColorByValue(9.5),
-            tooltip: { text: "Moderate breeze" },
+            limit: 18,
+            color: themeColors[3], // Strong breeze/Near gale (12-18 m/s)
+            tooltip: { text: "Strong breeze to Near gale" },
             showTick: true,
           },
           {
-            limit: 14,
-            color: getWindSpeedColorByValue(12.5),
-            tooltip: { text: "Fresh breeze" },
-            showTick: true,
-          },
-          {
-            limit: 17,
-            color: getWindSpeedColorByValue(15.5),
-            tooltip: { text: "Strong breeze" },
-            showTick: true,
-          },
-          {
-            limit: 20,
-            color: getWindSpeedColorByValue(18.5),
-            tooltip: { text: "Near gale" },
-            showTick: true,
-          },
-          { color: getWindSpeedColorByValue(25), tooltip: { text: "Gale or stronger" } }
+            color: themeColors[4], // Gale and above (18+ m/s)
+            tooltip: { text: "Gale or stronger" }
+          }
         );
         break;
       case "km/h":
         arcs.push(
           {
-            limit: 4,
-            color: getWindSpeedColorByValue(0.5),
-            tooltip: { text: "Calm" },
-            showTick: true,
-          },
-          {
             limit: 11,
-            color: getWindSpeedColorByValue(2),
-            tooltip: { text: "Light air" },
+            color: themeColors[0], // Calm/Light air (0-11 km/h)
+            tooltip: { text: "Calm to Light air" },
             showTick: true,
           },
           {
-            limit: 18,
-            color: getWindSpeedColorByValue(4),
-            tooltip: { text: "Light breeze" },
+            limit: 25,
+            color: themeColors[1], // Light/Gentle breeze (11-25 km/h)
+            tooltip: { text: "Light to Gentle breeze" },
             showTick: true,
           },
           {
-            limit: 29,
-            color: getWindSpeedColorByValue(6.5),
-            tooltip: { text: "Gentle breeze" },
+            limit: 43,
+            color: themeColors[2], // Moderate/Fresh breeze (25-43 km/h)
+            tooltip: { text: "Moderate to Fresh breeze" },
             showTick: true,
           },
           {
-            limit: 40,
-            color: getWindSpeedColorByValue(9.5),
-            tooltip: { text: "Moderate breeze" },
+            limit: 65,
+            color: themeColors[3], // Strong breeze/Near gale (43-65 km/h)
+            tooltip: { text: "Strong breeze to Near gale" },
             showTick: true,
           },
           {
-            limit: 50,
-            color: getWindSpeedColorByValue(12.5),
-            tooltip: { text: "Fresh breeze" },
-            showTick: true,
-          },
-          {
-            limit: 61,
-            color: getWindSpeedColorByValue(15.5),
-            tooltip: { text: "Strong breeze" },
-            showTick: true,
-          },
-          {
-            limit: 72,
-            color: getWindSpeedColorByValue(18.5),
-            tooltip: { text: "Near gale" },
-            showTick: true,
-          },
-          { color: getWindSpeedColorByValue(25), tooltip: { text: "Gale or stronger" } }
+            color: themeColors[4], // Gale and above (65+ km/h)
+            tooltip: { text: "Gale or stronger" }
+          }
         );
         break;
       case "knots":
         arcs.push(
           {
-            limit: 2,
-            color: getWindSpeedColorByValue(0.5),
-            tooltip: { text: "Calm" },
-            showTick: true,
-          },
-          {
             limit: 6,
-            color: getWindSpeedColorByValue(2),
-            tooltip: { text: "Light air" },
+            color: themeColors[0], // Calm/Light air (0-6 knots)
+            tooltip: { text: "Calm to Light air" },
             showTick: true,
           },
           {
-            limit: 10,
-            color: getWindSpeedColorByValue(4),
-            tooltip: { text: "Light breeze" },
+            limit: 13,
+            color: themeColors[1], // Light/Gentle breeze (6-13 knots)
+            tooltip: { text: "Light to Gentle breeze" },
             showTick: true,
           },
           {
-            limit: 15,
-            color: getWindSpeedColorByValue(6.5),
-            tooltip: { text: "Gentle breeze" },
+            limit: 23,
+            color: themeColors[2], // Moderate/Fresh breeze (13-23 knots)
+            tooltip: { text: "Moderate to Fresh breeze" },
             showTick: true,
           },
           {
-            limit: 21,
-            color: getWindSpeedColorByValue(9.5),
-            tooltip: { text: "Moderate breeze" },
+            limit: 35,
+            color: themeColors[3], // Strong breeze/Near gale (23-35 knots)
+            tooltip: { text: "Strong breeze to Near gale" },
             showTick: true,
           },
           {
-            limit: 27,
-            color: getWindSpeedColorByValue(12.5),
-            tooltip: { text: "Fresh breeze" },
-            showTick: true,
-          },
-          {
-            limit: 33,
-            color: getWindSpeedColorByValue(15.5),
-            tooltip: { text: "Strong breeze" },
-            showTick: true,
-          },
-          {
-            limit: 39,
-            color: getWindSpeedColorByValue(18.5),
-            tooltip: { text: "Near gale" },
-            showTick: true,
-          },
-          { color: getWindSpeedColorByValue(25), tooltip: { text: "Gale or stronger" } }
+            color: themeColors[4], // Gale and above (35+ knots)
+            tooltip: { text: "Gale or stronger" }
+          }
         );
         break;
       case "beaufort":
         arcs.push(
           {
-            limit: 1,
-            color: getWindSpeedColorByValue(0.5),
-            tooltip: { text: "Calm" },
-            showTick: true,
-          },
-          {
             limit: 2,
-            color: getWindSpeedColorByValue(2),
-            tooltip: { text: "Light air" },
-            showTick: true,
-          },
-          {
-            limit: 3,
-            color: getWindSpeedColorByValue(4),
-            tooltip: { text: "Light breeze" },
+            color: themeColors[0], // Beaufort 0-2 (Calm to Light breeze)
+            tooltip: { text: "Calm to Light breeze" },
             showTick: true,
           },
           {
             limit: 4,
-            color: getWindSpeedColorByValue(6.5),
-            tooltip: { text: "Gentle breeze" },
-            showTick: true,
-          },
-          {
-            limit: 5,
-            color: getWindSpeedColorByValue(9.5),
-            tooltip: { text: "Moderate breeze" },
+            color: themeColors[1], // Beaufort 3-4 (Gentle to Moderate breeze)
+            tooltip: { text: "Gentle to Moderate breeze" },
             showTick: true,
           },
           {
             limit: 6,
-            color: getWindSpeedColorByValue(12.5),
-            tooltip: { text: "Fresh breeze" },
-            showTick: true,
-          },
-          {
-            limit: 7,
-            color: getWindSpeedColorByValue(15.5),
-            tooltip: { text: "Strong breeze" },
+            color: themeColors[2], // Beaufort 5-6 (Fresh to Strong breeze)
+            tooltip: { text: "Fresh to Strong breeze" },
             showTick: true,
           },
           {
             limit: 8,
-            color: getWindSpeedColorByValue(18.5),
-            tooltip: { text: "Near gale" },
+            color: themeColors[3], // Beaufort 7-8 (Near gale to Gale)
+            tooltip: { text: "Near gale to Gale" },
             showTick: true,
           },
           {
-            limit: 9,
-            color: getWindSpeedColorByValue(22),
-            tooltip: { text: "Gale" },
-            showTick: true,
-          },
-          {
-            limit: 10,
-            color: getWindSpeedColorByValue(25),
-            tooltip: { text: "Strong gale" },
-            showTick: true,
-          },
-          {
-            limit: 11,
-            color: getWindSpeedColorByValue(30),
-            tooltip: { text: "Storm" },
-            showTick: true,
-          },
-          { color: getWindSpeedColorByValue(35), tooltip: { text: "Hurricane" } }
+            color: themeColors[4], // Beaufort 9+ (Strong gale and above)
+            tooltip: { text: "Strong gale or stronger" }
+          }
         );
         break;
       default:
         arcs.push(
-          { limit: 5, color: "#EA4228", tooltip: { text: "Too slow" }, showTick: true },
-          { limit: 10, color: "#F5CD19", tooltip: { text: "Barely..." }, showTick: true },
-          { limit: 20, color: "#5BE12C", tooltip: { text: "Let's gooo!" }, showTick: true },
-          { color: "#EA4228", tooltip: { text: "Jesus" } }
+          { limit: 5, color: themeColors[0], tooltip: { text: "Too slow" }, showTick: true },
+          { limit: 10, color: themeColors[1], tooltip: { text: "Getting there" }, showTick: true },
+          { limit: 15, color: themeColors[2], tooltip: { text: "Good conditions" }, showTick: true },
+          { limit: 20, color: themeColors[3], tooltip: { text: "Strong winds" }, showTick: true },
+          { color: themeColors[4], tooltip: { text: "Very strong" } }
         );
     }
     return arcs;
@@ -337,71 +236,74 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
   }, [selectedUnit]);
 
   return (
-    <div className="w-full max-w-full overflow-hidden">
-      <div className="text-center space-y-4">
-        <div className="flex items-center justify-center gap-2">
-          <Wind className="h-5 w-5 text-primary" />
-          <h3 className="text-xl lg:text-2xl font-bold text-primary">Current Wind Speed</h3>
-        </div>
-
-        <Alert className="mx-2">
-          <Info className="h-4 w-4" />
-          <AlertDescription className="text-sm">
-            For good Vasiliki day the wind speed should be between 8 and 15 m/s
-          </AlertDescription>
-        </Alert>
-
-        <div className="flex justify-center px-2">
-          <div className="w-full max-w-xs lg:max-w-md xl:max-w-lg">
-            <GaugeComponent
-              id="wind-speed-gauge"
-              type="radial"
-              style={{ width: "100%", height: "100%" }}
-              arc={{
-                width: 0.2,
-                padding: 0.005,
-                cornerRadius: 1,
-                subArcs: gaugeSubArcs,
-              }}
-              pointer={{
-                color: "hsl(var(--foreground))",
-                length: 0.8,
-                width: 18,
-                elastic: true,
-              }}
-              labels={{
-                valueLabel: {
-                  formatTextValue: formatGaugeValueLabel,
-                  style: {
-                    fontSize: "28px",
-                    fill: "#000",
-                    fontWeight: "bold",
-                    textShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                  },
-                },
-                tickLabels: {
-                  type: "outer",
-                  ticks: gaugeTicks,
-                  defaultTickValueConfig: {
-                    hide: true,
-                  },
-                },
-              }}
-              value={convertedValue}
-              minValue={gaugeMinValue}
-              maxValue={gaugeMaxValue}
-            />
-          </div>
-        </div>
-
-        {windData?.timestamp && (
-          <div className="text-center px-2">
-            <Badge variant="outline" className="text-xs">
-              Last updated: {formatLastUpdated(windData.timestamp)}
-            </Badge>
-          </div>
-        )}
+    <div className="text-center space-y-4">
+      <div className="flex items-center justify-center gap-2">
+        <Wind className="h-5 w-5 card-foreground" />
+        <h3 className="text-2xl font-bold card-foreground">Current Wind Speed</h3>
       </div>
+
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertDescription className="text-sm">
+          For good Vasiliki day the wind speed should be between 8 and 15 m/s
+        </AlertDescription>
+      </Alert>
+
+      <div className="flex justify-center px-2">
+        <div className="w-full max-w-xs lg:max-w-md xl:max-w-lg">
+          <GaugeComponent
+            id="wind-speed-gauge"
+            type="radial"
+            style={{ width: "100%", height: "100%" }}
+            arc={{
+              width: 0.2,
+              padding: 0.005,
+              cornerRadius: 1,
+              subArcs: gaugeSubArcs,
+            }}
+            pointer={{
+              color: "hsl(var(--foreground))",
+              length: 0.8,
+              width: 18,
+              elastic: true,
+            }}
+            labels={{
+              valueLabel: {
+                hide: true,
+              },
+              tickLabels: {
+                type: "outer",
+                ticks: gaugeTicks,
+                defaultTickValueConfig: {
+                  hide: false,
+                  style: {
+                    fontSize: "12px",
+                    fontWeight: "500",
+                    fill: "hsl(var(--muted-foreground))",
+                  },
+                },
+              },
+            }}
+            value={convertedValue}
+            minValue={gaugeMinValue}
+            maxValue={gaugeMaxValue}
+          />
+        </div>
+      </div>
+
+      <div className="text-center">
+        <div className="text-5xl font-bold text-primary">
+          {formatDisplayValue(convertedValue)}
+        </div>
+      </div>
+
+      {windData?.timestamp && (
+        <div className="text-center px-2">
+          <Badge variant="outline" className="text-xs">
+            Last updated: {formatLastUpdated(windData.timestamp)}
+          </Badge>
+        </div>
+      )}
     </div>
   );
 }
