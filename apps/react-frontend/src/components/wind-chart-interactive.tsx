@@ -16,17 +16,17 @@ interface WindChartInteractiveProps {
 
 export function WindChartInteractive({ windData, selectedUnit }: WindChartInteractiveProps) {
   return (
-    <div className="grid auto-rows-min gap-4 md:grid-cols-2">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 w-full">
       {/* Wind Speed Card */}
-      <Card>
-        <CardContent>
+      <Card className="min-w-0">
+        <CardContent className="p-4 lg:p-6">
           <WindSpeedDisplay windData={windData} selectedUnit={selectedUnit} />
         </CardContent>
       </Card>
 
       {/* Wind Direction Card */}
-      <Card>
-        <CardContent>
+      <Card className="min-w-0">
+        <CardContent className="p-4 lg:p-6">
           <WindDirectionCompass windDirection={windData?.windDirection} />
         </CardContent>
       </Card>

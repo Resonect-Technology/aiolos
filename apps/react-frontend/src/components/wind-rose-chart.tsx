@@ -7,7 +7,6 @@ import { Separator } from "@/components/ui/separator";
 import { BarChart3, Info } from "lucide-react";
 import { getWindRoseColumns, getWindSpeedRangeDisplay, WIND_SPEED_COLORS } from "../lib/wind-utils";
 import { calculateCustomWindRose, createEmptyWindRoseData } from "../lib/windrose-utils";
-import "./wind-rose-chart.css";
 
 interface WindData {
   windSpeed: number;
@@ -24,6 +23,7 @@ interface WindRoseChartProps {
 const emptyWindRoseData = createEmptyWindRoseData();
 
 export function WindRoseChart({ windHistory, selectedUnit }: WindRoseChartProps) {
+
   // Process wind data for the Windrose chart
   const windRoseData = useMemo(() => {
     if (windHistory.length === 0) {
@@ -49,21 +49,24 @@ export function WindRoseChart({ windHistory, selectedUnit }: WindRoseChartProps)
   }, [selectedUnit]);
 
   return (
-    <div className="w-full h-full">
-      <div className="flex flex-col lg:flex-row gap-6 h-full min-h-[400px]">
+    <div className="w-full max-w-full overflow-hidden">
+      <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 min-h-[400px]">
         {/* Chart Container */}
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="flex flex-col h-full">
-            <div className="flex-grow flex items-center justify-center min-h-[400px]">
-              <Chart
-                chartData={windRoseData as unknown as BaseChartData[]}
-                columns={windRoseColumns}
-                responsive
-                legendGap={20}
-              />
+            <div className="flex-grow flex items-center justify-center min-h-[300px] lg:min-h-[400px] overflow-hidden px-2">
+              {/* Responsive container that maintains aspect ratio */}
+              <div className="w-full max-w-sm sm:max-w-md lg:max-w-lg xl:max-w-xl aspect-square">
+                <Chart
+                  chartData={windRoseData as unknown as BaseChartData[]}
+                  columns={windRoseColumns}
+                  responsive
+                  legendGap={8}
+                />
+              </div>
             </div>
 
-            <div className="mt-4 text-center">
+            <div className="mt-4 text-center px-4">
               <Badge variant="outline" className="text-xs">
                 {windHistory.length > 0
                   ? `Based on ${windHistory.length} most recent measurements`
@@ -74,7 +77,7 @@ export function WindRoseChart({ windHistory, selectedUnit }: WindRoseChartProps)
         </div>
 
         {/* Legend - Right side on desktop, bottom on mobile */}
-        <div className="lg:w-80 flex-shrink-0">
+        <div className="lg:w-72 xl:w-80 flex-shrink-0">
           <Card className="h-full">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-lg">

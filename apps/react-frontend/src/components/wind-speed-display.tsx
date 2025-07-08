@@ -337,24 +337,26 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
   }, [selectedUnit]);
 
   return (
-    <div className="text-center space-y-6">
-      <div className="flex items-center justify-center gap-2">
-        <Wind className="h-5 w-5 text-primary" />
-        <h3 className="text-2xl font-bold text-primary">Current Wind Speed</h3>
-      </div>
+    <div className="w-full max-w-full overflow-hidden">
+      <div className="text-center space-y-4">
+        <div className="flex items-center justify-center gap-2">
+          <Wind className="h-5 w-5 text-primary" />
+          <h3 className="text-xl lg:text-2xl font-bold text-primary">Current Wind Speed</h3>
+        </div>
 
-      <div className="relative">
-        <div className="w-full flex items-center justify-center px-4">
-          <div className="w-full max-w-lg">
-            <Alert className="mb-6">
-              <Info className="h-4 w-4" />
-              <AlertDescription>
-                For good Vasiliki day the wind speed should be between 8 and 15 m/s
-              </AlertDescription>
-            </Alert>
+        <Alert className="mx-2">
+          <Info className="h-4 w-4" />
+          <AlertDescription className="text-sm">
+            For good Vasiliki day the wind speed should be between 8 and 15 m/s
+          </AlertDescription>
+        </Alert>
+
+        <div className="flex justify-center px-2">
+          <div className="w-full max-w-xs lg:max-w-md xl:max-w-lg">
             <GaugeComponent
               id="wind-speed-gauge"
               type="radial"
+              style={{ width: "100%", height: "100%" }}
               arc={{
                 width: 0.2,
                 padding: 0.005,
@@ -371,7 +373,7 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
                 valueLabel: {
                   formatTextValue: formatGaugeValueLabel,
                   style: {
-                    fontSize: "36px",
+                    fontSize: "28px",
                     fill: "#000",
                     fontWeight: "bold",
                     textShadow: "0 2px 4px rgba(0,0,0,0.1)",
@@ -391,15 +393,15 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
             />
           </div>
         </div>
-      </div>
 
-      {windData?.timestamp && (
-        <div className="text-center">
-          <Badge variant="outline" className="text-xs">
-            Last updated: {formatLastUpdated(windData.timestamp)}
-          </Badge>
-        </div>
-      )}
+        {windData?.timestamp && (
+          <div className="text-center px-2">
+            <Badge variant="outline" className="text-xs">
+              Last updated: {formatLastUpdated(windData.timestamp)}
+            </Badge>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

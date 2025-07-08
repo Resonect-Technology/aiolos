@@ -11,7 +11,7 @@ export function SiteHeader() {
         <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-4" />
         <div className="flex items-center gap-2">
           <Wind className="h-4 w-4 text-primary" />
-          <h1 className="text-base font-medium">Wind Dashboard - Vasiliki Station</h1>
+          <h1 className="text-base font-medium">Vasiliki Station</h1>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <ThemeToggle />
