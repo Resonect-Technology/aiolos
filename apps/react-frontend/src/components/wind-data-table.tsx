@@ -1,34 +1,38 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { WindRoseChart } from "./wind-rose-chart";
 import { DiagnosticsPanel } from "./diagnostics-panel";
+import { Tornado } from "lucide-react";
 
 interface WindData {
-  windSpeed: number;
-  windDirection: number;
-  timestamp: string;
+    windSpeed: number;
+    windDirection: number;
+    timestamp: string;
 }
 
 interface WindDataTableProps {
-  windHistory: WindData[];
-  selectedUnit: string;
-  stationId: string;
+    windHistory: WindData[];
+    selectedUnit: string;
+    stationId: string;
 }
 
 export function WindDataTable({ windHistory, selectedUnit, stationId }: WindDataTableProps) {
-  return (
-    <div className="grid auto-rows-min gap-4">
-      {/* Wind Rose Chart - Full width */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-center">Wind Rose Analysis</h3>
-            <WindRoseChart windHistory={windHistory} selectedUnit={selectedUnit} />
-          </div>
-        </CardContent>
-      </Card>
+    return (
+        <div className="grid auto-rows-min gap-4">
+            {/* Wind Rose Chart - Full width */}
+            <Card>
+                <CardContent className="p-6">
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-center gap-2">
+                            <Tornado className="h-4 w-4 text-primary" />
+                            <h3 className="text-2xl font-semibold text-foreground">Wind Rose Analysis</h3>
+                        </div>
+                        <WindRoseChart windHistory={windHistory} selectedUnit={selectedUnit} />
+                    </div>
+                </CardContent>
+            </Card>
 
-      {/* Diagnostics Panel - Full width */}
-      <DiagnosticsPanel stationId={stationId} />
-    </div>
-  );
+            {/* Diagnostics Panel - Full width */}
+            <DiagnosticsPanel stationId={stationId} />
+        </div>
+    );
 }

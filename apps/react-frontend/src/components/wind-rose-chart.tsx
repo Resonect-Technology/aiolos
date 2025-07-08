@@ -53,32 +53,28 @@ export function WindRoseChart({ windHistory, selectedUnit }: WindRoseChartProps)
       <div className="flex flex-col lg:flex-row gap-6 h-full min-h-[400px]">
         {/* Chart Container */}
         <div className="flex-1">
-          <Card className="h-full">
-            <CardContent className="p-6">
-              <div className="flex flex-col h-full">
-                <div className="flex-grow flex items-center justify-center min-h-[400px]">
-                  <Chart
-                    chartData={windRoseData as unknown as BaseChartData[]}
-                    columns={windRoseColumns}
-                    responsive
-                    legendGap={20}
-                  />
-                </div>
+          <div className="flex flex-col h-full">
+            <div className="flex-grow flex items-center justify-center min-h-[400px]">
+              <Chart
+                chartData={windRoseData as unknown as BaseChartData[]}
+                columns={windRoseColumns}
+                responsive
+                legendGap={20}
+              />
+            </div>
 
-                <div className="mt-4 text-center">
-                  <Badge variant="outline" className="text-xs">
-                    {windHistory.length > 0
-                      ? `Based on ${windHistory.length} most recent measurements`
-                      : "No wind data collected yet. The chart will update as data arrives."}
-                  </Badge>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+            <div className="mt-4 text-center">
+              <Badge variant="outline" className="text-xs">
+                {windHistory.length > 0
+                  ? `Based on ${windHistory.length} most recent measurements`
+                  : "No wind data collected yet. The chart will update as data arrives."}
+              </Badge>
+            </div>
+          </div>
         </div>
 
         {/* Legend - Right side on desktop, bottom on mobile */}
-        <div className="lg:w-64 flex-shrink-0">
+        <div className="lg:w-80 flex-shrink-0">
           <Card className="h-full">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -89,17 +85,20 @@ export function WindRoseChart({ windHistory, selectedUnit }: WindRoseChartProps)
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-3">
-                {unitDisplay.ranges.map((range, index) => (
-                  <div key={index} className="flex items-center space-x-3">
-                    <span
-                      className="w-4 h-4 rounded-full shadow-sm border border-border flex-shrink-0"
-                      style={{ backgroundColor: WIND_SPEED_COLORS[index] }}
-                    ></span>
-                    <span className="text-sm font-medium text-foreground">
-                      {range.range} {unitDisplay.unitLabel}
-                    </span>
-                  </div>
-                ))}
+                {unitDisplay.ranges.slice().reverse().map((range, index) => {
+                  const originalIndex = unitDisplay.ranges.length - 1 - index;
+                  return (
+                    <div key={originalIndex} className="flex items-center space-x-3">
+                      <span
+                        className="w-4 h-4 rounded-full shadow-sm border border-border flex-shrink-0"
+                        style={{ backgroundColor: WIND_SPEED_COLORS[originalIndex] }}
+                      ></span>
+                      <span className="text-sm font-medium text-foreground">
+                        {range.range} {unitDisplay.unitLabel}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
 
               <Separator />

@@ -340,11 +340,11 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
     <div className="text-center space-y-6">
       <div className="flex items-center justify-center gap-2">
         <Wind className="h-5 w-5 text-primary" />
-        <h3 className="text-2xl font-bold text-foreground">Wind Speed</h3>
+        <h3 className="text-2xl font-bold text-primary">Current Wind Speed</h3>
       </div>
 
       <div className="relative">
-        <div className="w-full h-96 flex items-center justify-center px-4">
+        <div className="w-full flex items-center justify-center px-4">
           <div className="w-full max-w-lg">
             <Alert className="mb-6">
               <Info className="h-4 w-4" />
@@ -354,9 +354,9 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
             </Alert>
             <GaugeComponent
               id="wind-speed-gauge"
-              type="grafana"
+              type="radial"
               arc={{
-                width: 0.25,
+                width: 0.2,
                 padding: 0.005,
                 cornerRadius: 1,
                 subArcs: gaugeSubArcs,
@@ -372,7 +372,7 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
                   formatTextValue: formatGaugeValueLabel,
                   style: {
                     fontSize: "36px",
-                    fill: "#3a5ba0",
+                    fill: "#000",
                     fontWeight: "bold",
                     textShadow: "0 2px 4px rgba(0,0,0,0.1)",
                   },
@@ -393,24 +393,11 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
         </div>
       </div>
 
-      {windData && (
-        <div className="space-y-4">
-          <div className="text-center space-y-2">
-            <div className="text-4xl font-bold text-primary">
-              {convertedValue !== null && convertedValue !== undefined && !isNaN(convertedValue)
-                ? convertedValue.toFixed(selectedUnit === "beaufort" ? 0 : 1)
-                : "0"}
-              <span className="text-lg font-medium text-muted-foreground ml-2">
-                {currentUnitLabel}
-              </span>
-            </div>
-
-            {windData?.timestamp && (
-              <Badge variant="outline" className="text-xs">
-                Last updated: {formatLastUpdated(windData.timestamp)}
-              </Badge>
-            )}
-          </div>
+      {windData?.timestamp && (
+        <div className="text-center">
+          <Badge variant="outline" className="text-xs">
+            Last updated: {formatLastUpdated(windData.timestamp)}
+          </Badge>
         </div>
       )}
     </div>

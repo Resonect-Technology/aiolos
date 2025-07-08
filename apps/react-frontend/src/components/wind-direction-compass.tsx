@@ -27,7 +27,7 @@ export const WindDirectionCompass: React.FC<WindDirectionCompassProps> = ({ wind
     <div className="text-center space-y-6">
       <div className="flex items-center justify-center gap-2">
         <Compass className="h-5 w-5 text-primary" />
-        <h3 className="text-2xl font-bold text-foreground">Wind Direction</h3>
+        <h3 className="text-2xl font-bold text-primary">Current Wind Direction</h3>
       </div>
 
       <Alert className="mb-6">
@@ -52,7 +52,7 @@ export const WindDirectionCompass: React.FC<WindDirectionCompassProps> = ({ wind
         </div>
       </div>
 
-      <div className="text-4xl font-bold text-center text-primary">
+      <div className="text-4xl font-bold text-center text-foreground">
         {windDirection !== null && windDirection !== undefined
           ? `${Math.round(windDirection)}°`
           : "---"}
