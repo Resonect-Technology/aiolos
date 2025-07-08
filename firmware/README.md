@@ -116,407 +116,55 @@ The firmware implements comprehensive system reliability measures to ensure stab
 - **Non-Blocking Operations**: All potentially blocking operations converted to timer-based alternatives
 - **System Responsiveness**: Sensors and core functions continue operating during connection issues
 
----
+### 7. Advanced Safety Mechanisms
 
-## Hardware Connections
+The firmware implements multiple layers of safety mechanisms to ensure the device never remains offline indefinitely, providing robust field deployment reliability.
 
-| Component         | Pin Name          | ESP32 Pin | Notes                               |
-| ----------------- | ----------------- | --------- | ----------------------------------- |
-| Anemometer        | `ANEMOMETER_PIN`  | `GPIO33`  | Interrupt-capable pin for pulse counting |
-| Wind Vane         | `WIND_VANE_PIN`   | `GPIO32`  | ADC pin for direction reading       |
-| External Temp     | `TEMP_BUS_EXT`    | `GPIO13`  | OneWire bus for DS18B20             |
-| Battery Sensing   | `ADC_BATTERY_PIN` | `GPIO35`  | ADC pin for voltage measurement     |
-| Solar Sensing     | `ADC_SOLAR_PIN`   | `GPIO36`  | ADC pin for solar voltage measurement |
-| Modem TX          | `PIN_TX`          | `GPIO27`  |                                     |
-| Modem RX          | `PIN_RX`          | `GPIO26`  |                                     |
-| Modem Power       | `PWR_PIN`         | `GPIO4`   |                                     |
-| Modem DTR         | `PIN_DTR`         | `GPIO25`  | For modem sleep control             |
-| Modem Reset       | `MODEM_RST_PIN`   | `GPIO5`   | For complete modem power off        |
-| Status LED        | `LED_PIN`         | `GPIO12`  |                                     |
+#### Offline Safety Protection
 
----
+The system continuously monitors its connectivity status and implements progressive recovery measures:
 
-## Environment Configuration
+- **Connection State Monitoring**: Device is considered "online" when both GPRS is connected AND HTTP client is not in backoff/throttled state
+- **Offline Time Tracking**: Automatically tracks when the device first goes offline and monitors total offline duration
+- **Progressive Recovery**: Multiple safety mechanisms with increasing severity to restore connectivity
 
-The project uses a `secrets.ini` file (ignored by Git) to manage sensitive data and per-device settings.
+#### Three-Tier Safety System
 
-### Setup
+**1. Backoff Reset Timer (30 minutes)**
+- Automatically resets HTTP exponential backoff every 30 minutes while offline
+- Clears connection failure counters to allow fresh connection attempts
+- Exits emergency recovery mode to resume normal operation
+- Prevents devices from staying in prolonged backoff states
 
-1.  **Copy the example file:**
-    ```bash
-    cp firmware/secrets.ini.example firmware/secrets.ini
-    ```
+**2. Maximum Offline Time Protection (1 hour)**
+- Forces complete system restart if device remains offline for 1 hour
+- Logs comprehensive diagnostics before restart (connection failures, recovery mode status, HTTP throttle state)
+- Ensures no weather station stays offline indefinitely due to software bugs or network issues
+- Provides ultimate fallback for field deployments
 
-2.  **Edit `firmware/secrets.ini`** with your specific values (APN, server host, etc.).
+**3. Periodic Status Monitoring**
+- Logs offline status every 5 minutes with countdown to restart
+- Tracks offline time progression for debugging and analysis
+- Provides visibility into connection recovery attempts
 
-3.  **Build the project.** PlatformIO automatically injects these values into the build process. The firmware uses them via `CONFIG_*` macros, which are then assigned to the `DEFAULT_*` constants in `Config.h`.
+#### Safety Configuration
 
----
-
-## Project Status (July 2025)
-
-The firmware is **production-ready** and has undergone comprehensive testing and optimization. All critical systems have been refactored for robustness and power efficiency.
-
-#### Recent Improvements (v2.0)
-- **Critical Modem Power-Off Fix**: Completely resolved modem restart issues during deep sleep
-  - Eliminated problematic hardware pulses after software shutdown that were waking the modem
-  - Modem now stays powered off (diodes remain off) during ESP32 deep sleep cycles
-  - Implemented fast, decisive shutdown sequence using multiple `AT+CPOWD=1` commands
-  - Fixed PWR_PIN logic to maintain correct OFF state (HIGH = LOW to modem due to transistor inversion)
-- **Non-Blocking Emergency Recovery**: Replaced blocking delays with timer-based recovery system
-  - Prevents watchdog resets during connection failures
-  - System remains responsive during emergency recovery periods
-  - Maintains sensor operation even during connection issues
-- **Optimized HTTP Communication**: 
-  - Lightweight POST methods for improved reliability and speed
-  - Fixed timeout alignment (30s HttpClient timeout matches manual read timeout)
-  - Modern JsonDocument usage eliminating deprecation warnings
-  - Enhanced error handling in lightweight operations
-- **Enhanced Error Handling**: Comprehensive error recovery throughout all modules
-- **Calibrated ADC Readings**: More accurate battery and solar voltage measurements
-- **Robust Deep Sleep**: Simplified logic ensuring reliable wake-up behavior
-
-#### Field Testing Ready
-- **Long-term Stability**: Validated for continuous operation with periodic restarts
-- **Power Efficiency**: Optimized for solar/battery operation with deep sleep
-- **Network Reliability**: Non-blocking connection recovery prevents system hangs
-- **Data Integrity**: Comprehensive sensor validation and error reporting
-- **Production Robustness**: All critical blocking operations converted to non-blocking
-- **HTTP Optimization**: Lightweight POST operations with aligned timeouts for better performance
-
-#### Wind Measurement System
-- **Accurate Wind Speed**: Fixed timing issues in pulse counting for precise speed measurements
-- **Smart Direction Filtering**: 1-second stability delay prevents reporting of brief wind gusts
-- **Dual Reporting Modes**: 
-  - **Live Stream**: ≤5s interval readings for real-time monitoring (windSampleInterval ignored)
-  - **Averaged Data**: >5s interval vector-averaged readings for long-term trends
-- **Vector Averaging**: Proper handling of wind direction across the 0°/360° boundary
-
----
-
-## Technical Details
-
-### Wind Measurement Architecture
-
-#### Wind Speed Calculation
-The anemometer generates pulses that are counted by an interrupt handler. Wind speed is calculated using:
-- **Frequency = (Total Pulses × 1000) / Time Period (ms)**
-- **Wind Speed = Frequency × 0.6667 m/s** (calibrated from datasheet: 2.4 km/h per Hz)
-
-#### Wind Direction Stability
-To filter out brief wind gusts, direction changes must be stable for at least 1 second before being reported. This prevents rapid fluctuations from affecting measurements.
-
-#### Averaging System
-For long-term measurements (5+ minutes), the system uses:
-- **Vector Averaging**: Directions are converted to X,Y components and averaged to handle the 0°/360° boundary correctly
-- **Configurable Sample Rate**: Default 2-second intervals during the averaging period  
-- **Cumulative Pulse Counting**: All pulses are counted over the entire period for accurate speed averaging
-
-The system supports both live streaming (1-second readings) and averaged data (5+ minute periods) for different use cases.
-
-### Wind Measurement Configuration
-
-The wind measurement system operates in two distinct modes based on the `windSendInterval` configuration parameter:
-
-#### Mode Selection
-- **Live Stream Mode**: `windSendInterval ≤ 5000ms` (≤ 5 seconds)
-- **Averaged Mode**: `windSendInterval > 5000ms` (> 5 seconds)
-
-#### Configuration Parameters
-
-**windSendInterval** - Controls how often wind data is sent to the server:
-- `1000` = Send every 1 second (live stream)
-- `3000` = Send every 3 seconds (live stream)
-- `300000` = Send every 5 minutes (averaged mode)
-
-**windSampleInterval** - Controls internal sampling rate during averaging:
-- **Live Stream Mode**: This parameter is **ignored** (direct sensor readings used)
-- **Averaged Mode**: Controls how often samples are taken during the averaging period
-  - `2000` = Sample every 2 seconds during averaging
-  - `10000` = Sample every 10 seconds during averaging
-
-#### Configuration Examples
-
-**Maximum Real-Time Performance:**
-```json
-{
-  "windSendInterval": 1000,
-  "windSampleInterval": 500
-}
-```
-Result: Sends wind data every 1 second using direct sensor readings (windSampleInterval ignored)
-
-**Balanced Live Monitoring:**
-```json
-{
-  "windSendInterval": 3000,
-  "windSampleInterval": 1000
-}
-```
-Result: Sends wind data every 3 seconds using direct sensor readings (windSampleInterval ignored)
-
-**Low-Power Averaged Mode:**
-```json
-{
-  "windSendInterval": 300000,
-  "windSampleInterval": 10000
-}
-```
-Result: Samples wind every 10 seconds for 5 minutes, then sends one vector-averaged reading
-
-**High-Resolution Averaged Mode:**
-```json
-{
-  "windSendInterval": 300000,
-  "windSampleInterval": 2000
-}
-```
-Result: Samples wind every 2 seconds for 5 minutes, then sends one vector-averaged reading (higher accuracy, slightly more power consumption)
-
-## Diagnostics and System Health
-
-The DiagnosticsManager handles system health monitoring and reporting. It collects and sends critical system metrics to the server for monitoring and alerting.
-
-### Diagnostic Data Collected
-
-- **Battery Voltage**: Calibrated ADC reading from the battery monitoring circuit
-- **Solar Panel Voltage**: Calibrated ADC reading from the solar panel input
-- **Internal Temperature**: DS18B20 sensor reading from inside the weather station enclosure
-- **External Temperature**: DS18B20 sensor reading from the external environment (optional)
-- **Signal Quality**: Cellular signal strength (RSSI) from the modem
-- **System Uptime**: Time since last system restart (seconds)
-
-### Configuration Parameters
-
-**diagInterval** - Controls how often diagnostics are sent:
-- `300000` = Send every 5 minutes (recommended for production)
-- `60000` = Send every minute (useful for debugging)
-- `3600000` = Send every hour (low-power mode)
-
-### Temperature Sensor Management
-
-The system manages temperature sensors to avoid conflicts between the main loop and diagnostics:
-
-- **Internal Temperature**: Read via DiagnosticsManager using TEMP_BUS_INT (GPIO21)
-- **External Temperature**: Primary reading via main loop using TEMP_BUS_EXT (GPIO13)
-- **Sensor Conflict Avoidance**: DiagnosticsManager can accept external temperature readings to prevent OneWire bus conflicts
-
-### Solar Voltage Calibration
-
-The solar voltage reading uses a calibration factor that may need adjustment based on the actual hardware:
-
-- **Default Calibration**: 2.0x multiplier
-- **Expected Range**: 0V to 6.5V
-- **Calibration Method**: Compare DiagnosticsManager readings with multimeter measurements and adjust
-
-### Field Operation Recommendations
-
-**Production Configuration:**
-```json
-{
-  "diagInterval": 300000
-}
-```
-
-**Development/Debug Configuration:**
-```json
-{
-  "diagInterval": 60000
-}
-```
-
-**Low-Power Configuration:**
-```json
-{
-  "diagInterval": 3600000
-}
-```
-
-### Diagnostic Error Handling
-
-The system includes robust error handling for diagnostic operations:
-
-- **Temperature Sensor Failures**: System continues operation with -127.0°C indicating sensor unavailable
-- **ADC Reading Validation**: Out-of-range values are detected and logged
-- **HTTP Transmission Failures**: Logged and retried on next cycle
-- **Watchdog Management**: Temporarily disabled during network operations to prevent false resets
-
-## Connection Recovery and Stability
-
-The system includes comprehensive connection recovery mechanisms to prevent infinite loops and handle modem failures:
-
-### Failure Detection and Recovery
-
-**Connection Failure Tracking:**
-- Tracks consecutive connection failures up to 10 attempts
-- Implements non-blocking emergency recovery mode
-- Prevents infinite connection retry loops and watchdog resets
-
-**Emergency Recovery System:**
-- **Non-Blocking Design**: Uses timer-based recovery instead of blocking delays
-- **Recovery Duration**: 10-minute recovery period during which connection attempts are skipped
-- **System Responsiveness**: Sensors and other operations continue during recovery
-- **Automatic Reset**: Failure counter automatically resets after recovery period
-
-**Modem Reset Conditions:**
-- Triggered when maximum connection failures (10) are reached
-- Modem reset attempted if `needsReset()` indicates modem is unresponsive
-- **Graceful Handling**: System continues operation even if reset fails
-- Minimum recovery periods prevent reset loops
-
-**Recovery Sequence:**
-1. **Connection Monitoring**: Track consecutive failures
-2. **Emergency Mode**: Enter non-blocking recovery when limit reached
-3. **Modem Reset**: Attempt reset if modem appears unresponsive
-4. **Timer-Based Recovery**: 10-minute recovery period with continued operation
-5. **Automatic Restoration**: System resumes normal operation after recovery period
-
-### Configuration for Field Deployment
-
-**Stable Connection Settings:**
-```json
-{
-  "windSendInterval": 5000,
-  "diagInterval": 300000,
-  "tempInterval": 600000
-}
-```
-- Reduces modem load while maintaining functionality
-- Allows recovery time between operations
-- Balances data frequency with stability
-
-**High-Reliability Mode:**
-```json
-{
-  "windSendInterval": 10000,
-  "diagInterval": 600000,
-  "tempInterval": 900000
-}
-```
-- Maximum stability for remote deployments
-- Minimal modem stress
-- Suitable for locations with poor signal quality
-
-### Monitoring and Diagnostics
-
-The system logs comprehensive connection health information:
-- Connection failure counts and emergency recovery periods
-- Modem reset events and recovery success rates
-- Signal quality trends and network stability metrics
-- Non-blocking recovery system operation and timing
-- System responsiveness during connection issues
-
-### Field Operation Recommendations
-
-1. **Monitor Initial Deployment**: Check logs for connection patterns in the first 24 hours
-2. **Signal Quality**: Ensure signal strength > -100 dBm for stable operation
-3. **Power Management**: Use conservative intervals in low-power scenarios
-4. **Remote Recovery**: System will automatically recover from most failure modes
-5. **Manual Intervention**: Only needed if hardware faults occur
-
-## JSON Communication Protocol
-
-The Aiolos firmware communicates with the backend API using **camelCase** JSON field names for all HTTP requests. This ensures consistency with the backend API and modern web development practices.
-
-### HTTP JSON Payloads
-
-All JSON data sent by the firmware uses camelCase field naming:
-
-#### Wind Data Transmission
-```json
-POST /api/stations/vasiliki-001/wind
-{
-  "windSpeed": 15.2,     // m/s
-  "windDirection": 270   // degrees (0-360)
-}
-```
-
-#### Diagnostics Data Transmission  
-```json
-POST /api/stations/vasiliki-001/diagnostics
-{
-  "batteryVoltage": 3.85,        // volts
-  "solarVoltage": 4.12,          // volts
-  "internalTemperature": 45.2,   // celsius
-  "signalQuality": 20,           // CSQ value (0-31)
-  "uptime": 86400               // seconds
-}
-```
-
-#### Temperature Data Transmission
-```json
-POST /api/stations/vasiliki-001/temperature
-{
-  "internalTemperature": 45.2,   // celsius
-  "externalTemperature": 22.1    // celsius
-}
-```
-
-#### Configuration Fetching
-```json
-GET /api/stations/vasiliki-001/config
-// Response:
-{
-  "tempInterval": 60000,         // milliseconds
-  "windInterval": 30000,         // milliseconds  
-  "windSampleInterval": 10000,   // milliseconds
-  "diagInterval": 120000,        // milliseconds
-  "timeInterval": 3600000,       // milliseconds
-  "restartInterval": 86400,      // seconds
-  "sleepStartHour": 1,           // hour (0-23)
-  "sleepEndHour": 6,            // hour (0-23)
-  "otaHour": 3,                 // hour (0-23)
-  "otaMinute": 0,               // minute (0-59)
-  "otaDuration": 30,            // minutes
-  "remoteOta": false            // boolean
-}
-```
-
-### Implementation Details
-
-The `AiolosHttpClient` class handles all JSON serialization and HTTP communication:
-
-- **JSON Serialization**: Uses ArduinoJson library with camelCase field names
-- **HTTP Headers**: Sends `Content-Type: application/json`
-- **Error Handling**: Robust HTTP response validation and retry logic
-- **Connection Management**: Integrates with ModemManager for GPRS connectivity
-
-### Code Examples
+All safety timing constants are centrally defined in `Config.h`:
 
 ```cpp
-// Wind data transmission in AiolosHttpClient.cpp
-bool AiolosHttpClient::sendWindData(const String& deviceId, float windSpeed, float windDirection) {
-    JsonDocument doc;
-    doc["windSpeed"] = windSpeed;
-    doc["windDirection"] = windDirection;
-    
-    String jsonString;
-    serializeJson(doc, jsonString);
-    return sendPostRequest("/api/stations/" + deviceId + "/wind", jsonString);
-}
-
-// Diagnostics data transmission
-bool AiolosHttpClient::sendDiagnostics(float internalTemp, float externalTemp) {
-    JsonDocument doc;
-    doc["batteryVoltage"] = BatteryUtils::getVoltage();
-    doc["solarVoltage"] = BatteryUtils::getSolarVoltage();
-    doc["internalTemperature"] = internalTemp;
-    doc["signalQuality"] = modemManager.getSignalQuality();
-    doc["uptime"] = millis() / 1000;
-    
-    String jsonString;
-    serializeJson(doc, jsonString);
-    return sendPostRequest("/api/stations/" + String(DEVICE_ID) + "/diagnostics", jsonString);
-}
+#define MAX_CONNECTION_FAILURES 10           // Emergency recovery trigger
+#define CONNECTION_FAILURE_RESET_TIME 600000 // 10 minutes failure counter reset
+#define EMERGENCY_RECOVERY_DURATION 600000   // 10 minutes recovery period
+#define MAX_OFFLINE_TIME 3600000             // 1 hour maximum offline before restart
+#define BACKOFF_RESET_INTERVAL 1800000       // 30 minutes backoff reset interval
 ```
 
-### Signal Quality Reporting
+#### Field Deployment Benefits
 
-The firmware reports signal quality as **CSQ values** (0-31 scale from AT+CSQ command):
-- **0-4**: Very Poor signal
-- **5-9**: Poor signal  
-- **10-14**: Fair signal
-- **15-19**: Good signal
-- **20-31**: Excellent signal
+- **Zero Infinite Outages**: Guaranteed device recovery within 1 hour maximum
+- **Progressive Recovery**: Multiple attempts before drastic measures
+- **Non-Blocking Operation**: Sensors continue operating during connection issues
+- **Comprehensive Logging**: Full diagnostic information for troubleshooting
+- **Remote Monitoring**: Offline status visible in logs for proactive intervention
 
-This provides accurate 2G/GPRS signal strength information that the frontend displays with appropriate quality labels.
+---
