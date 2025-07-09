@@ -9,10 +9,12 @@ export function formatLastUpdated(timestamp: string): string {
   const now = new Date();
   const lastUpdated = new Date(timestamp);
   const diffMs = now.getTime() - lastUpdated.getTime();
-  const diffSeconds = Math.floor(diffMs / 1000);
-  const diffMinutes = Math.floor(diffSeconds / 60);
-  const diffHours = Math.floor(diffMinutes / 60);
-  const diffDays = Math.floor(diffHours / 24);
+
+  // Ensure we never show negative values (handle clock skew or future timestamps)
+  const diffSeconds = Math.max(0, Math.floor(diffMs / 1000));
+  const diffMinutes = Math.max(0, Math.floor(diffSeconds / 60));
+  const diffHours = Math.max(0, Math.floor(diffMinutes / 60));
+  const diffDays = Math.max(0, Math.floor(diffHours / 24));
 
   if (diffSeconds < 60) {
     return `${diffSeconds}s ago`;

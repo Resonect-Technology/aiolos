@@ -5,6 +5,15 @@ import transmit from '@adonisjs/transmit/services/main'
 
 export default class StationTemperatureController {
   /**
+   * Validate if temperature reading is reasonable
+   * Filters out common sensor error values like -127
+   */
+  private isValidTemperature(temperature: number): boolean {
+    // Filter out obvious sensor errors and unrealistic values
+    return temperature > -40 && temperature < 60 && temperature !== -127
+  }
+
+  /**
    * @summary Store temperature reading
    * @description Store a temperature reading from the station's external temperature sensor
    * @paramPath station_id - The station's unique ID - @type(string) @required
@@ -23,6 +32,18 @@ export default class StationTemperatureController {
 
     // Use station-provided timestamp if available, otherwise use server arrival time
     const temperatureTimestamp = request.input('timestamp') || arrivalTimestamp
+
+    // Silently filter invalid temperature readings
+    if (!this.isValidTemperature(temperature)) {
+      console.warn(
+        `Filtered invalid temperature reading: ${temperature}°C from station ${params.station_id}`
+      )
+      // Return success but don't update cache/broadcast/store
+      return response.created({
+        message: 'Reading received',
+        filtered: true
+      })
+    }
 
     // Cache the temperature data
     stationDataCache.setTemperatureData(params.station_id, {

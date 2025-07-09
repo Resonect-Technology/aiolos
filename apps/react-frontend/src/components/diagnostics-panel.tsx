@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import { Activity, Battery, Sun, Thermometer, Wifi, Clock, AlertTriangle } from "lucide-react";
+import { Activity, Battery, Sun, Wifi, Clock, AlertTriangle } from "lucide-react";
 import { formatLastUpdated } from "../lib/time-utils";
 
 interface DiagnosticsData {
@@ -231,7 +231,7 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
                     <span className="text-muted-foreground">Battery:</span>
                     <span className="font-medium">
                       {diagnosticsData.batteryVoltage !== null &&
-                      diagnosticsData.batteryVoltage !== undefined
+                        diagnosticsData.batteryVoltage !== undefined
                         ? `${diagnosticsData.batteryVoltage.toFixed(2)}V`
                         : "N/A"}
                     </span>
@@ -256,7 +256,7 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
                   </span>
                   <span className="font-medium">
                     {diagnosticsData.solarVoltage !== null &&
-                    diagnosticsData.solarVoltage !== undefined
+                      diagnosticsData.solarVoltage !== undefined
                       ? `${diagnosticsData.solarVoltage.toFixed(2)}V`
                       : "N/A"}
                   </span>
@@ -268,21 +268,11 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <Thermometer className="h-4 w-4 text-primary" />
+                  <Clock className="h-4 w-4 text-primary" />
                   System Status
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Internal Temp:</span>
-                  <span className="font-medium">
-                    {diagnosticsData.internalTemperature !== null &&
-                    diagnosticsData.internalTemperature !== undefined
-                      ? `${diagnosticsData.internalTemperature.toFixed(1)}°C`
-                      : "N/A"}
-                  </span>
-                </div>
-
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground flex items-center gap-1">
                     <Clock className="h-3 w-3" />
@@ -311,7 +301,7 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
                     <span className="text-muted-foreground">Signal Quality:</span>
                     <Badge variant={getSignalQualityVariant(diagnosticsData.signalQuality)}>
                       {diagnosticsData.signalQuality !== null &&
-                      diagnosticsData.signalQuality !== undefined
+                        diagnosticsData.signalQuality !== undefined
                         ? formatSignalQuality(diagnosticsData.signalQuality)
                         : "N/A"}
                     </Badge>
