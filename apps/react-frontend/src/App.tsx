@@ -111,7 +111,6 @@ function App() {
 
                 <SectionCards
                   stationId={stationId}
-                  isConnected={isConnected}
                   error={error}
                   selectedUnit={selectedUnit}
                   onUnitChange={handleUnitChange}
