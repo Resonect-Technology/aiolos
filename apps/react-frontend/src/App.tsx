@@ -21,7 +21,6 @@ function App() {
 
   // Wind data state
   const [windData, setWindData] = useState<WindData | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedUnit, setSelectedUnit] = useState<string>("m/s");
   const [windHistory, setWindHistory] = useState<WindData[]>([]);
@@ -35,7 +34,6 @@ function App() {
 
   useEffect(() => {
     // Clear any previous connection state
-    setIsConnected(false);
     setError(null);
 
     // Initialize Transmit instance if it doesn't exist
@@ -55,7 +53,6 @@ function App() {
     newSubscription
       .create()
       .then(() => {
-        setIsConnected(true);
         setError(null);
 
         newSubscription.onMessage((data: WindData) => {
@@ -75,7 +72,6 @@ function App() {
       })
       .catch(err => {
         setError(`Failed to connect: ${err.message || "Unknown error"}`);
-        setIsConnected(false);
       });
 
     return () => {
