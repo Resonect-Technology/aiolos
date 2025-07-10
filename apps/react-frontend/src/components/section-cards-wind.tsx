@@ -5,7 +5,6 @@ import { UnitSelector } from "./unit-selector";
 
 interface SectionCardsProps {
   stationId: string;
-  isConnected: boolean;
   error: string | null;
   selectedUnit: string;
   onUnitChange: (unit: string) => void;
@@ -13,7 +12,6 @@ interface SectionCardsProps {
 
 export function SectionCards({
   stationId,
-  isConnected,
   error,
   selectedUnit,
   onUnitChange,
@@ -23,7 +21,7 @@ export function SectionCards({
       {/* Connection Status */}
       <Card >
         <CardContent >
-          <ConnectionStatus isConnected={isConnected} error={error} />
+          <ConnectionStatus error={error} stationId={stationId} />
         </CardContent>
       </Card>
 
