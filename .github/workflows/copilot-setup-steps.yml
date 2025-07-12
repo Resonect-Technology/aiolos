@@ -124,16 +124,17 @@ jobs:
           cd firmware
           if [ ! -f secrets.ini ]; then
             cp secrets.ini.example secrets.ini
-            # Set default values for testing (won't be used for actual deployment)
-            echo "APN=test.apn" >> secrets.ini
-            echo "GPRS_USER=" >> secrets.ini
-            echo "GPRS_PASS=" >> secrets.ini
-            echo "OTA_HOUR=10" >> secrets.ini
-            echo "OTA_MINUTE=0" >> secrets.ini
-            echo "OTA_DURATION=10" >> secrets.ini
-            echo "OTA_SSID=TestWiFi" >> secrets.ini
-            echo "OTA_PASSWORD=TestPassword" >> secrets.ini
-            echo "OTA_UPDATE_PASSWORD=TestUpdatePassword" >> secrets.ini
+            # Update existing values for testing (replace existing values)
+            sed -i 's/APN = "apn"/APN = "test.apn"/' secrets.ini
+            sed -i 's/GPRS_USER = ""/GPRS_USER = ""/' secrets.ini
+            sed -i 's/GPRS_PASS = ""/GPRS_PASS = ""/' secrets.ini
+            sed -i 's/OTA_HOUR = 11/OTA_HOUR = 10/' secrets.ini
+            sed -i 's/OTA_MINUTE = 0/OTA_MINUTE = 0/' secrets.ini
+            sed -i 's/OTA_DURATION = 15/OTA_DURATION = 10/' secrets.ini
+            sed -i 's/OTA_SSID = "Aiolos-Weather-OTA"/OTA_SSID = "TestWiFi"/' secrets.ini
+            sed -i 's/OTA_PASSWORD = "weather-update"/OTA_PASSWORD = "TestPassword"/' secrets.ini
+            sed -i 's/OTA_UPDATE_PASSWORD = "firmware-update"/OTA_UPDATE_PASSWORD = "TestUpdatePassword"/' secrets.ini
+            echo "Firmware secrets configured for testing"
           fi
 
       - name: Run database migrations
