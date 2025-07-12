@@ -1,6 +1,7 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import transmit from '@adonisjs/transmit/services/main'
 import { stationDataCache } from '#app/services/station_data_cache'
+import { windAggregationService } from '#app/services/wind_aggregation_service'
 
 // In-memory interval map for dev-only mock streaming
 interface MockStationData {
@@ -41,6 +42,16 @@ export default class StationLiveController {
 
     // Use station-provided timestamp if available, otherwise use server arrival time
     const windTimestamp = timestamp || arrivalTimestamp
+
+    // Store wind data for aggregation
+    await windAggregationService.storeWindData(station_id, {
+      windSpeed,
+      windDirection,
+      timestamp: windTimestamp,
+    })
+
+    // Process completed minutes for aggregation
+    await windAggregationService.processCompletedMinutes(station_id, 3)
 
     // Cache the latest wind data using the shared cache service
     stationDataCache.setWindData(station_id, {
