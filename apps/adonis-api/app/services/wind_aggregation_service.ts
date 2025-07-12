@@ -34,8 +34,8 @@ class WindAggregationService {
     const windReadings = await SensorReading.query()
       .where('sensor_id', stationId)
       .where('type', 'wind')
-      .where('created_at', '>=', intervalStart.toSQL())
-      .where('created_at', '<', intervalEnd.toSQL())
+      .where('created_at', '>=', intervalStart.toString())
+      .where('created_at', '<', intervalEnd.toString())
 
     // Skip if no data points
     if (windReadings.length === 0) {
@@ -60,7 +60,7 @@ class WindAggregationService {
     // Check if we already have data for this interval
     const existingData = await WindOneMinuteDatum.query()
       .where('station_id', stationId)
-      .where('interval_start', intervalStart.toSQL())
+      .where('interval_start', intervalStart.toString())
       .first()
 
     if (existingData) {
@@ -127,11 +127,11 @@ class WindAggregationService {
   async cleanupOldData(maxAgeHours: number = 25): Promise<number> {
     const cutoffTime = DateTime.now().minus({ hours: maxAgeHours })
     
-    const deletedCount = await WindOneMinuteDatum.query()
-      .where('interval_start', '<', cutoffTime.toSQL())
+    const result = await WindOneMinuteDatum.query()
+      .where('interval_start', '<', cutoffTime.toString())
       .delete()
 
-    return deletedCount
+    return Array.isArray(result) ? result.length : result
   }
 
   /**
@@ -149,11 +149,11 @@ class WindAggregationService {
       .limit(limit)
 
     if (fromTime) {
-      query.where('interval_start', '>=', fromTime.toSQL())
+      query.where('interval_start', '>=', fromTime.toString())
     }
 
     if (toTime) {
-      query.where('interval_start', '<=', toTime.toSQL())
+      query.where('interval_start', '<=', toTime.toString())
     }
 
     return await query
