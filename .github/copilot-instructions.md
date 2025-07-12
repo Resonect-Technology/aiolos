@@ -12,6 +12,25 @@ Aiolos is a complete IoT weather monitoring system with custom ESP32 hardware, A
 - **Frontend**: React/Vite with real-time SSE connection via `@adonisjs/transmit-client`
 - **Deployment**: Docker Compose with Caddy reverse proxy on AWS
 
+## Project Structure
+
+```
+/
+├── apps/
+│   ├── adonis-api/         # AdonisJS v6 REST API backend
+│   ├── bruno-api-control/  # Bruno API client for testing/configuration
+│   └── react-frontend/     # React/Vite dashboard with SSE
+├── firmware/               # ESP32 C++ code for weather stations
+├── hardware/               # 3D models and hardware specifications
+├── infra/                  # Docker Compose, Terraform, deployment configs
+├── docs/                   # Project documentation and screenshots
+├── .github/
+│   └── workflows/          # GitHub Actions and Copilot setup
+├── package.json            # Root package.json for monorepo
+├── pnpm-workspace.yaml     # pnpm workspace configuration
+└── turbo.json              # Turborepo build configuration
+```
+
 ## Key Development Patterns
 
 ### Monorepo Structure
