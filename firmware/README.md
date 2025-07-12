@@ -104,6 +104,7 @@ The firmware uses a flexible, three-tiered configuration system.
 1.  **`secrets.ini`**: For per-device secrets that should not be in version control (APN, Wi-Fi passwords, etc.). See "Environment Configuration" below.
 2.  **`Config.h`**: Contains the default fallback values for all operational parameters (e.g., `DEFAULT_WIND_INTERVAL`). These are used if the device cannot reach the server.
 3.  **Remote Configuration**: At runtime, the device periodically fetches a JSON configuration from the backend server using `AiolosHttpClient.fetchConfiguration()`. These values override the defaults, allowing for dynamic adjustment of reporting intervals, sleep times, and other parameters without reflashing the firmware.
+   - **Note**: The `restartInterval` parameter is received from the server for API compatibility but is ignored by the firmware. The device uses a fixed 4-hour uptime-based restart instead for maximum reliability.
 
 ### 6. System Reliability & Watchdog Management
 
@@ -111,7 +112,7 @@ The firmware implements comprehensive system reliability measures to ensure stab
 
 - **Watchdog Timer**: 120-second timeout to detect and recover from system hangs
 - **Strategic Disabling**: Watchdog is temporarily disabled during long operations (modem initialization, OTA updates, connectivity tests)
-- **Periodic Restarts**: Configurable automatic restarts (default 6 hours) to maintain system health
+- **Uptime-Based Restart**: Automatic restart after 4 hours of continuous operation to maintain system health and prevent memory fragmentation
 - **Error Recovery**: Graceful handling of modem, network, and sensor failures with appropriate fallbacks
 - **Non-Blocking Operations**: All potentially blocking operations converted to timer-based alternatives
 - **System Responsiveness**: Sensors and core functions continue operating during connection issues
@@ -157,12 +158,14 @@ All safety timing constants are centrally defined in `Config.h`:
 #define EMERGENCY_RECOVERY_DURATION 600000   // 10 minutes recovery period
 #define MAX_OFFLINE_TIME 3600000             // 1 hour maximum offline before restart
 #define BACKOFF_RESET_INTERVAL 1800000       // 30 minutes backoff reset interval
+#define UPTIME_RESTART_INTERVAL 14400000UL   // 4 hours uptime restart for system health
 ```
 
 #### Field Deployment Benefits
 
 - **Zero Infinite Outages**: Guaranteed device recovery within 1 hour maximum
 - **Progressive Recovery**: Multiple attempts before drastic measures
+- **Preventive Maintenance**: Regular uptime-based restarts prevent memory fragmentation and system degradation
 - **Non-Blocking Operation**: Sensors continue operating during connection issues
 - **Comprehensive Logging**: Full diagnostic information for troubleshooting
 - **Remote Monitoring**: Offline status visible in logs for proactive intervention

@@ -1,0 +1,20 @@
+{
+	"name": "Aiolos Web Devcontainer",
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+	"postCreateCommand": "pnpm i",
+	"customizations": {
+		"vscode": {
+			"settings": {
+				"terminal.integrated.defaultProfile.linux": "bash"
+			},
+			"extensions": [
+				"github.vscode-pull-request-github",
+				"ms-azuretools.vscode-docker",
+				"esbenp.prettier-vscode",
+				"bradlc.vscode-tailwindcss"
+			]
+		}
+	}
+}

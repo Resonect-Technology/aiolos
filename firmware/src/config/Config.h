@@ -123,10 +123,11 @@
 #define DEFAULT_SLEEP_END_HOUR 9 // Hour to wake from sleep (24h format)
 #endif
 
-#ifdef CONFIG_RESTART_INTERVAL
-#define DEFAULT_RESTART_INTERVAL CONFIG_RESTART_INTERVAL
+// Uptime-based restart interval (in milliseconds)
+#ifdef CONFIG_UPTIME_RESTART_INTERVAL
+#define UPTIME_RESTART_INTERVAL CONFIG_UPTIME_RESTART_INTERVAL
 #else
-#define DEFAULT_RESTART_INTERVAL 21600 // Seconds between automatic restarts (6 hours)
+#define UPTIME_RESTART_INTERVAL 14400000UL // 4 hours in milliseconds (4 * 60 * 60 * 1000)
 #endif
 
 // Default sensor and update intervals (in milliseconds)
