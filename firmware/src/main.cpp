@@ -21,11 +21,9 @@
 #include "utils/TemperatureSensor.h"
 #include "utils/BatteryUtils.h" // For calibrated battery readings
 #include "sensors/WindSensor.h"
-#include <Ticker.h>
 #include <WiFi.h>
 
 // Global variables
-Ticker periodicRestartTicker;
 unsigned long lastTimeUpdate = 0;
 unsigned long lastDiagnosticsUpdate = 0;
 unsigned long lastWindUpdate = 0;
@@ -63,7 +61,6 @@ unsigned long dynamicWindInterval = DEFAULT_WIND_INTERVAL;
 unsigned long dynamicWindSampleInterval = WIND_AVERAGING_SAMPLE_INTERVAL_MS;
 unsigned long dynamicDiagInterval = DEFAULT_DIAG_INTERVAL;
 unsigned long dynamicTimeInterval = DEFAULT_TIME_UPDATE_INTERVAL;
-unsigned long dynamicRestartInterval = DEFAULT_RESTART_INTERVAL;
 int dynamicSleepStartHour = DEFAULT_SLEEP_START_HOUR;
 int dynamicSleepEndHour = DEFAULT_SLEEP_END_HOUR;
 int dynamicOtaHour = DEFAULT_OTA_HOUR;
@@ -86,7 +83,6 @@ const unsigned long CALIBRATION_TIME = 30000; // 30 seconds default
 // Function prototypes
 void setupWatchdog();
 void resetWatchdog();
-void periodicRestart();
 bool isSleepTime();
 void enterDeepSleepUntil(int hour, int minute);
 void testModemConnectivity();
@@ -303,9 +299,6 @@ void setup()
         Logger.warn(LOG_TAG_SYSTEM, "Failed to initialize external temperature sensor (optional)");
     }
 
-    // Schedule periodic restart
-    periodicRestartTicker.attach(dynamicRestartInterval, periodicRestart);
-
     // Check if it's OTA time
     checkAndInitOta();
 
@@ -324,6 +317,16 @@ void loop()
 
     // Get current time
     unsigned long currentMillis = millis();
+
+    // Check for uptime-based restart (4 hours of continuous operation)
+    if (currentMillis >= UPTIME_RESTART_INTERVAL)
+    {
+        Logger.info(LOG_TAG_SYSTEM, "Uptime restart: Device has been running for %.1f hours, restarting for maintenance",
+                    currentMillis / 3600000.0);
+        delay(1000); // Give time for log to be sent
+        ESP.restart();
+        return; // This line won't be reached, but good practice
+    }
 
     // Handle OTA if active (non-blocking)
     if (otaActive)
@@ -799,7 +802,7 @@ void handleRemoteConfiguration()
     unsigned long windSampleInterval = dynamicWindSampleInterval;
     unsigned long diagInterval = dynamicDiagInterval;
     unsigned long timeInterval = dynamicTimeInterval;
-    unsigned long restartInterval = dynamicRestartInterval;
+    unsigned long restartInterval = 0; // We ignore this value but keep it for API compatibility
     int sleepStartHour = dynamicSleepStartHour;
     int sleepEndHour = dynamicSleepEndHour;
     int otaHour = dynamicOtaHour;
@@ -850,13 +853,11 @@ void handleRemoteConfiguration()
             Logger.info(LOG_TAG_SYSTEM, "Updated time update interval to %lu ms", dynamicTimeInterval);
         }
 
+        // Note: restartInterval is received from server for API compatibility but ignored
+        // We use a fixed uptime-based restart (UPTIME_RESTART_INTERVAL) instead
         if (restartInterval > 0)
         {
-            dynamicRestartInterval = restartInterval;
-            // Update the restart ticker with the new interval
-            periodicRestartTicker.detach();
-            periodicRestartTicker.attach(dynamicRestartInterval, periodicRestart);
-            Logger.info(LOG_TAG_SYSTEM, "Updated restart interval to %lu seconds", dynamicRestartInterval);
+            Logger.info(LOG_TAG_SYSTEM, "Received restart interval %lu seconds from server (ignored - using fixed uptime restart)", restartInterval);
         }
 
         if (sleepStartHour >= 0 && sleepStartHour < 24)
@@ -956,15 +957,6 @@ void resetWatchdog()
     {
         Logger.warn(LOG_TAG_SYSTEM, "Failed to reset watchdog timer");
     }
-}
-
-/**
- * @brief Periodic restart function
- */
-void periodicRestart()
-{
-    Logger.info(LOG_TAG_SYSTEM, "Periodic restart initiated");
-    ESP.restart();
 }
 
 /**
