@@ -50,16 +50,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: "pip"
 
-      - name: Cache pip packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}-platformio
-          restore-keys: |
-            ${{ runner.os }}-pip-platformio
-            ${{ runner.os }}-pip-
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install platformio
 
       - name: Cache PlatformIO
         uses: actions/cache@v4
@@ -105,11 +100,6 @@ jobs:
           key: ${{ runner.os }}-firmware-${{ hashFiles('platformio.ini', 'firmware/src/**/*.cpp', 'firmware/src/**/*.h') }}
           restore-keys: |
             ${{ runner.os }}-firmware-
-
-      - name: Install PlatformIO
-        run: |
-          python -m pip install --upgrade pip
-          pip install platformio
 
       - name: Install JavaScript dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
