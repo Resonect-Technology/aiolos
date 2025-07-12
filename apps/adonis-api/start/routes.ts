@@ -18,6 +18,7 @@ const StationDiagnosticsController = () => import('#app/controllers/station_diag
 const StationConfigsController = () => import('#app/controllers/station_configs_controller')
 const SystemConfigsController = () => import('#app/controllers/system_configs_controller')
 const StationTemperatureController = () => import('#app/controllers/station_temperature_controller')
+const WindOneMinutesController = () => import('#app/controllers/wind_one_minutes_controller')
 
 /**
  * Home route
@@ -97,6 +98,10 @@ router
 
         // Wind data endpoint for firmware (maps to same controller as live/wind)
         router.post('/wind', [StationLiveController, 'wind']).as('wind')
+
+        // 1-minute wind data endpoints
+        router.get('/wind/one-minute', [WindOneMinutesController, 'index']).as('wind.one_minute')
+        router.get('/wind/one-minute/latest', [WindOneMinutesController, 'latest']).as('wind.one_minute.latest')
 
         // Live data routes group
         router
