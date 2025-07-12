@@ -1,0 +1,181 @@
+name: "Copilot Setup Steps"
+
+# Automatically run the setup steps when they are changed to allow for easy validation, and
+# allow manual testing through the repository's "Actions" tab
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  # The job MUST be called `copilot-setup-steps` or it will not be picked up by Copilot.
+  copilot-setup-steps:
+    runs-on: ubuntu-22.04
+
+    # Set the permissions to the lowest permissions possible needed for your steps.
+    # Copilot will be given its own token for its operations.
+    permissions:
+      # If you want to clone the repository as part of your setup steps, for example to install dependencies, you'll need the `contents: read` permission. If you don't clone the repository in your setup steps, Copilot will do this for you automatically after the steps complete.
+      contents: read
+
+    # You can define any steps you want, and they will run before the agent starts.
+    # If you do not check out your code, Copilot will do this for you.
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+
+      - name: Set up Python for PlatformIO
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install platformio
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            .pio
+          key: ${{ runner.os }}-platformio-${{ hashFiles('**/platformio.ini') }}-${{ hashFiles('firmware/src/**/*.cpp', 'firmware/src/**/*.h') }}
+          restore-keys: |
+            ${{ runner.os }}-platformio-${{ hashFiles('**/platformio.ini') }}-
+            ${{ runner.os }}-platformio-
+
+      - name: Cache Turbo build outputs
+        uses: actions/cache@v4
+        with:
+          path: |
+            .turbo
+            apps/*/dist
+            apps/*/build
+            apps/adonis-api/build
+            apps/react-frontend/dist
+          key: ${{ runner.os }}-turbo-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx') }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-${{ hashFiles('**/pnpm-lock.yaml') }}-
+            ${{ runner.os }}-turbo-
+
+      - name: Cache AdonisJS build
+        uses: actions/cache@v4
+        with:
+          path: |
+            apps/adonis-api/build
+            apps/adonis-api/tmp
+          key: ${{ runner.os }}-adonis-${{ hashFiles('apps/adonis-api/**/*.ts', 'apps/adonis-api/adonisrc.ts') }}
+          restore-keys: |
+            ${{ runner.os }}-adonis-
+
+      - name: Cache firmware build
+        uses: actions/cache@v4
+        with:
+          path: |
+            .pio/build
+            .pio/libdeps
+          key: ${{ runner.os }}-firmware-${{ hashFiles('platformio.ini', 'firmware/src/**/*.cpp', 'firmware/src/**/*.h') }}
+          restore-keys: |
+            ${{ runner.os }}-firmware-
+
+      - name: Install JavaScript dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Set up test database
+        run: |
+          # Create a temporary SQLite database for testing
+          cd apps/adonis-api
+          cp .env.example .env
+          # Generate and set APP_KEY properly (replace the empty one)
+          APP_KEY=$(openssl rand -base64 32)
+          sed -i "s/APP_KEY=$/APP_KEY=$APP_KEY/" .env
+          # Override database settings for testing
+          echo "DB_DATABASE=tmp/test.sqlite3" >> .env
+          echo "ADMIN_API_KEY=test_admin_key_for_copilot" >> .env
+          # Create tmp directory if it doesn't exist
+          mkdir -p tmp
+
+      - name: Set up firmware secrets for PlatformIO
+        run: |
+          # Create firmware secrets file from example
+          cd firmware
+          if [ ! -f secrets.ini ]; then
+            cp secrets.ini.example secrets.ini
+            # Update existing values for testing (replace existing values)
+            sed -i 's/APN = "apn"/APN = "test.apn"/' secrets.ini
+            sed -i 's/GPRS_USER = ""/GPRS_USER = ""/' secrets.ini
+            sed -i 's/GPRS_PASS = ""/GPRS_PASS = ""/' secrets.ini
+            sed -i 's/OTA_HOUR = 11/OTA_HOUR = 10/' secrets.ini
+            sed -i 's/OTA_MINUTE = 0/OTA_MINUTE = 0/' secrets.ini
+            sed -i 's/OTA_DURATION = 15/OTA_DURATION = 10/' secrets.ini
+            sed -i 's/OTA_SSID = "Aiolos-Weather-OTA"/OTA_SSID = "TestWiFi"/' secrets.ini
+            sed -i 's/OTA_PASSWORD = "weather-update"/OTA_PASSWORD = "TestPassword"/' secrets.ini
+            sed -i 's/OTA_UPDATE_PASSWORD = "firmware-update"/OTA_UPDATE_PASSWORD = "TestUpdatePassword"/' secrets.ini
+            echo "Firmware secrets configured for testing"
+          fi
+
+      - name: Run database migrations
+        run: |
+          cd apps/adonis-api
+          # Only run migrations if database doesn't exist
+          if [ ! -f tmp/test.sqlite3 ]; then
+            node ace migration:run --force
+          fi
+
+      - name: Build projects
+        run: pnpm run build
+
+      - name: Compile firmware (check only)
+        run: |
+          # Compile firmware to ensure PlatformIO environment is working
+          # Only compile if not already compiled
+          if [ ! -f .pio/build/aiolos-esp32dev/firmware.bin ]; then
+            echo "Compiling firmware from source..."
+            pio run --environment aiolos-esp32dev
+          else
+            echo "Firmware already compiled (cached)"
+          fi
+
+      - name: Setup summary
+        run: |
+          echo "## Copilot Setup Complete 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "Environment is ready for Copilot coding agent." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Components Ready:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Node.js $(node --version)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ pnpm $(pnpm --version)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Python $(python --version)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ PlatformIO $(pio --version)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ AdonisJS API (built)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ React Frontend (built)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ ESP32 Firmware (compiled)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ SQLite Database (migrated)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Cache Status:" >> $GITHUB_STEP_SUMMARY
+          echo "- Node modules: $(if [ -d node_modules ]; then echo 'Cached'; else echo 'Fresh'; fi)" >> $GITHUB_STEP_SUMMARY
+          echo "- Turbo builds: $(if [ -d .turbo ]; then echo 'Cached'; else echo 'Fresh'; fi)" >> $GITHUB_STEP_SUMMARY
+          echo "- PlatformIO: $(if [ -d ~/.platformio ]; then echo 'Cached'; else echo 'Fresh'; fi)" >> $GITHUB_STEP_SUMMARY
+          echo "- Firmware build: $(if [ -f .pio/build/aiolos-esp32dev/firmware.bin ]; then echo 'Cached'; else echo 'Fresh'; fi)" >> $GITHUB_STEP_SUMMARY
