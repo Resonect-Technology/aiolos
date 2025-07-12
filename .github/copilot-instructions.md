@@ -31,35 +31,30 @@ cd apps/react-frontend && pnpm dev
 ### Backend (AdonisJS) Patterns
 
 - **Controllers**: RESTful endpoints in `app/controllers/` with IoT-friendly routes
-- **Real-time**: Use `transmit.broadcast()` for SSE data streaming
-- **Data caching**: Shared `stationDataCache` service for latest readings
+- **Real-time**: Use `transmit.broadcast()` for SSE data streaming to frontend clients
+- **Data caching**: Shared `stationDataCache` service for latest readings and state management
 - **API docs**: Auto-generated OpenAPI via `adonis-autoswagger` at `/docs`
-
-Example controller pattern:
-
-```typescript
-// Receives data from firmware and broadcasts to frontend
-async wind({ params, request }: HttpContext) {
-  const { windSpeed, windDirection } = request.only(['windSpeed', 'windDirection'])
-  stationDataCache.setWindData(station_id, data)
-  transmit.broadcast(`wind/live/${station_id}`, data)
-}
-```
+- **Middleware**: Custom authentication and validation for IoT device endpoints
+- **Models**: Lucid ORM for database operations with proper relationships
 
 ### Frontend (React) Patterns
 
 - **Real-time SSE**: Connect to backend channels using `@adonisjs/transmit-client`
-- **Wind visualization**: Custom gauge and compass components with D3.js
-- **Multi-unit support**: Switch between m/s, km/h, knots, Beaufort scale
+- **Wind visualization**: Custom gauge and compass components with D3.js for data display
+- **Multi-unit support**: Dynamic unit conversion between m/s, km/h, knots, Beaufort scale
 - **Mock data controls**: Development endpoints for testing real-time features
+- **Component structure**: Modular React components with TypeScript and Tailwind CSS
+- **State management**: Context providers for global state and real-time data handling
 
 ### Firmware (ESP32) Patterns
 
-- **Modular C++**: Separate managers for modem, HTTP client, sensors, OTA
-- **Power management**: Deep sleep cycles with cellular modem power-off
-- **HTTP communication**: JSON payloads to backend, not CoAP/MQTT
-- **Configuration**: `secrets.ini` for sensitive values, `Config.h` for defaults
-- **Build system**: PlatformIO with secrets injection via `platformio.ini`
+- **Modular C++**: Separate managers for modem, HTTP client, sensors, OTA updates
+- **Power management**: Deep sleep cycles with complete cellular modem power-off
+- **HTTP communication**: JSON payloads to backend REST API, not CoAP/MQTT protocols
+- **Configuration**: `secrets.ini` for sensitive values, `Config.h` for compile-time defaults
+- **Build system**: PlatformIO with environment-based configuration and secrets injection
+- **Error handling**: Graceful degradation when cellular connectivity is unavailable
+- **Sensor abstraction**: Clean interfaces for temperature, wind speed, and direction sensors
 
 ## Critical Commands
 
