@@ -16,20 +16,24 @@ Aiolos is a complete IoT weather monitoring system with custom ESP32 hardware, A
 
 ### Monorepo Structure
 
-```bash
-# Install dependencies for entire monorepo
-pnpm install
+- **Install dependencies**: Use `pnpm install` from root for entire monorepo
+- **Development workflow**: Use `pnpm dev` with Turbo to start all services concurrently
+- **Individual development**: Each app can be developed independently in its own directory
+- **Package management**: pnpm workspaces with shared dependencies and build caching
 
-# Run all services in development
-pnpm dev  # Uses turbo to start all apps
+### Commit Convention
 
-# Individual app development
-cd apps/adonis-api && node ace serve --watch
-cd apps/react-frontend && pnpm dev
-```
+- **Conventional Commits**: Follow the [Conventional Commits specification](https://www.conventionalcommits.org/en/v1.0.0/)
+- **Format**: `<type>[optional scope]: <description>`
+- **Types**: feat, fix, docs, style, refactor, test, chore, ci, build, perf
+- **Scopes**: firmware, backend, frontend, infra, docs (component-specific changes)
+- **Examples**: `feat(firmware): add wind direction calibration`, `fix(backend): resolve SSE connection timeout`
 
 ### Backend (AdonisJS) Patterns
 
+- **AdonisJS v6**: Use only AdonisJS v6 with official documentation at https://docs.adonisjs.com/guides/preface/introduction
+- **API Compatibility**: Be careful with backend API changes - firmware is already deployed and relies on existing endpoints
+- **API Testing**: Maintain existing API tests to ensure compatibility - these tests should not be changed
 - **Controllers**: RESTful endpoints in `app/controllers/` with IoT-friendly routes
 - **Real-time**: Use `transmit.broadcast()` for SSE data streaming to frontend clients
 - **Data caching**: Shared `stationDataCache` service for latest readings and state management
@@ -39,6 +43,7 @@ cd apps/react-frontend && pnpm dev
 
 ### Frontend (React) Patterns
 
+- **UI Components**: Use Tailwind CSS and shadcn/ui components - prefer premade shadcn components wherever possible
 - **Real-time SSE**: Connect to backend channels using `@adonisjs/transmit-client`
 - **Wind visualization**: Custom gauge and compass components with D3.js for data display
 - **Multi-unit support**: Dynamic unit conversion between m/s, km/h, knots, Beaufort scale
@@ -60,39 +65,20 @@ cd apps/react-frontend && pnpm dev
 
 ### Database Operations
 
-```bash
-# Run migrations (from adonis-api/)
-node ace migration:run
-
-# Create new migration
-node ace make:migration create_table_name
-```
+- **Run migrations**: Execute from adonis-api directory using AdonisJS Ace commands
+- **Create migrations**: Use Ace migration generator for new database schema changes
 
 ### Firmware Development
 
-```bash
-# Build and upload firmware
-pio run --target upload
-
-# Monitor serial output
-pio device monitor
-
-# Build with debug flags
-pio run -e aiolos-esp32dev-debug
-```
+- **Build and upload**: PlatformIO commands for ESP32 deployment
+- **Debug monitoring**: Serial output monitoring for development debugging
+- **Environment builds**: Different build configurations for debug vs production
 
 ### Infrastructure Deployment
 
-```bash
-# Deploy to AWS (from infra/)
-AWS_PROFILE=resonect-prod terraform apply
-
-# Local development stack
-docker-compose -f docker-compose.dev.yml up
-
-# Production deployment
-docker-compose -f docker-compose.prod.yml up -d
-```
+- **AWS deployment**: Terraform-based infrastructure as code
+- **Local development**: Docker Compose for complete local stack
+- **Production deployment**: Containerized deployment with health checks
 
 ## Data Flow Integration Points
 
