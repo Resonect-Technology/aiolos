@@ -6,6 +6,7 @@ import { WindChartInteractive } from "@/components/wind-chart-interactive";
 import { WindDataTable } from "@/components/wind-data-table";
 import { WindData1MinTable } from "@/components/wind-data-1min-table";
 import { SiteHeader } from "@/components/site-header";
+import { FloatingStatusIndicator } from "@/components/floating-status-indicator";
 import { ConstructionModeAlert } from "./components/construction-mode-alert";
 import { ThemeProvider } from "./components/theme-provider";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -139,6 +140,9 @@ function App() {
             </footer>
           </div>
         </SidebarInset>
+        
+        {/* Floating Status Indicator */}
+        <FloatingStatusIndicator stationId={stationId} />
       </SidebarProvider>
     </ThemeProvider>
   );
