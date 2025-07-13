@@ -134,7 +134,7 @@ export const FloatingStatusIndicator = memo(function FloatingStatusIndicator({
   );
 
   return (
-    <div className="fixed top-4 right-4 z-50 transition-all duration-300 ease-in-out">
+    <div className="fixed top-16 right-4 z-40 transition-all duration-300 ease-in-out">
       <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border rounded-lg shadow-lg p-3 min-w-[200px]">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-medium text-muted-foreground">Status</span>
