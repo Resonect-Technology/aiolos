@@ -12,6 +12,7 @@ export default defineConfig({
     },
   },
   server: {
+    host: "0.0.0.0", // Bind to all interfaces for devcontainer access
     port: 5173,
     proxy: {
       // Proxy API requests to the Adonis backend
