@@ -20,6 +20,13 @@ export default class extends BaseSeeder {
         description: 'Test station for firmware development and testing',
         isActive: true,
       },
+      {
+        stationId: 'default',
+        name: 'Default Station',
+        location: 'System Default',
+        description: 'Default system configuration station',
+        isActive: true,
+      },
     ]
 
     // Use firstOrCreate to avoid duplicate key errors
