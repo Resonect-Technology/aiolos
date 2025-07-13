@@ -148,17 +148,6 @@ jobs:
       - name: Build projects
         run: pnpm run build
 
-      - name: Compile firmware (check only)
-        run: |
-          # Compile firmware to ensure PlatformIO environment is working
-          # Only compile if not already compiled
-          if [ ! -f .pio/build/aiolos-esp32dev/firmware.bin ]; then
-            echo "Compiling firmware from source..."
-            pio run --environment aiolos-esp32dev
-          else
-            echo "Firmware already compiled (cached)"
-          fi
-
       - name: Setup summary
         run: |
           echo "## Copilot Setup Complete 🚀" >> $GITHUB_STEP_SUMMARY
