@@ -25,6 +25,7 @@ interface WindBucket {
  */
 export class WindAggregationService {
   private buckets: Map<string, WindBucket> = new Map()
+  private flushTimer: NodeJS.Timeout | null = null
 
   /**
    * Process incoming wind data and update aggregation buckets
@@ -33,6 +34,9 @@ export class WindAggregationService {
     const dataTime = DateTime.fromISO(timestamp)
     const intervalStart = this.getIntervalStart(dataTime)
     const bucketKey = `${stationId}_${intervalStart.toISODate()}_${intervalStart.toFormat('HH:mm')}`
+
+    // Start the flush timer if not already running
+    this.startFlushTimer()
 
     // Get or create bucket for this minute interval
     let bucket = this.buckets.get(bucketKey)
@@ -165,9 +169,34 @@ export class WindAggregationService {
   getBucketInfo(): Array<{ stationId: string; intervalStart: string; sampleCount: number }> {
     return Array.from(this.buckets.values()).map(bucket => ({
       stationId: bucket.stationId,
-      intervalStart: bucket.intervalStart.toISO(),
+      intervalStart: bucket.intervalStart.toISO() || 'unknown',
       sampleCount: bucket.sampleCount,
     }))
+  }
+
+  /**
+   * Start periodic timer to flush completed buckets
+   */
+  private startFlushTimer(): void {
+    if (this.flushTimer) return // Timer already running
+
+    // Run every 30 seconds to check for completed intervals
+    this.flushTimer = setInterval(async () => {
+      await this.checkAndSaveCompletedIntervals()
+    }, 30 * 1000) // 30 seconds
+
+    console.log('Wind aggregation flush timer started')
+  }
+
+  /**
+   * Stop the periodic flush timer
+   */
+  stopFlushTimer(): void {
+    if (this.flushTimer) {
+      clearInterval(this.flushTimer)
+      this.flushTimer = null
+      console.log('Wind aggregation flush timer stopped')
+    }
   }
 }
 
