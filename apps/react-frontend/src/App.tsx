@@ -5,6 +5,7 @@ import { SectionCards } from "@/components/section-cards-wind";
 import { WindChartInteractive } from "@/components/wind-chart-interactive";
 import { WindDataTable } from "@/components/wind-data-table";
 import { WindData1MinTable } from "@/components/wind-data-1min-table";
+import { WindData10MinTable } from "@/components/wind-data-10min-table";
 import { SiteHeader } from "@/components/site-header";
 import { ConstructionModeAlert } from "./components/construction-mode-alert";
 import { ThemeProvider } from "./components/theme-provider";
@@ -119,6 +120,13 @@ function App() {
 
                 <div className="px-4 lg:px-6">
                   <WindData1MinTable
+                    stationId={stationId}
+                    selectedUnit={selectedUnit}
+                  />
+                </div>
+
+                <div className="px-4 lg:px-6">
+                  <WindData10MinTable
                     stationId={stationId}
                     selectedUnit={selectedUnit}
                   />

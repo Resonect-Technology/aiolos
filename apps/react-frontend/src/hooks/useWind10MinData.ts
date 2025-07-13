@@ -1,30 +1,28 @@
 import { useState, useEffect, useCallback } from "react";
 import { Transmit } from "@adonisjs/transmit-client";
-import type { WindAggregatedResponse, WindAggregated1Min } from "../types/wind-aggregated";
+import type { WindAggregatedResponse, WindAggregated10Min } from "../types/wind-aggregated";
 
-interface UseWindAggregatedDataProps {
+interface UseWind10MinDataProps {
   stationId: string;
   date?: string;
   unit?: string;
-  interval?: string;
   limit?: number;
 }
 
-interface UseWindAggregatedDataReturn {
-  data: WindAggregated1Min[];
+interface UseWind10MinDataReturn {
+  data: WindAggregated10Min[];
   loading: boolean;
   error: string | null;
   refetch: () => void;
 }
 
-export function useWindAggregatedData({
+export function useWind10MinData({
   stationId,
   date,
   unit = "ms",
-  interval = "1min",
-  limit = 10
-}: UseWindAggregatedDataProps): UseWindAggregatedDataReturn {
-  const [data, setData] = useState<WindAggregated1Min[]>([]);
+  limit = 6
+}: UseWind10MinDataProps): UseWind10MinDataReturn {
+  const [data, setData] = useState<WindAggregated10Min[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,7 +32,7 @@ export function useWindAggregatedData({
 
     try {
       const queryParams = new URLSearchParams({
-        interval,
+        interval: "10min",
         limit: limit.toString(),
         ...(date && { date }),
         ...(unit && { unit })
@@ -51,14 +49,14 @@ export function useWindAggregatedData({
       }
 
       const result: WindAggregatedResponse = await response.json();
-      setData(result.data as WindAggregated1Min[]);
+      setData(result.data as WindAggregated10Min[]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch aggregated wind data");
+      setError(err instanceof Error ? err.message : "Failed to fetch 10-minute wind data");
       setData([]);
     } finally {
       setLoading(false);
     }
-  }, [stationId, date, unit, interval, limit]);
+  }, [stationId, date, unit, limit]);
 
   useEffect(() => {
     fetchData();
@@ -67,12 +65,12 @@ export function useWindAggregatedData({
   return { data, loading, error, refetch: fetchData };
 }
 
-interface UseWindAggregatedSSEProps {
+interface UseWind10MinSSEProps {
   stationId: string;
-  onNewAggregate: (data: WindAggregated1Min) => void;
+  onNewAggregate: (data: WindAggregated10Min) => void;
 }
 
-export function useWindAggregatedSSE({ stationId, onNewAggregate }: UseWindAggregatedSSEProps) {
+export function useWind10MinSSE({ stationId, onNewAggregate }: UseWind10MinSSEProps) {
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,7 +79,7 @@ export function useWindAggregatedSSE({ stationId, onNewAggregate }: UseWindAggre
       baseUrl: window.location.origin,
     });
 
-    const channelName = `wind/aggregated/1min/${stationId}`;
+    const channelName = `wind/aggregated/10min/${stationId}`;
     const subscription = transmit.subscription(channelName);
 
     subscription
@@ -98,13 +96,13 @@ export function useWindAggregatedSSE({ stationId, onNewAggregate }: UseWindAggre
               minSpeed: data.minSpeed,
               maxSpeed: data.maxSpeed,
               dominantDirection: data.dominantDirection,
-              sampleCount: data.sampleCount,
+              tendency: data.tendency,
             });
           }
         });
       })
       .catch(err => {
-        setError(`Failed to connect to aggregated data stream: ${err.message}`);
+        setError(`Failed to connect to 10-minute data stream: ${err.message}`);
         setConnected(false);
       });
 
