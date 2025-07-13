@@ -43,6 +43,14 @@ export default class WindAggregatedController {
       }
     } catch (error) {
       console.error('Error fetching aggregated wind data:', error)
+      
+      // Handle specific validation errors
+      if (error.message && error.message.includes('Invalid date format')) {
+        return response.badRequest({
+          error: error.message
+        })
+      }
+      
       return response.internalServerError({
         error: 'Failed to fetch aggregated wind data'
       })
@@ -354,6 +362,14 @@ export default class WindAggregatedController {
       }
     } catch (error) {
       console.error('Error fetching converted aggregated wind data:', error)
+      
+      // Handle specific validation errors
+      if (error.message && error.message.includes('Invalid date format')) {
+        return response.badRequest({
+          error: error.message
+        })
+      }
+      
       return response.internalServerError({
         error: 'Failed to fetch aggregated wind data'
       })
