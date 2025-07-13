@@ -1,7 +1,8 @@
 import { test } from '@japa/runner'
-import SensorReading from '#app/models/sensor_reading'
+import TemperatureReading from '#app/models/temperature_reading'
 import StationDiagnostic from '#app/models/station_diagnostic'
 import StationConfig from '#app/models/station_config'
+import WeatherStation from '#app/models/weather_station'
 
 /**
  * Firmware Critical Endpoints Test Suite
@@ -23,16 +24,27 @@ test.group('Firmware Critical Endpoints', (group) => {
 
   group.each.setup(async () => {
     // Clean up any existing test data
-    await SensorReading.query().delete()
+    await TemperatureReading.query().delete()
     await StationDiagnostic.query().delete()
     await StationConfig.query().delete()
+    await WeatherStation.query().delete()
+
+    // Create the test weather station
+    await WeatherStation.create({
+      stationId: testStationId,
+      name: 'Test Station',
+      location: 'Test Environment',
+      description: 'Test station for firmware endpoints',
+      isActive: true,
+    })
   })
 
   group.each.teardown(async () => {
     // Clean up after each test
-    await SensorReading.query().delete()
+    await TemperatureReading.query().delete()
     await StationDiagnostic.query().delete()
     await StationConfig.query().delete()
+    await WeatherStation.query().delete()
   })
 
   /**

@@ -1,7 +1,7 @@
 import { DateTime } from 'luxon'
 import { BaseModel, column } from '@adonisjs/lucid/orm'
 
-export default class SensorReading extends BaseModel {
+export default class DataRetentionPolicy extends BaseModel {
   /**
    * @summary Unique ID
    */
@@ -9,35 +9,28 @@ export default class SensorReading extends BaseModel {
   declare id: number
 
   /**
-   * @summary Sensor ID
+   * @summary Data type (e.g., 'temperature', 'wind', 'diagnostics')
    */
   @column()
-  declare sensorId: string
+  declare dataType: string
 
   /**
-   * @summary Reading type
-   * @enum(wind, temperature)
+   * @summary Retention period in days
    */
   @column()
-  declare type: 'wind' | 'temperature'
+  declare retentionDays: number
 
   /**
-   * @summary Temperature value (nullable)
+   * @summary Whether the policy is active
    */
   @column()
-  declare temperature: number | null
+  declare isActive: boolean
 
   /**
-   * @summary Wind speed (nullable)
+   * @summary Policy description
    */
   @column()
-  declare windSpeed: number | null
-
-  /**
-   * @summary Wind direction (nullable)
-   */
-  @column()
-  declare windDirection: number | null
+  declare description: string | null
 
   /**
    * @summary Creation timestamp
