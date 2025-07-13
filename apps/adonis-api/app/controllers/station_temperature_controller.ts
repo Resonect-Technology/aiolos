@@ -1,7 +1,8 @@
-import SensorReading from '#models/sensor_reading'
+import TemperatureReading from '#models/temperature_reading'
 import type { HttpContext } from '@adonisjs/core/http'
 import { stationDataCache } from '#app/services/station_data_cache'
 import transmit from '@adonisjs/transmit/services/main'
+import { DateTime } from 'luxon'
 
 export default class StationTemperatureController {
   /**
@@ -18,7 +19,7 @@ export default class StationTemperatureController {
    * @description Store a temperature reading from the station's external temperature sensor
    * @paramPath station_id - The station's unique ID - @type(string) @required
    * @requestBody temperature - The temperature value - @type(number) @required
-   * @responseBody 201 - <SensorReading> - The created temperature reading
+   * @responseBody 201 - <TemperatureReading> - The created temperature reading
    */
   async store({ request, response, params }: HttpContext) {
     // Capture arrival timestamp immediately for accuracy
@@ -57,36 +58,51 @@ export default class StationTemperatureController {
       timestamp: temperatureTimestamp,
     })
 
-    const data = {
-      type: 'temperature' as const,
+    const reading = await TemperatureReading.create({
+      stationId: params.station_id,
       temperature,
-      sensorId: params.station_id,
-    }
+      readingTimestamp: DateTime.fromISO(temperatureTimestamp),
+    })
 
-    const reading = await SensorReading.create(data)
-    return response.created(reading)
+    // Return the same structure as the old SensorReading for API compatibility
+    return response.created({
+      id: reading.id,
+      sensorId: reading.stationId,
+      type: 'temperature',
+      temperature: reading.temperature,
+      windSpeed: null,
+      windDirection: null,
+      createdAt: reading.createdAt,
+      updatedAt: reading.updatedAt,
+    })
   }
 
   /**
    * @summary Get the most recent temperature reading
    * @description Get the most recent temperature reading for the specified station
    * @paramPath station_id - The station's unique ID - @type(string) @required
-   * @responseBody 200 - <SensorReading> - The most recent temperature reading with last update time
+   * @responseBody 200 - <TemperatureReading> - The most recent temperature reading with last update time
    * @responseBody 404 - Not found
    */
   async latest({ params, response }: HttpContext) {
-    const reading = await SensorReading.query()
-      .where('sensorId', params.station_id)
-      .where('type', 'temperature')
-      .orderBy('createdAt', 'desc')
+    const reading = await TemperatureReading.query()
+      .where('stationId', params.station_id)
+      .orderBy('readingTimestamp', 'desc')
       .first()
 
     if (!reading) return response.notFound({ message: 'No temperature readings found' })
 
-    // Include the last update time for the frontend
+    // Return the same structure as the old SensorReading for API compatibility
     return {
-      ...reading.toJSON(),
-      lastUpdated: reading.createdAt.toISO(),
+      id: reading.id,
+      sensorId: reading.stationId,
+      type: 'temperature',
+      temperature: reading.temperature,
+      windSpeed: null,
+      windDirection: null,
+      createdAt: reading.createdAt,
+      updatedAt: reading.updatedAt,
+      lastUpdated: reading.readingTimestamp.toISO(),
     }
   }
 
@@ -97,27 +113,38 @@ export default class StationTemperatureController {
    * @paramQuery limit - Maximum number of results to return - @type(number)
    * @paramQuery from - Start date (ISO format) - @type(string)
    * @paramQuery to - End date (ISO format) - @type(string)
-   * @responseBody 200 - <SensorReading[]> - List of temperature readings
+   * @responseBody 200 - <TemperatureReading[]> - List of temperature readings
    */
   async index({ request, params }: HttpContext) {
     const limit = request.input('limit', 100)
     const from = request.input('from')
     const to = request.input('to')
 
-    const query = SensorReading.query()
-      .where('sensorId', params.station_id)
-      .where('type', 'temperature')
-      .orderBy('createdAt', 'desc')
+    const query = TemperatureReading.query()
+      .where('stationId', params.station_id)
+      .orderBy('readingTimestamp', 'desc')
       .limit(limit)
 
     if (from) {
-      query.where('createdAt', '>=', new Date(from))
+      query.where('readingTimestamp', '>=', DateTime.fromISO(from))
     }
 
     if (to) {
-      query.where('createdAt', '<=', new Date(to))
+      query.where('readingTimestamp', '<=', DateTime.fromISO(to))
     }
 
-    return query
+    const readings = await query
+
+    // Return the same structure as the old SensorReading for API compatibility
+    return readings.map(reading => ({
+      id: reading.id,
+      sensorId: reading.stationId,
+      type: 'temperature',
+      temperature: reading.temperature,
+      windSpeed: null,
+      windDirection: null,
+      createdAt: reading.createdAt,
+      updatedAt: reading.updatedAt,
+    }))
   }
 }

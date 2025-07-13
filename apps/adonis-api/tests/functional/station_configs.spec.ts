@@ -1,15 +1,18 @@
 import { test } from '@japa/runner'
 import StationConfig from '#app/models/station_config'
+import WeatherStation from '#app/models/weather_station'
 
 test.group('Station Configs Controller', (group) => {
   group.each.setup(async () => {
     // Clean up any existing test data
     await StationConfig.query().delete()
+    await WeatherStation.query().delete()
   })
 
   group.each.teardown(async () => {
     // Clean up after each test
     await StationConfig.query().delete()
+    await WeatherStation.query().delete()
   })
 
   /**
@@ -83,6 +86,15 @@ test.group('Station Configs Controller', (group) => {
     assert,
   }) => {
     const stationId = 'test-station-002'
+
+    // Create weather station first
+    await WeatherStation.create({
+      stationId: stationId,
+      name: 'Test Station 2',
+      location: 'Test Environment',
+      description: 'Test station for config test',
+      isActive: true,
+    })
 
     // Create a test configuration
     const testConfig = {
@@ -172,6 +184,15 @@ test.group('Station Configs Controller', (group) => {
 
     // Set the API key for this test
     process.env.ADMIN_API_KEY = apiKey
+
+    // Create weather station first
+    await WeatherStation.create({
+      stationId: stationId,
+      name: 'Test Station 3',
+      location: 'Test Environment',
+      description: 'Test station for config store test',
+      isActive: true,
+    })
 
     const configData = {
       tempInterval: 600,
@@ -278,6 +299,15 @@ test.group('Station Configs Controller', (group) => {
   }) => {
     const stationId = 'test-station-006'
 
+    // Create weather station first
+    await WeatherStation.create({
+      stationId: stationId,
+      name: 'Test Station 6',
+      location: 'Test Environment',
+      description: 'Test station for OTA confirmation test',
+      isActive: true,
+    })
+
     // Create a test configuration first
     await StationConfig.create({
       stationId: stationId,
@@ -348,6 +378,15 @@ test.group('Station Configs Controller', (group) => {
     assert,
   }) => {
     const stationId = 'test-station-008'
+
+    // Create weather station first
+    await WeatherStation.create({
+      stationId: stationId,
+      name: 'Test Station 8',
+      location: 'Test Environment',
+      description: 'Test station for OTA reset test',
+      isActive: true,
+    })
 
     // Create a test configuration with remoteOta = true
     await StationConfig.create({
