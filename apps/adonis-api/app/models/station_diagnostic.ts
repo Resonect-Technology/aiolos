@@ -1,5 +1,7 @@
-import { BaseModel, column } from '@adonisjs/lucid/orm'
+import { BaseModel, column, belongsTo } from '@adonisjs/lucid/orm'
 import { DateTime } from 'luxon'
+import type { BelongsTo } from '@adonisjs/lucid/types/relations'
+import WeatherStation from './weather_station.js'
 
 export default class StationDiagnostic extends BaseModel {
   @column({ isPrimary: true })
@@ -28,4 +30,10 @@ export default class StationDiagnostic extends BaseModel {
 
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime
+
+  /**
+   * Relationships
+   */
+  @belongsTo(() => WeatherStation, { foreignKey: 'stationId' })
+  declare station: BelongsTo<typeof WeatherStation>
 }

@@ -3,52 +3,43 @@ import { BaseModel, column, belongsTo } from '@adonisjs/lucid/orm'
 import type { BelongsTo } from '@adonisjs/lucid/types/relations'
 import WeatherStation from './weather_station.js'
 
-export default class StationConfig extends BaseModel {
+export default class TemperatureReading extends BaseModel {
+  /**
+   * @summary Unique ID
+   */
   @column({ isPrimary: true })
   declare id: number
 
+  /**
+   * @summary Station ID (external identifier)
+   */
   @column()
   declare stationId: string
 
+  /**
+   * @summary Temperature value in Celsius
+   */
   @column()
-  declare tempInterval: number
+  declare temperature: number
 
-  @column()
-  declare windSendInterval: number
+  /**
+   * @summary Reading timestamp
+   * @format(date-time)
+   */
+  @column.dateTime()
+  declare readingTimestamp: DateTime
 
-  @column()
-  declare windSampleInterval: number
-
-  @column()
-  declare diagInterval: number
-
-  @column()
-  declare timeInterval: number
-
-  @column()
-  declare restartInterval: number
-
-  @column()
-  declare sleepStartHour: number
-
-  @column()
-  declare sleepEndHour: number
-
-  @column()
-  declare otaHour: number
-
-  @column()
-  declare otaMinute: number
-
-  @column()
-  declare otaDuration: number
-
-  @column()
-  declare remoteOta: boolean
-
+  /**
+   * @summary Creation timestamp
+   * @format(date-time)
+   */
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
 
+  /**
+   * @summary Update timestamp
+   * @format(date-time)
+   */
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime
 
