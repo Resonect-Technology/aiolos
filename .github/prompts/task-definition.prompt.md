@@ -33,6 +33,7 @@ Based on the component(s) affected, let's define the scope:
 - Any specific unit conversions needed (m/s, km/h, knots)?
 - Mobile responsiveness requirements?
 - Should we use existing shadcn/ui components?
+- Will this display multiple items/records? Consider pagination or sensible limits (e.g., "last 10 items")
 
 **For Backend Ideas:**
 
@@ -41,6 +42,7 @@ Based on the component(s) affected, let's define the scope:
 - Does this affect existing firmware endpoints? (CRITICAL - firmware is deployed)
 - Should this broadcast real-time data via SSE?
 - Any authentication/validation requirements?
+- Will this return multiple records? Consider adding `limit` parameter with sensible defaults (e.g., 10-50 records)
 
 **For Firmware Ideas:**
 
@@ -67,6 +69,7 @@ Let's define "done":
 - What edge cases should we handle?
 - How should errors be handled?
 - What testing approach should we use?
+- If displaying multiple items, what's the reasonable limit for user experience and performance?
 
 ### Step 4: Constraint Identification
 
@@ -79,6 +82,7 @@ Important constraints to consider:
 - Cellular data usage considerations
 - Real-time data flow requirements
 - ARM64 deployment architecture
+- Data transfer efficiency (avoid sending unnecessary large datasets)
 
 **Project Constraints:**
 
@@ -140,6 +144,7 @@ Based on our discussion, please provide the final task definition using the appr
 - API compatibility: [Yes/No, details]
 - Power consumption: [Considerations]
 - Real-time data: [SSE requirements]
+- Data volume: [Pagination/limiting strategy if applicable]
 
 **Testing Approach:**
 [How to verify the implementation]

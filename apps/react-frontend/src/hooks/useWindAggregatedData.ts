@@ -7,6 +7,7 @@ interface UseWindAggregatedDataProps {
   date?: string;
   unit?: string;
   interval?: string;
+  limit?: number;
 }
 
 interface UseWindAggregatedDataReturn {
@@ -20,7 +21,8 @@ export function useWindAggregatedData({
   stationId,
   date,
   unit = "ms",
-  interval = "1min"
+  interval = "1min",
+  limit = 10
 }: UseWindAggregatedDataProps): UseWindAggregatedDataReturn {
   const [data, setData] = useState<WindAggregated1Min[]>([]);
   const [loading, setLoading] = useState(false);
@@ -33,11 +35,12 @@ export function useWindAggregatedData({
     try {
       const queryParams = new URLSearchParams({
         interval,
+        limit: limit.toString(),
         ...(date && { date }),
         ...(unit && { unit })
       });
 
-      const endpoint = unit && unit !== "ms" 
+      const endpoint = unit && unit !== "ms"
         ? `/api/stations/${stationId}/wind/aggregated/converted?${queryParams}`
         : `/api/stations/${stationId}/wind/aggregated?${queryParams}`;
 
@@ -55,7 +58,7 @@ export function useWindAggregatedData({
     } finally {
       setLoading(false);
     }
-  }, [stationId, date, unit, interval]);
+  }, [stationId, date, unit, interval, limit]);
 
   useEffect(() => {
     fetchData();

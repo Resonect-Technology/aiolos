@@ -13,12 +13,20 @@ export default class WindAggregatedController {
    */
   async index({ params, request, response }: HttpContext) {
     const { station_id } = params
-    const { interval, date } = request.qs()
+    const { interval, date, limit } = request.qs()
 
     // Validate interval parameter
     if (interval !== '1min') {
-      return response.badRequest({ 
-        error: 'Invalid interval. Only "1min" is supported currently.' 
+      return response.badRequest({
+        error: 'Invalid interval. Only "1min" is supported currently.'
+      })
+    }
+
+    // Parse and validate limit parameter
+    const recordLimit = limit ? parseInt(limit) : 10
+    if (recordLimit < 1 || recordLimit > 1440) {
+      return response.badRequest({
+        error: 'Invalid limit. Must be between 1 and 1440.'
       })
     }
 
@@ -27,8 +35,8 @@ export default class WindAggregatedController {
     if (date) {
       queryDate = DateTime.fromISO(date)
       if (!queryDate.isValid) {
-        return response.badRequest({ 
-          error: 'Invalid date format. Use YYYY-MM-DD format.' 
+        return response.badRequest({
+          error: 'Invalid date format. Use YYYY-MM-DD format.'
         })
       }
     } else {
@@ -42,12 +50,13 @@ export default class WindAggregatedController {
 
       const aggregatedData = await WindData1Min.query()
         .where('stationId', station_id)
-        .where('timestamp', '>=', startOfDay.toSQL())
-        .where('timestamp', '<=', endOfDay.toSQL())
-        .orderBy('timestamp', 'asc')
+        .where('timestamp', '>=', startOfDay.toJSDate())
+        .where('timestamp', '<=', endOfDay.toJSDate())
+        .orderBy('timestamp', 'desc')
+        .limit(recordLimit)
 
-      // Format response data
-      const formattedData = aggregatedData.map(record => ({
+      // Format response data (reverse to get chronological order)
+      const formattedData = aggregatedData.reverse().map(record => ({
         timestamp: record.timestamp.toISO(),
         avgSpeed: record.avgSpeed,
         minSpeed: record.minSpeed,
@@ -65,8 +74,8 @@ export default class WindAggregatedController {
       }
     } catch (error) {
       console.error('Error fetching aggregated wind data:', error)
-      return response.internalServerError({ 
-        error: 'Failed to fetch aggregated wind data' 
+      return response.internalServerError({
+        error: 'Failed to fetch aggregated wind data'
       })
     }
   }
@@ -86,8 +95,8 @@ export default class WindAggregatedController {
         .first()
 
       if (!latestData) {
-        return response.notFound({ 
-          error: 'No aggregated wind data found for this station' 
+        return response.notFound({
+          error: 'No aggregated wind data found for this station'
         })
       }
 
@@ -102,8 +111,8 @@ export default class WindAggregatedController {
       }
     } catch (error) {
       console.error('Error fetching latest aggregated wind data:', error)
-      return response.internalServerError({ 
-        error: 'Failed to fetch latest aggregated wind data' 
+      return response.internalServerError({
+        error: 'Failed to fetch latest aggregated wind data'
       })
     }
   }
@@ -115,20 +124,28 @@ export default class WindAggregatedController {
    */
   async converted({ params, request, response }: HttpContext) {
     const { station_id } = params
-    const { interval, date, unit = 'ms' } = request.qs()
+    const { interval, date, unit = 'ms', limit } = request.qs()
 
     // Validate interval parameter
     if (interval !== '1min') {
-      return response.badRequest({ 
-        error: 'Invalid interval. Only "1min" is supported currently.' 
+      return response.badRequest({
+        error: 'Invalid interval. Only "1min" is supported currently.'
       })
     }
 
     // Validate unit parameter
     const validUnits = ['ms', 'kmh', 'knots']
     if (!validUnits.includes(unit)) {
-      return response.badRequest({ 
-        error: `Invalid unit. Supported units: ${validUnits.join(', ')}` 
+      return response.badRequest({
+        error: `Invalid unit. Supported units: ${validUnits.join(', ')}`
+      })
+    }
+
+    // Parse and validate limit parameter
+    const recordLimit = limit ? parseInt(limit) : 10
+    if (recordLimit < 1 || recordLimit > 1440) {
+      return response.badRequest({
+        error: 'Invalid limit. Must be between 1 and 1440.'
       })
     }
 
@@ -137,8 +154,8 @@ export default class WindAggregatedController {
     if (date) {
       queryDate = DateTime.fromISO(date)
       if (!queryDate.isValid) {
-        return response.badRequest({ 
-          error: 'Invalid date format. Use YYYY-MM-DD format.' 
+        return response.badRequest({
+          error: 'Invalid date format. Use YYYY-MM-DD format.'
         })
       }
     } else {
@@ -152,9 +169,10 @@ export default class WindAggregatedController {
 
       const aggregatedData = await WindData1Min.query()
         .where('stationId', station_id)
-        .where('timestamp', '>=', startOfDay.toSQL())
-        .where('timestamp', '<=', endOfDay.toSQL())
-        .orderBy('timestamp', 'asc')
+        .where('timestamp', '>=', startOfDay.toJSDate())
+        .where('timestamp', '<=', endOfDay.toJSDate())
+        .orderBy('timestamp', 'desc')
+        .limit(recordLimit)
 
       // Convert speeds based on unit
       const convertSpeed = (speedMs: number): number => {
@@ -169,8 +187,8 @@ export default class WindAggregatedController {
         }
       }
 
-      // Format response data with unit conversion
-      const formattedData = aggregatedData.map(record => ({
+      // Format response data with unit conversion (reverse to get chronological order)
+      const formattedData = aggregatedData.reverse().map(record => ({
         timestamp: record.timestamp.toISO(),
         avgSpeed: convertSpeed(record.avgSpeed),
         minSpeed: convertSpeed(record.minSpeed),
@@ -189,8 +207,8 @@ export default class WindAggregatedController {
       }
     } catch (error) {
       console.error('Error fetching converted aggregated wind data:', error)
-      return response.internalServerError({ 
-        error: 'Failed to fetch aggregated wind data' 
+      return response.internalServerError({
+        error: 'Failed to fetch aggregated wind data'
       })
     }
   }
