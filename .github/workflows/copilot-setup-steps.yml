@@ -111,7 +111,7 @@ jobs:
           cp .env.example .env
           # Generate and set APP_KEY properly (replace the empty one)
           APP_KEY=$(openssl rand -base64 32)
-          sed -i "s/APP_KEY=$/APP_KEY=$APP_KEY/" .env
+          sed -i "s|APP_KEY=|APP_KEY=$APP_KEY|" .env
           # Override database settings for testing
           echo "DB_DATABASE=tmp/test.sqlite3" >> .env
           echo "ADMIN_API_KEY=test_admin_key_for_copilot" >> .env

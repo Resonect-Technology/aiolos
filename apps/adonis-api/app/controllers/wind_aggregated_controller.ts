@@ -35,24 +35,11 @@ export default class WindAggregatedController {
       })
     }
 
-    // Parse and validate date
-    let queryDate: DateTime
-    if (date) {
-      queryDate = DateTime.fromISO(date)
-      if (!queryDate.isValid) {
-        return response.badRequest({
-          error: 'Invalid date format. Use YYYY-MM-DD format.'
-        })
-      }
-    } else {
-      queryDate = DateTime.now()
-    }
-
     try {
       if (interval === '10min') {
-        return await this.get10MinuteData(station_id, queryDate, recordLimit)
+        return await this.get10MinuteData(station_id, date, recordLimit)
       } else {
-        return await this.get1MinuteData(station_id, queryDate, recordLimit)
+        return await this.get1MinuteData(station_id, date, recordLimit)
       }
     } catch (error) {
       console.error('Error fetching aggregated wind data:', error)
@@ -65,17 +52,37 @@ export default class WindAggregatedController {
   /**
    * Get 1-minute aggregated data
    */
-  private async get1MinuteData(stationId: string, queryDate: DateTime, recordLimit: number) {
-    // Query aggregated data for the specified date
-    const startOfDay = queryDate.startOf('day')
-    const endOfDay = queryDate.endOf('day')
+  private async get1MinuteData(stationId: string, date: string | undefined, recordLimit: number) {
+    let aggregatedData
+    let responseDate: string
 
-    const aggregatedData = await WindData1Min.query()
-      .where('stationId', stationId)
-      .where('timestamp', '>=', startOfDay.toJSDate())
-      .where('timestamp', '<=', endOfDay.toJSDate())
-      .orderBy('timestamp', 'desc')
-      .limit(recordLimit)
+    if (date) {
+      // Date-specific query: get data for the specified date
+      const queryDate = DateTime.fromISO(date)
+      if (!queryDate.isValid) {
+        throw new Error('Invalid date format. Use YYYY-MM-DD format.')
+      }
+
+      const startOfDay = queryDate.startOf('day')
+      const endOfDay = queryDate.endOf('day')
+
+      aggregatedData = await WindData1Min.query()
+        .where('stationId', stationId)
+        .where('timestamp', '>=', startOfDay.toJSDate())
+        .where('timestamp', '<=', endOfDay.toJSDate())
+        .orderBy('timestamp', 'desc')
+        .limit(recordLimit)
+
+      responseDate = queryDate.toISODate()!
+    } else {
+      // Latest data query: get most recent records regardless of date
+      aggregatedData = await WindData1Min.query()
+        .where('stationId', stationId)
+        .orderBy('timestamp', 'desc')
+        .limit(recordLimit)
+
+      responseDate = DateTime.now().toISODate()!
+    }
 
     // Format response data (reverse to get chronological order)
     const formattedData = aggregatedData.reverse().map(record => ({
@@ -89,7 +96,7 @@ export default class WindAggregatedController {
 
     return {
       stationId,
-      date: queryDate.toISODate(),
+      date: responseDate,
       interval: '1min',
       data: formattedData,
       totalRecords: formattedData.length,
@@ -99,14 +106,34 @@ export default class WindAggregatedController {
   /**
    * Get 10-minute aggregated data
    */
-  private async get10MinuteData(stationId: string, queryDate: DateTime, recordLimit: number) {
-    // For 10-minute data, focus on recent data (last N records) by default
-    const aggregatedData = await WindData10Min.query()
-      .where('stationId', stationId)
-      .where('timestamp', '>=', queryDate.startOf('day').toJSDate())
-      .where('timestamp', '<=', queryDate.endOf('day').toJSDate())
-      .orderBy('timestamp', 'desc')
-      .limit(recordLimit)
+  private async get10MinuteData(stationId: string, date: string | undefined, recordLimit: number) {
+    let aggregatedData
+    let responseDate: string
+
+    if (date) {
+      // Date-specific query: get data for the specified date
+      const queryDate = DateTime.fromISO(date)
+      if (!queryDate.isValid) {
+        throw new Error('Invalid date format. Use YYYY-MM-DD format.')
+      }
+
+      aggregatedData = await WindData10Min.query()
+        .where('stationId', stationId)
+        .where('timestamp', '>=', queryDate.startOf('day').toJSDate())
+        .where('timestamp', '<=', queryDate.endOf('day').toJSDate())
+        .orderBy('timestamp', 'desc')
+        .limit(recordLimit)
+
+      responseDate = queryDate.toISODate()!
+    } else {
+      // Latest data query: get most recent records regardless of date
+      aggregatedData = await WindData10Min.query()
+        .where('stationId', stationId)
+        .orderBy('timestamp', 'desc')
+        .limit(recordLimit)
+
+      responseDate = DateTime.now().toISODate()!
+    }
 
     // Format response data (reverse to get chronological order)
     const formattedData = aggregatedData.reverse().map(record => ({
@@ -120,7 +147,7 @@ export default class WindAggregatedController {
 
     return {
       stationId,
-      date: queryDate.toISODate(),
+      date: responseDate,
       interval: '10min',
       data: formattedData,
       totalRecords: formattedData.length,
@@ -233,30 +260,38 @@ export default class WindAggregatedController {
       })
     }
 
-    // Parse and validate date
-    let queryDate: DateTime
-    if (date) {
-      queryDate = DateTime.fromISO(date)
-      if (!queryDate.isValid) {
-        return response.badRequest({
-          error: 'Invalid date format. Use YYYY-MM-DD format.'
-        })
-      }
-    } else {
-      queryDate = DateTime.now()
-    }
-
     try {
       let aggregatedData: any[]
       let responseData: any[]
+      let responseDate: string
 
       if (interval === '10min') {
-        aggregatedData = await WindData10Min.query()
-          .where('stationId', station_id)
-          .where('timestamp', '>=', queryDate.startOf('day').toJSDate())
-          .where('timestamp', '<=', queryDate.endOf('day').toJSDate())
-          .orderBy('timestamp', 'desc')
-          .limit(recordLimit)
+        if (date) {
+          // Date-specific query: get data for the specified date
+          const queryDate = DateTime.fromISO(date)
+          if (!queryDate.isValid) {
+            return response.badRequest({
+              error: 'Invalid date format. Use YYYY-MM-DD format.'
+            })
+          }
+
+          aggregatedData = await WindData10Min.query()
+            .where('stationId', station_id)
+            .where('timestamp', '>=', queryDate.startOf('day').toJSDate())
+            .where('timestamp', '<=', queryDate.endOf('day').toJSDate())
+            .orderBy('timestamp', 'desc')
+            .limit(recordLimit)
+
+          responseDate = queryDate.toISODate()!
+        } else {
+          // Latest data query: get most recent records regardless of date
+          aggregatedData = await WindData10Min.query()
+            .where('stationId', station_id)
+            .orderBy('timestamp', 'desc')
+            .limit(recordLimit)
+
+          responseDate = DateTime.now().toISODate()!
+        }
 
         // Format response data with unit conversion (reverse to get chronological order)
         responseData = aggregatedData.reverse().map(record => ({
@@ -268,12 +303,35 @@ export default class WindAggregatedController {
           tendency: record.tendency,
         }))
       } else {
-        aggregatedData = await WindData1Min.query()
-          .where('stationId', station_id)
-          .where('timestamp', '>=', queryDate.startOf('day').toJSDate())
-          .where('timestamp', '<=', queryDate.endOf('day').toJSDate())
-          .orderBy('timestamp', 'desc')
-          .limit(recordLimit)
+        if (date) {
+          // Date-specific query: get data for the specified date
+          const queryDate = DateTime.fromISO(date)
+          if (!queryDate.isValid) {
+            return response.badRequest({
+              error: 'Invalid date format. Use YYYY-MM-DD format.'
+            })
+          }
+
+          const startOfDay = queryDate.startOf('day')
+          const endOfDay = queryDate.endOf('day')
+
+          aggregatedData = await WindData1Min.query()
+            .where('stationId', station_id)
+            .where('timestamp', '>=', startOfDay.toJSDate())
+            .where('timestamp', '<=', endOfDay.toJSDate())
+            .orderBy('timestamp', 'desc')
+            .limit(recordLimit)
+
+          responseDate = queryDate.toISODate()!
+        } else {
+          // Latest data query: get most recent records regardless of date
+          aggregatedData = await WindData1Min.query()
+            .where('stationId', station_id)
+            .orderBy('timestamp', 'desc')
+            .limit(recordLimit)
+
+          responseDate = DateTime.now().toISODate()!
+        }
 
         // Format response data with unit conversion (reverse to get chronological order)
         responseData = aggregatedData.reverse().map(record => ({
@@ -288,7 +346,7 @@ export default class WindAggregatedController {
 
       return {
         stationId: station_id,
-        date: queryDate.toISODate(),
+        date: responseDate,
         interval,
         unit,
         data: responseData,

@@ -37,6 +37,9 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
       // Set up periodic cleanup for station data cache
       const { stationDataCache } = await import('#services/station_data_cache')
 
+      // Set up wind aggregation service
+      const { windAggregationService } = await import('#services/wind_aggregation_service')
+
       // Clean up old data every hour (1 hour = 60 * 60 * 1000 ms)
       const cleanupInterval = setInterval(
         () => {
@@ -48,6 +51,7 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
       // Clean up interval when app terminates
       app.terminating(() => {
         clearInterval(cleanupInterval)
+        windAggregationService.stopFlushTimer()
       })
     })
     app.listen('SIGTERM', () => app.terminate())
