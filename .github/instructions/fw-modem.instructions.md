@@ -1,6 +1,7 @@
 ---
-applyTo: '**'
+applyTo: "**/firmware/**"
 ---
+
 # LilyGO T-SIM7000G Modem Usage Guide
 
 This document serves as a reference guide for using the LilyGO T-SIM7000G cellular modem in the Aiolos Weather Station project. It is based on our optimized implementation and aligns with LilyGO's official examples, consolidating best practices for robust modem initialization, reliable network connection, power management, and error handling that allows the system to continue operating even when cellular connectivity is unavailable.
@@ -53,7 +54,7 @@ Standard baud rate is 115200, but other rates are also supported.
 
 The correct power-on sequence for the SIM7000G is critical for reliable operation:
 
-```cpp
+````cpp
 // Power on the modem with proper timing according to SIM7000G datasheet
 pinMode(PWR_PIN, OUTPUT);
 digitalWrite(PWR_PIN, HIGH);
@@ -97,13 +98,13 @@ int maxSimRetries = 5;
 for (int i = 0; i < maxSimRetries; i++) {
     // Add delay between attempts to let SIM interface stabilize
     if (i > 0) delay(2000);
-    
+
     simStatus = getSimStatus();
     if (simStatus == SIM_READY) {
         Logger.info(LOG_TAG_MODEM, "SIM card is ready");
         break;
     }
-    
+
     // Additional SIM detection methods on later attempts
     if (i >= 2) {
         // Reset RF functionality to help with SIM detection
@@ -113,7 +114,7 @@ for (int i = 0; i < maxSimRetries; i++) {
         modem.sendAT("+CFUN=1");
         modem.waitResponse(1000);
         delay(1000);
-        
+
         // Try checking CCID as alternative SIM detection method
         String ccid = getCCID();
         if (ccid.length() > 10) {
@@ -126,7 +127,7 @@ for (int i = 0; i < maxSimRetries; i++) {
 
 // IMPORTANT: Always continue operation even if SIM status is not SIM_READY
 // This allows the system to still function for non-cellular operations
-```
+````
 
 ### SIM Detection and Status
 
@@ -284,7 +285,7 @@ for (int attempt = 0; attempt < maxRetries; attempt++) {
         if (_modem.isGprsConnected()) {
             IPAddress ip = _modem.localIP();
             Logger.info(LOG_TAG_MODEM, "GPRS connected with IP: %s", ip.toString().c_str());
-            
+
             // Re-enable watchdog
             _setWatchdog(false);
             return true;
@@ -305,8 +306,8 @@ When GPRS connection is no longer needed:
 
 ```cpp
 // Disconnect from GPRS
-// NOTE: The current ModemManager implementation doesn't include a separate 
-// gprsDisconnect method, as GPRS connections are managed through 
+// NOTE: The current ModemManager implementation doesn't include a separate
+// gprsDisconnect method, as GPRS connections are managed through
 // the connectGprs method and disconnected during power off/sleep operations
 ```
 
@@ -512,7 +513,7 @@ Regularly check if the network is still connected:
 // Check if still connected to network
 if (!modem.isNetworkConnected()) {
     Serial.println("Network disconnected, attempting to reconnect");
-    
+
     // Try to reconnect
     if (!modem.waitForNetwork(180000L, true)) {
         Serial.println("Network reconnection failed");
@@ -525,7 +526,7 @@ if (!modem.isNetworkConnected()) {
 // Check if GPRS is still connected
 if (!modem.isGprsConnected()) {
     Serial.println("GPRS disconnected, attempting to reconnect");
-    
+
     // Try to reconnect
     if (!modem.gprsConnect(apn, user, pass)) {
         Serial.println("GPRS reconnection failed");
@@ -577,13 +578,13 @@ After ESP32 wakes from deep sleep:
 if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER) {
     // Release GPIO hold
     gpio_hold_dis((gpio_num_t)PIN_DTR);
-    
+
     // Wake up the modem
     pinMode(PIN_DTR, OUTPUT);
     digitalWrite(PIN_DTR, LOW);
     delay(1000);
     modem.sleepEnable(false);
-    
+
     // Wait for modem to wake up fully
     delay(2000);
 } else {
@@ -604,16 +605,16 @@ bool performModemOperation() {
     // First verify network status
     if (!isNetworkConnected() || !isGprsConnected()) {
         Logger.warn(LOG_TAG_MODEM, "Network connection lost, attempting to reconnect");
-        
+
         // Try to reconnect network
         if (!connectNetwork() || !connectGprs()) {
             Logger.error(LOG_TAG_MODEM, "Reconnection failed, trying power cycle");
-            
+
             // Try power cycling the modem
             powerOff();
             delay(5000);
             powerOn();
-            
+
             // Try connecting again after power cycle
             if (!connectNetwork() || !connectGprs()) {
                 Logger.error(LOG_TAG_MODEM, "Reconnection failed after power cycle");
@@ -621,10 +622,10 @@ bool performModemOperation() {
             }
         }
     }
-    
+
     // Proceed with operation now that connection is verified
     // ...
-    
+
     return true;
 }
 
@@ -640,19 +641,19 @@ Reset the modem when it becomes unresponsive:
 // Hardware reset sequence aligned with datasheet timings
 bool resetModem() {
     Logger.info(LOG_TAG_MODEM, "Performing hardware reset of modem");
-    
+
     // Power down sequence
     digitalWrite(PWR_PIN, HIGH);
     delay(1500);  // Minimum 1.2s for Toff according to datasheet
     digitalWrite(PWR_PIN, LOW);
     delay(5000);  // Wait for full shutdown
-    
+
     // Power up sequence
     digitalWrite(PWR_PIN, HIGH);
     delay(1200);  // Minimum 1s for Ton according to datasheet
     digitalWrite(PWR_PIN, LOW);
     delay(2000);  // Wait for modem to initialize
-    
+
     // Verify modem is responsive
     for (int attempt = 0; attempt < 5; attempt++) {
         if (modem.testAT()) {
@@ -661,7 +662,7 @@ bool resetModem() {
         }
         delay(1000);
     }
-    
+
     Logger.error(LOG_TAG_MODEM, "Modem reset failed");
     return false;
 }
@@ -707,7 +708,7 @@ The ESP32's watchdog timer needs special consideration when working with the mod
 void setupWatchdog() {
     esp_task_wdt_init(WATCHDOG_TIMEOUT_SECONDS, true);
     esp_task_wdt_add(NULL);
-    Logger.debug(LOG_TAG_SYSTEM, "Watchdog initialized with timeout of %d seconds", 
+    Logger.debug(LOG_TAG_SYSTEM, "Watchdog initialized with timeout of %d seconds",
                  WATCHDOG_TIMEOUT_SECONDS);
 }
 
@@ -750,14 +751,14 @@ void loop() {
             // Store data locally since cellular connection is unavailable
             Logger.warn(LOG_TAG_SYSTEM, "Cellular connection unavailable, storing data locally");
             storeDataLocally();
-            
+
             // Optionally try to reconnect
             if (shouldAttemptReconnect()) {
                 reconnectModem();
             }
         }
     }
-    
+
     // Continue with other operations regardless of modem status
     readSensors();
     managePower();
@@ -776,19 +777,19 @@ public:
     bool init();
     bool powerOn();
     bool powerOff();
-    
+
     // Network functions
     bool connectNetwork(int maxRetries = 3);
     bool connectGprs(int maxRetries = 3);
     bool isNetworkConnected();
     bool isGprsConnected();
-    
+
     // Client access for data transfer
     TinyGsmClient* getClient();
-    
+
     // Power management
     bool enterSleepMode(bool enable);
-    
+
     // Utilities
     int getSignalQuality();
     bool getNetworkTime(int *year, int *month, int *day, int *hour, int *minute, int *second, float *timezone);
@@ -796,7 +797,7 @@ public:
     String getCCID();
     String getOperator();
     IPAddress getLocalIP();
-    
+
 private:
     // Implementation details
     TinyGsm _modem;
