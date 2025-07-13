@@ -18,6 +18,7 @@ const StationDiagnosticsController = () => import('#app/controllers/station_diag
 const StationConfigsController = () => import('#app/controllers/station_configs_controller')
 const SystemConfigsController = () => import('#app/controllers/system_configs_controller')
 const StationTemperatureController = () => import('#app/controllers/station_temperature_controller')
+const WindAggregatedController = () => import('#app/controllers/wind_aggregated_controller')
 
 /**
  * Home route
@@ -97,6 +98,16 @@ router
 
         // Wind data endpoint for firmware (maps to same controller as live/wind)
         router.post('/wind', [StationLiveController, 'wind']).as('wind')
+
+        // Aggregated wind data endpoints
+        router
+          .group(() => {
+            router.get('/', [WindAggregatedController, 'index']).as('index')
+            router.get('/latest', [WindAggregatedController, 'latest']).as('latest')
+            router.get('/converted', [WindAggregatedController, 'converted']).as('converted')
+          })
+          .prefix('/wind/aggregated')
+          .as('wind.aggregated')
 
         // Live data routes group
         router

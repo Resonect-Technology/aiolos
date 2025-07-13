@@ -4,6 +4,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { SectionCards } from "@/components/section-cards-wind";
 import { WindChartInteractive } from "@/components/wind-chart-interactive";
 import { WindDataTable } from "@/components/wind-data-table";
+import { WindData1MinTable } from "@/components/wind-data-1min-table";
 import { SiteHeader } from "@/components/site-header";
 import { ConstructionModeAlert } from "./components/construction-mode-alert";
 import { ThemeProvider } from "./components/theme-provider";
@@ -114,6 +115,13 @@ function App() {
 
                 <div className="px-4 lg:px-6">
                   <WindChartInteractive windData={windData} selectedUnit={selectedUnit} />
+                </div>
+
+                <div className="px-4 lg:px-6">
+                  <WindData1MinTable
+                    stationId={stationId}
+                    selectedUnit={selectedUnit}
+                  />
                 </div>
 
                 <div className="px-4 lg:px-6">

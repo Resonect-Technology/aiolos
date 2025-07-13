@@ -4,20 +4,13 @@ import DataRetentionPolicy from '#models/data_retention_policy'
 
 export default class extends BaseSeeder {
   async run() {
-    // Create sample weather stations
+    // Create weather stations
     const stations = [
       {
-        stationId: 'station-001',
-        name: 'Main Weather Station',
-        location: 'City Center',
-        description: 'Primary weather monitoring station in the city center',
-        isActive: true,
-      },
-      {
-        stationId: 'station-002',
-        name: 'Harbor Station',
-        location: 'Harbor District',
-        description: 'Weather station monitoring harbor conditions',
+        stationId: 'vasiliki-001',
+        name: 'Vasiliki Weather Station',
+        location: 'Vasiliki, Greece',
+        description: 'Main weather station in Vasiliki for wind monitoring',
         isActive: true,
       },
       {
@@ -25,6 +18,13 @@ export default class extends BaseSeeder {
         name: 'Test Station',
         location: 'Test Environment',
         description: 'Test station for firmware development and testing',
+        isActive: true,
+      },
+      {
+        stationId: 'default',
+        name: 'Default Station',
+        location: 'System Default',
+        description: 'Default system configuration station',
         isActive: true,
       },
     ]
@@ -47,9 +47,15 @@ export default class extends BaseSeeder {
       },
       {
         dataType: 'wind',
+        retentionDays: 180,
+        isActive: true,
+        description: 'Wind data retention for 6 months',
+      },
+      {
+        dataType: 'wind_1min',
         retentionDays: 90,
         isActive: true,
-        description: 'Wind data retention for 3 months',
+        description: '1-minute wind aggregation retention for 3 months',
       },
       {
         dataType: 'diagnostics',
