@@ -7,11 +7,20 @@ services:
       - .env
     restart: unless-stopped
     volumes:
-      - sqlite_data:/app/tmp
+      # Bind mount for database - easier backups and management
+      - ./data:/app/tmp
     expose:
       - 8080
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/healthcheck"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8080/healthcheck",
+        ]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -45,4 +54,4 @@ services:
 volumes:
   frontend-dist:
   caddy_data:
-  sqlite_data:
+  # Removed sqlite_data volume - now using bind mount
