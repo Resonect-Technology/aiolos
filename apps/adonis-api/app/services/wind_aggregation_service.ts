@@ -1,6 +1,7 @@
 import { DateTime } from 'luxon'
 import WindData1Min from '#models/wind_data_1_min'
 import WindData10Min from '#models/wind_data_10_min'
+import WindDataHourly from '#models/wind_data_hourly'
 import type { WindTendency } from '#models/wind_data_10_min'
 import transmit from '@adonisjs/transmit/services/main'
 
@@ -342,6 +343,20 @@ export class WindAggregationService {
   }
 
   /**
+   * Calculate dominant direction from 10-minute records
+   */
+  private calculateDominantDirectionFrom10MinRecords(records: WindData10Min[]): number {
+    const directionFrequency: Record<number, number> = {}
+    
+    for (const record of records) {
+      const direction = Math.round(record.dominantDirection)
+      directionFrequency[direction] = (directionFrequency[direction] || 0) + 1
+    }
+
+    return this.calculateDominantDirection(directionFrequency)
+  }
+
+  /**
    * Calculate tendency by comparing with previous 10-minute interval
    */
   private async calculateTendency(stationId: string, currentInterval: DateTime, currentAvg: number): Promise<WindTendency> {
@@ -400,6 +415,190 @@ export class WindAggregationService {
       this.flushTimer = null
       console.log('Wind aggregation flush timer stopped')
     }
+  }
+
+  /**
+   * Process hourly aggregation from 10-minute data
+   * Called every hour at XX:00 by scheduled job
+   */
+  async processHourlyAggregation(): Promise<void> {
+    const now = DateTime.now()
+    const currentHourStart = this.getHourlyIntervalStart(now)
+    
+    // Process the previous hour (not the current one)
+    const intervalStart = currentHourStart.minus({ hours: 1 })
+
+    try {
+      // Get all stations that have 10-minute data for the interval
+      const stations = await WindData10Min.query()
+        .select('stationId')
+        .where('timestamp', '>=', intervalStart.toJSDate())
+        .where('timestamp', '<', intervalStart.plus({ hours: 1 }).toJSDate())
+        .groupBy('stationId')
+
+      for (const station of stations) {
+        await this.aggregateHourlyData(station.stationId, intervalStart)
+      }
+    } catch (error) {
+      console.error('Error processing hourly aggregation:', error)
+    }
+  }
+
+  /**
+   * Process hourly aggregation for a specific interval (for testing)
+   */
+  async processHourlyAggregationForInterval(intervalStart: DateTime): Promise<void> {
+    try {
+      console.log(`Processing hourly aggregation for interval: ${intervalStart.toISO()}`)
+      
+      // Get all stations that have 10-minute data for the interval
+      const stations = await WindData10Min.query()
+        .select('stationId')
+        .where('timestamp', '>=', intervalStart.toJSDate())
+        .where('timestamp', '<', intervalStart.plus({ hours: 1 }).toJSDate())
+        .groupBy('stationId')
+
+      console.log(`Found ${stations.length} stations with 10-minute data`)
+      
+      for (const station of stations) {
+        await this.aggregateHourlyData(station.stationId, intervalStart)
+      }
+    } catch (error) {
+      console.error('Error processing hourly aggregation for interval:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Aggregate hourly data for a specific station
+   */
+  private async aggregateHourlyData(stationId: string, intervalStart: DateTime): Promise<void> {
+    try {
+      console.log(`Starting hourly aggregation for station ${stationId} at ${intervalStart.toISO()}`)
+      
+      // Get 10-minute data for the hour (6 records expected)
+      const tenMinuteData = await WindData10Min.query()
+        .where('stationId', stationId)
+        .where('timestamp', '>=', intervalStart.toJSDate())
+        .where('timestamp', '<', intervalStart.plus({ hours: 1 }).toJSDate())
+        .orderBy('timestamp', 'asc')
+
+      console.log(`Found ${tenMinuteData.length} 10-minute records for hourly aggregation`)
+      
+      if (tenMinuteData.length === 0) {
+        console.log('No 10-minute data found, skipping hourly aggregation')
+        return
+      }
+
+      // Calculate aggregated statistics
+      const totalSpeedSum = tenMinuteData.reduce((sum, record) => sum + record.avgSpeed, 0)
+      const avgSpeed = totalSpeedSum / tenMinuteData.length
+      const minSpeed = Math.min(...tenMinuteData.map(r => r.minSpeed))
+      const maxSpeed = Math.max(...tenMinuteData.map(r => r.maxSpeed))
+      
+      // Calculate gust speed (maximum of max_speeds from 10-minute data)
+      const gustSpeed = Math.max(...tenMinuteData.map(r => r.maxSpeed))
+
+      // Calculate calm periods (count of 10-min intervals with avg < 1 m/s)
+      const calmPeriods = tenMinuteData.filter(r => r.avgSpeed < 1.0).length
+
+      // Calculate dominant direction using frequency from 10-minute data
+      const dominantDirection = this.calculateDominantDirectionFrom10MinRecords(tenMinuteData)
+
+      // Calculate tendency by comparing with previous hourly record
+      const tendency = await this.calculateHourlyTendency(stationId, intervalStart, avgSpeed)
+
+      console.log(`Calculated hourly values: avgSpeed=${avgSpeed}, minSpeed=${minSpeed}, maxSpeed=${maxSpeed}, gustSpeed=${gustSpeed}, calmPeriods=${calmPeriods}, dominantDirection=${dominantDirection}, tendency=${tendency}`)
+
+      // Check if record already exists
+      const existingRecord = await WindDataHourly.query()
+        .where('stationId', stationId)
+        .where('timestamp', intervalStart.toJSDate())
+        .first()
+
+      if (existingRecord) {
+        console.log('Updating existing hourly record')
+        // Update existing record
+        await existingRecord.merge({
+          avgSpeed: Math.round(avgSpeed * 100) / 100,
+          minSpeed,
+          maxSpeed,
+          dominantDirection,
+          tendency,
+          gustSpeed,
+          calmPeriods,
+        }).save()
+      } else {
+        console.log('Creating new hourly record')
+        // Create new record
+        const windData = await WindDataHourly.create({
+          stationId,
+          timestamp: intervalStart,
+          avgSpeed: Math.round(avgSpeed * 100) / 100,
+          minSpeed,
+          maxSpeed,
+          dominantDirection,
+          tendency,
+          gustSpeed,
+          calmPeriods,
+        })
+
+        console.log(`Created hourly record with ID: ${windData.id}`)
+
+        // Broadcast to SSE subscribers
+        await transmit.broadcast(`wind/aggregated/hourly/${stationId}`, {
+          stationId,
+          timestamp: intervalStart.toISO(),
+          avgSpeed: windData.avgSpeed,
+          minSpeed: windData.minSpeed,
+          maxSpeed: windData.maxSpeed,
+          dominantDirection: windData.dominantDirection,
+          tendency: windData.tendency,
+          gustSpeed: windData.gustSpeed,
+          calmPeriods: windData.calmPeriods,
+        })
+      }
+
+      console.log(`Saved hourly wind aggregate for station ${stationId} at ${intervalStart.toISO()}`)
+    } catch (error) {
+      console.error('Error aggregating hourly data:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Calculate tendency for hourly data by comparing with previous hourly interval
+   */
+  private async calculateHourlyTendency(stationId: string, currentInterval: DateTime, currentAvg: number): Promise<WindTendency> {
+    const threshold = 0.5 // m/s
+    
+    // Get previous hourly record
+    const previousRecord = await WindDataHourly.query()
+      .where('stationId', stationId)
+      .where('timestamp', '<', currentInterval.toJSDate())
+      .orderBy('timestamp', 'desc')
+      .first()
+
+    if (!previousRecord) {
+      return 'stable' // First record
+    }
+
+    const previousAvg = previousRecord.avgSpeed
+    
+    if (currentAvg > previousAvg + threshold) {
+      return 'increasing'
+    } else if (currentAvg < previousAvg - threshold) {
+      return 'decreasing'
+    } else {
+      return 'stable'
+    }
+  }
+
+  /**
+   * Get the start of the hourly interval for a given timestamp
+   */
+  private getHourlyIntervalStart(timestamp: DateTime): DateTime {
+    return timestamp.startOf('hour')
   }
 }
 

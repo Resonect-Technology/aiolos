@@ -2,6 +2,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import { DateTime } from 'luxon'
 import WindData1Min from '#models/wind_data_1_min'
 import WindData10Min from '#models/wind_data_10_min'
+import WindDataHourly from '#models/wind_data_hourly'
 
 /**
  * Controller for aggregated wind data endpoints
@@ -10,22 +11,66 @@ export default class WindAggregatedController {
   /**
    * Get aggregated wind data for a station
    * 
-   * GET /api/stations/:station_id/wind/aggregated?interval=1min|10min&date=YYYY-MM-DD&limit=10
+   * GET /api/stations/:station_id/wind/aggregated?interval=1min|10min|hourly&date=YYYY-MM-DD&from=YYYY-MM-DD&to=YYYY-MM-DD&limit=10
    */
   async index({ params, request, response }: HttpContext) {
     const { station_id } = params
-    const { interval = '1min', date, limit } = request.qs()
+    const { interval = '1min', date, from, to, limit } = request.qs()
 
     // Validate interval parameter
-    if (!['1min', '10min'].includes(interval)) {
+    if (!['1min', '10min', 'hourly'].includes(interval)) {
       return response.badRequest({
-        error: 'Invalid interval. Supported intervals: 1min, 10min'
+        error: 'Invalid interval. Supported intervals: 1min, 10min, hourly'
       })
     }
 
+    // Handle date range vs single date
+    if (from && to) {
+      if (date) {
+        return response.badRequest({
+          error: 'Cannot specify both date and date range (from/to)'
+        })
+      }
+      
+      // Validate date range
+      const fromDate = DateTime.fromISO(from)
+      const toDate = DateTime.fromISO(to)
+      
+      if (!fromDate.isValid || !toDate.isValid) {
+        return response.badRequest({
+          error: 'Invalid date format. Use YYYY-MM-DD format for from/to dates.'
+        })
+      }
+      
+      if (fromDate > toDate) {
+        return response.badRequest({
+          error: 'From date must be before or equal to to date'
+        })
+      }
+      
+      // Check maximum range (31 days for hourly as per requirements)
+      const daysDiff = toDate.diff(fromDate, 'days').days
+      if (interval === 'hourly' && daysDiff > 31) {
+        return response.badRequest({
+          error: 'Maximum 31 days per request for hourly interval'
+        })
+      }
+    }
+
     // Set default limits based on interval
-    const defaultLimit = interval === '10min' ? 6 : 10
-    const maxLimit = interval === '10min' ? 144 : 1440 // 144 = full day for 10min, 1440 = full day for 1min
+    let defaultLimit: number
+    let maxLimit: number
+    
+    if (interval === 'hourly') {
+      defaultLimit = 24 // 24 hours for daily view
+      maxLimit = 744 // 31 days * 24 hours
+    } else if (interval === '10min') {
+      defaultLimit = 6
+      maxLimit = 144
+    } else {
+      defaultLimit = 10
+      maxLimit = 1440
+    }
     
     // Parse and validate limit parameter
     const recordLimit = limit ? parseInt(limit) : defaultLimit
@@ -36,7 +81,9 @@ export default class WindAggregatedController {
     }
 
     try {
-      if (interval === '10min') {
+      if (interval === 'hourly') {
+        return await this.getHourlyData(station_id, date, from, to, recordLimit)
+      } else if (interval === '10min') {
         return await this.get10MinuteData(station_id, date, recordLimit)
       } else {
         return await this.get1MinuteData(station_id, date, recordLimit)
@@ -163,23 +210,118 @@ export default class WindAggregatedController {
   }
 
   /**
+   * Get hourly aggregated data
+   */
+  private async getHourlyData(stationId: string, date: string | undefined, from: string | undefined, to: string | undefined, recordLimit: number) {
+    let aggregatedData
+    let responseDate: string
+    let isDateRange = false
+
+    if (from && to) {
+      // Date range query
+      const fromDate = DateTime.fromISO(from).startOf('day')
+      const toDate = DateTime.fromISO(to).endOf('day')
+
+      aggregatedData = await WindDataHourly.query()
+        .where('stationId', stationId)
+        .where('timestamp', '>=', fromDate.toJSDate())
+        .where('timestamp', '<=', toDate.toJSDate())
+        .orderBy('timestamp', 'desc')
+        .limit(recordLimit)
+
+      responseDate = `${from} to ${to}`
+      isDateRange = true
+    } else if (date) {
+      // Single date query
+      const queryDate = DateTime.fromISO(date)
+      if (!queryDate.isValid) {
+        throw new Error('Invalid date format. Use YYYY-MM-DD format.')
+      }
+
+      const startOfDay = queryDate.startOf('day')
+      const endOfDay = queryDate.endOf('day')
+
+      aggregatedData = await WindDataHourly.query()
+        .where('stationId', stationId)
+        .where('timestamp', '>=', startOfDay.toJSDate())
+        .where('timestamp', '<=', endOfDay.toJSDate())
+        .orderBy('timestamp', 'desc')
+        .limit(recordLimit)
+
+      responseDate = queryDate.toISODate()!
+    } else {
+      // Latest data query
+      aggregatedData = await WindDataHourly.query()
+        .where('stationId', stationId)
+        .orderBy('timestamp', 'desc')
+        .limit(recordLimit)
+
+      responseDate = DateTime.now().toISODate()!
+    }
+
+    // Format response data (reverse to get chronological order for single date/latest)
+    const formattedData = (isDateRange ? aggregatedData : aggregatedData.reverse()).map(record => ({
+      timestamp: record.timestamp.toISO(),
+      avgSpeed: record.avgSpeed,
+      minSpeed: record.minSpeed,
+      maxSpeed: record.maxSpeed,
+      dominantDirection: record.dominantDirection,
+      tendency: record.tendency,
+      gustSpeed: record.gustSpeed,
+      calmPeriods: record.calmPeriods,
+    }))
+
+    return {
+      stationId,
+      date: responseDate,
+      interval: 'hourly',
+      data: formattedData,
+      totalRecords: formattedData.length,
+    }
+  }
+
+  /**
    * Get latest aggregated wind data for a station
    * 
-   * GET /api/stations/:station_id/wind/aggregated/latest?interval=1min|10min
+   * GET /api/stations/:station_id/wind/aggregated/latest?interval=1min|10min|hourly
    */
   async latest({ params, request, response }: HttpContext) {
     const { station_id } = params
     const { interval = '1min' } = request.qs()
 
     // Validate interval parameter
-    if (!['1min', '10min'].includes(interval)) {
+    if (!['1min', '10min', 'hourly'].includes(interval)) {
       return response.badRequest({
-        error: 'Invalid interval. Supported intervals: 1min, 10min'
+        error: 'Invalid interval. Supported intervals: 1min, 10min, hourly'
       })
     }
 
     try {
-      if (interval === '10min') {
+      if (interval === 'hourly') {
+        const latestData = await WindDataHourly.query()
+          .where('stationId', station_id)
+          .orderBy('timestamp', 'desc')
+          .first()
+
+        if (!latestData) {
+          return response.notFound({
+            error: 'No hourly aggregated wind data found for this station'
+          })
+        }
+
+        return {
+          stationId: station_id,
+          timestamp: latestData.timestamp.toISO(),
+          avgSpeed: latestData.avgSpeed,
+          minSpeed: latestData.minSpeed,
+          maxSpeed: latestData.maxSpeed,
+          dominantDirection: latestData.dominantDirection,
+          tendency: latestData.tendency,
+          gustSpeed: latestData.gustSpeed,
+          calmPeriods: latestData.calmPeriods,
+          interval: 'hourly',
+        }
+      } else if (interval === '10min') {
         const latestData = await WindData10Min.query()
           .where('stationId', station_id)
           .orderBy('timestamp', 'desc')
@@ -235,16 +377,16 @@ export default class WindAggregatedController {
   /**
    * Get aggregated wind data with unit conversion
    * 
-   * GET /api/stations/:station_id/wind/aggregated/converted?interval=1min|10min&date=YYYY-MM-DD&unit=kmh|knots|ms&limit=10
+   * GET /api/stations/:station_id/wind/aggregated/converted?interval=1min|10min|hourly&date=YYYY-MM-DD&unit=kmh|knots|ms&limit=10
    */
   async converted({ params, request, response }: HttpContext) {
     const { station_id } = params
     const { interval = '1min', date, unit = 'ms', limit } = request.qs()
 
     // Validate interval parameter
-    if (!['1min', '10min'].includes(interval)) {
+    if (!['1min', '10min', 'hourly'].includes(interval)) {
       return response.badRequest({
-        error: 'Invalid interval. Supported intervals: 1min, 10min'
+        error: 'Invalid interval. Supported intervals: 1min, 10min, hourly'
       })
     }
 
@@ -257,8 +399,19 @@ export default class WindAggregatedController {
     }
 
     // Set default limits based on interval
-    const defaultLimit = interval === '10min' ? 6 : 10
-    const maxLimit = interval === '10min' ? 144 : 1440
+    let defaultLimit: number
+    let maxLimit: number
+    
+    if (interval === 'hourly') {
+      defaultLimit = 24
+      maxLimit = 744 // 31 days * 24 hours
+    } else if (interval === '10min') {
+      defaultLimit = 6
+      maxLimit = 144
+    } else {
+      defaultLimit = 10
+      maxLimit = 1440
+    }
     
     // Parse and validate limit parameter
     const recordLimit = limit ? parseInt(limit) : defaultLimit
@@ -273,7 +426,46 @@ export default class WindAggregatedController {
       let responseData: any[]
       let responseDate: string
 
-      if (interval === '10min') {
+      if (interval === 'hourly') {
+        if (date) {
+          // Date-specific query: get data for the specified date
+          const queryDate = DateTime.fromISO(date)
+          if (!queryDate.isValid) {
+            return response.badRequest({
+              error: 'Invalid date format. Use YYYY-MM-DD format.'
+            })
+          }
+
+          aggregatedData = await WindDataHourly.query()
+            .where('stationId', station_id)
+            .where('timestamp', '>=', queryDate.startOf('day').toJSDate())
+            .where('timestamp', '<=', queryDate.endOf('day').toJSDate())
+            .orderBy('timestamp', 'desc')
+            .limit(recordLimit)
+
+          responseDate = queryDate.toISODate()!
+        } else {
+          // Latest data query: get most recent records regardless of date
+          aggregatedData = await WindDataHourly.query()
+            .where('stationId', station_id)
+            .orderBy('timestamp', 'desc')
+            .limit(recordLimit)
+
+          responseDate = DateTime.now().toISODate()!
+        }
+
+        // Format response data with unit conversion (reverse to get chronological order)
+        responseData = aggregatedData.reverse().map(record => ({
+          timestamp: record.timestamp.toISO(),
+          avgSpeed: this.convertSpeed(record.avgSpeed, unit),
+          minSpeed: this.convertSpeed(record.minSpeed, unit),
+          maxSpeed: this.convertSpeed(record.maxSpeed, unit),
+          gustSpeed: this.convertSpeed(record.gustSpeed, unit),
+          dominantDirection: record.dominantDirection,
+          tendency: record.tendency,
+          calmPeriods: record.calmPeriods,
+        }))
+      } else if (interval === '10min') {
         if (date) {
           // Date-specific query: get data for the specified date
           const queryDate = DateTime.fromISO(date)
