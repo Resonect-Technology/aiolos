@@ -433,7 +433,7 @@ export class WindAggregationService {
       const stations = await WindData10Min.query()
         .select('stationId')
         .where('timestamp', '>=', intervalStart.toJSDate())
-        .where('timestamp', '<', intervalStart.plus({ hours: 1 }).toJSDate())
+        .where('timestamp', '<=', intervalStart.plus({ hours: 1 }).minus({ milliseconds: 1 }).toJSDate())
         .groupBy('stationId')
 
       for (const station of stations) {
@@ -455,7 +455,7 @@ export class WindAggregationService {
       const stations = await WindData10Min.query()
         .select('stationId')
         .where('timestamp', '>=', intervalStart.toJSDate())
-        .where('timestamp', '<', intervalStart.plus({ hours: 1 }).toJSDate())
+        .where('timestamp', '<=', intervalStart.plus({ hours: 1 }).minus({ milliseconds: 1 }).toJSDate())
         .groupBy('stationId')
 
       console.log(`Found ${stations.length} stations with 10-minute data`)
@@ -480,7 +480,7 @@ export class WindAggregationService {
       const tenMinuteData = await WindData10Min.query()
         .where('stationId', stationId)
         .where('timestamp', '>=', intervalStart.toJSDate())
-        .where('timestamp', '<', intervalStart.plus({ hours: 1 }).toJSDate())
+        .where('timestamp', '<=', intervalStart.plus({ hours: 1 }).minus({ milliseconds: 1 }).toJSDate())
         .orderBy('timestamp', 'asc')
 
       console.log(`Found ${tenMinuteData.length} 10-minute records for hourly aggregation`)
