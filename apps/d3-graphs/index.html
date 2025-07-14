@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aiolos D3.js Graph Playground</title>
+    <link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>🌪️ Aiolos D3.js Graph Playground</h1>
+            <p>Experiment with D3.js visualizations for wind data</p>
+        </header>
+        
+        <main>
+            <section class="controls">
+                <h2>Controls</h2>
+                <button id="generate-data">Generate Sample Data</button>
+                <button id="clear-graphs">Clear All Graphs</button>
+            </section>
+            
+            <section class="graphs">
+                <div class="graph-container">
+                    <h3>Wind Speed Over Time</h3>
+                    <div id="wind-speed-chart"></div>
+                </div>
+                
+                <div class="graph-container">
+                    <h3>Wind Direction Compass</h3>
+                    <div id="wind-direction-compass"></div>
+                </div>
+                
+                <div class="graph-container">
+                    <h3>Wind Rose Chart</h3>
+                    <div id="wind-rose-chart"></div>
+                </div>
+                
+                <div class="graph-container">
+                    <h3>Temperature Timeline</h3>
+                    <div id="temperature-chart"></div>
+                </div>
+            </section>
+        </main>
+    </div>
+    
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html>

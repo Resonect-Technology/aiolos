@@ -1,0 +1,17 @@
+{
+    "name": "d3-graphs",
+    "version": "0.1.0",
+    "description": "D3.js graph experimentation playground for Aiolos wind data visualization",
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview"
+    },
+    "dependencies": {
+        "d3": "^7.8.5"
+    },
+    "devDependencies": {
+        "vite": "^5.0.0"
+    }
+}
