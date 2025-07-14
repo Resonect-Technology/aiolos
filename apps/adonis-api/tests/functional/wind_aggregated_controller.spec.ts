@@ -64,11 +64,11 @@ test.group('Wind Aggregated Controller', (group) => {
 
   test('should validate interval parameter', async ({ client, assert }) => {
     const response = await client.get(`/api/stations/${testStationId}/wind/aggregated`)
-      .qs({ interval: '10min' })
+      .qs({ interval: 'invalid' })
 
     response.assertStatus(400)
     const body = response.body()
-    assert.equal(body.error, 'Invalid interval. Only "1min" is supported currently.')
+    assert.equal(body.error, 'Invalid interval. Supported intervals: 1min, 10min')
   })
 
   test('should validate date parameter', async ({ client, assert }) => {
