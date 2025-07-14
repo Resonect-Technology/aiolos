@@ -1,7 +1,6 @@
 import { memo, useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, Eye, Moon, Clock } from "lucide-react";
+import { Eye, Moon, AlertTriangle } from "lucide-react";
 import { formatSleepSchedule, calculateNextSleepWakeTime } from "@/lib/time-utils";
 
 interface StationConfig {
@@ -21,15 +20,13 @@ interface StationConfig {
   message?: string;
 }
 
-interface ConnectionStatusProps {
-  error: string | null;
+interface FloatingStatusIndicatorProps {
   stationId: string;
 }
 
-export const ConnectionStatus = memo(function ConnectionStatus({
-  error,
+export const FloatingStatusIndicator = memo(function FloatingStatusIndicator({
   stationId,
-}: ConnectionStatusProps) {
+}: FloatingStatusIndicatorProps) {
   const [stationConfig, setStationConfig] = useState<StationConfig | null>(null);
   const [stationMode, setStationMode] = useState<'live' | 'sleeping' | 'unknown'>('unknown');
   const [nextSleepWakeInfo, setNextSleepWakeInfo] = useState<{
@@ -51,10 +48,10 @@ export const ConnectionStatus = memo(function ConnectionStatus({
           const config: StationConfig = await response.json();
           setStationConfig(config);
         } else {
-          console.warn('Failed to fetch station config:', response.statusText);
+          console.warn('Failed to fetch station config for floating indicator:', response.statusText);
         }
       } catch (error) {
-        console.error('Error fetching station config:', error);
+        console.error('Error fetching station config for floating indicator:', error);
       }
     };
 
@@ -112,26 +109,20 @@ export const ConnectionStatus = memo(function ConnectionStatus({
       case 'live':
         return {
           label: 'Live',
-          variant: 'default' as const,
           icon: <Eye className="h-4 w-4" />,
-          description: 'Station is actively transmitting data',
           className: 'bg-green-600 hover:bg-green-700 text-white border-green-600'
         };
       case 'sleeping':
         return {
           label: 'Sleeping',
-          variant: 'secondary' as const,
           icon: <Moon className="h-4 w-4" />,
-          description: 'Station is in power-saving mode',
           className: 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600'
         };
       default:
         return {
           label: 'Unknown',
-          variant: 'outline' as const,
           icon: <AlertTriangle className="h-4 w-4" />,
-          description: 'Station mode could not be determined',
-          className: ''
+          className: 'bg-gray-500 hover:bg-gray-600 text-white border-gray-500'
         };
     }
   };
@@ -141,49 +132,30 @@ export const ConnectionStatus = memo(function ConnectionStatus({
     stationConfig?.sleepStartHour ?? null,
     stationConfig?.sleepEndHour ?? null
   );
-  
+
   return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-bold card-foreground">Aiolos Vasiliki</h1>
-        <p className="text-muted-foreground">Real-time wind data from Vasiliki</p>
-      </div>
-
-      <div className="flex flex-col gap-3">
-        <div className="text-sm font-medium text-muted-foreground">Station Mode</div>
-        <Badge
-          variant={modeDisplay.variant}
-          className={`flex items-center gap-3 px-4 py-2 text-lg font-semibold w-fit ${modeDisplay.className}`}
-          title={modeDisplay.description}
-        >
-          {modeDisplay.icon}
-          {modeDisplay.label}
-        </Badge>
-      </div>
-
-      {/* Sleep Schedule Information */}
-      <div className="flex flex-col gap-2">
-        <div className="text-sm font-medium text-muted-foreground">Sleep Schedule</div>
-        <div className="text-sm text-foreground">
+    <div className="fixed top-16 right-4 z-40 transition-all duration-300 ease-in-out">
+      <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border rounded-lg shadow-lg p-3 min-w-[200px]">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-medium text-muted-foreground">Status</span>
+          <Badge
+            className={`flex items-center gap-2 px-3 py-1 text-sm font-medium transition-all duration-200 ${modeDisplay.className}`}
+          >
+            {modeDisplay.icon}
+            {modeDisplay.label}
+          </Badge>
+        </div>
+        
+        <div className="text-xs text-muted-foreground mb-1">
           {sleepScheduleText}
         </div>
         
         {nextSleepWakeInfo.nextEventType && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Clock className="h-4 w-4" />
-            <span>
-              Next {nextSleepWakeInfo.nextEventType} in {nextSleepWakeInfo.timeUntilNext}
-            </span>
+          <div className="text-xs text-muted-foreground">
+            Next {nextSleepWakeInfo.nextEventType} in {nextSleepWakeInfo.timeUntilNext}
           </div>
         )}
       </div>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
     </div>
   );
 });
