@@ -183,7 +183,7 @@ export class WindAggregationService {
   async process10MinuteAggregation(): Promise<void> {
     const now = DateTime.now()
     const currentIntervalStart = this.get10MinuteIntervalStart(now)
-    
+
     // Process the previous 10-minute interval (not the current one)
     const intervalStart = currentIntervalStart.minus({ minutes: 10 })
 
@@ -204,23 +204,98 @@ export class WindAggregationService {
   }
 
   /**
+   * Process the last hour's worth of 10-minute intervals
+   * Useful for testing and manual backfill
+   */
+  async processLastHourIntervals(): Promise<void> {
+    const now = DateTime.now()
+    const oneHourAgo = now.minus({ hours: 1 })
+
+    // Get all 10-minute intervals in the last hour
+    const intervals: DateTime[] = []
+    let currentInterval = this.get10MinuteIntervalStart(oneHourAgo)
+
+    while (currentInterval < now.minus({ minutes: 10 })) {
+      intervals.push(currentInterval)
+      currentInterval = currentInterval.plus({ minutes: 10 })
+    }
+
+    console.log(`Processing ${intervals.length} intervals from the last hour`)
+
+    for (const interval of intervals) {
+      try {
+        await this.process10MinuteAggregationForInterval(interval)
+      } catch (error) {
+        console.error(`Error processing interval ${interval.toISO()}:`, error)
+      }
+    }
+
+    console.log(`Completed processing ${intervals.length} intervals from the last hour`)
+  }
+
+  /**
+   * Process any missing 10-minute intervals from the last hour
+   * Called on startup to catch up on any missed aggregations
+   */
+  async processRecentMissingIntervals(): Promise<void> {
+    const now = DateTime.now()
+    const oneHourAgo = now.minus({ hours: 1 })
+
+    // Get all 10-minute intervals in the last hour
+    const intervals: DateTime[] = []
+    let currentInterval = this.get10MinuteIntervalStart(oneHourAgo)
+
+    while (currentInterval < now.minus({ minutes: 10 })) {
+      intervals.push(currentInterval)
+      currentInterval = currentInterval.plus({ minutes: 10 })
+    }
+
+    console.log(`Checking ${intervals.length} recent 10-minute intervals for missing data`)
+
+    for (const interval of intervals) {
+      try {
+        // Check if we already have data for this interval
+        const existingData = await WindData10Min.query()
+          .where('timestamp', interval.toJSDate())
+          .first()
+
+        if (!existingData) {
+          // Check if we have 1-minute data for this interval
+          const oneMinuteCount = await WindData1Min.query()
+            .where('timestamp', '>=', interval.toJSDate())
+            .where('timestamp', '<', interval.plus({ minutes: 10 }).toJSDate())
+            .count('* as total')
+
+          const total = oneMinuteCount[0].$extras.total
+          if (total > 0) {
+            console.log(`Processing missing interval: ${interval.toISO()}`)
+            await this.process10MinuteAggregationForInterval(interval)
+          }
+        }
+      } catch (error) {
+        console.error(`Error processing missing interval ${interval.toISO()}:`, error)
+      }
+    }
+  }
+
+  /**
    * Process 10-minute aggregation for a specific interval (for testing)
    */
   async process10MinuteAggregationForInterval(intervalStart: DateTime): Promise<void> {
     try {
       console.log(`Processing 10-minute aggregation for interval: ${intervalStart.toISO()}`)
-      
+
       // First, let's check if we have any 1-minute data at all
       const allOneMinData = await WindData1Min.query()
         .where('timestamp', '>=', intervalStart.toJSDate())
         .where('timestamp', '<', intervalStart.plus({ minutes: 10 }).toJSDate())
         .orderBy('timestamp', 'asc')
-      
+
       console.log(`Found ${allOneMinData.length} total 1-minute records in interval`)
       allOneMinData.forEach(record => {
         console.log(`1-min record: station=${record.stationId}, timestamp=${record.timestamp.toISO()}`)
       })
-      
+
       // Get all stations that have 1-minute data for the interval
       const stations = await WindData1Min.query()
         .select('stationId')
@@ -248,7 +323,7 @@ export class WindAggregationService {
   private async aggregate10MinuteData(stationId: string, intervalStart: DateTime): Promise<void> {
     try {
       console.log(`Starting 10-minute aggregation for station ${stationId} at ${intervalStart.toISO()}`)
-      
+
       // Get 1-minute data for the 10-minute interval
       const oneMinuteData = await WindData1Min.query()
         .where('stationId', stationId)
@@ -257,7 +332,7 @@ export class WindAggregationService {
         .orderBy('timestamp', 'asc')
 
       console.log(`Found ${oneMinuteData.length} 1-minute records for aggregation`)
-      
+
       if (oneMinuteData.length === 0) {
         console.log('No 1-minute data found, skipping aggregation')
         return
@@ -277,6 +352,8 @@ export class WindAggregationService {
 
       console.log(`Calculated values: avgSpeed=${avgSpeed}, minSpeed=${minSpeed}, maxSpeed=${maxSpeed}, dominantDirection=${dominantDirection}, tendency=${tendency}`)
 
+      let windData: WindData10Min
+
       // Check if record already exists
       const existingRecord = await WindData10Min.query()
         .where('stationId', stationId)
@@ -286,7 +363,7 @@ export class WindAggregationService {
       if (existingRecord) {
         console.log('Updating existing 10-minute record')
         // Update existing record
-        await existingRecord.merge({
+        windData = await existingRecord.merge({
           avgSpeed: Math.round(avgSpeed * 100) / 100,
           minSpeed,
           maxSpeed,
@@ -296,7 +373,7 @@ export class WindAggregationService {
       } else {
         console.log('Creating new 10-minute record')
         // Create new record
-        const windData = await WindData10Min.create({
+        windData = await WindData10Min.create({
           stationId,
           timestamp: intervalStart,
           avgSpeed: Math.round(avgSpeed * 100) / 100,
@@ -307,18 +384,18 @@ export class WindAggregationService {
         })
 
         console.log(`Created 10-minute record with ID: ${windData.id}`)
-
-        // Broadcast to SSE subscribers
-        await transmit.broadcast(`wind/aggregated/10min/${stationId}`, {
-          stationId,
-          timestamp: intervalStart.toISO(),
-          avgSpeed: windData.avgSpeed,
-          minSpeed: windData.minSpeed,
-          maxSpeed: windData.maxSpeed,
-          dominantDirection: windData.dominantDirection,
-          tendency: windData.tendency,
-        })
       }
+
+      // Always broadcast to SSE subscribers (for both new and updated records)
+      await transmit.broadcast(`wind/aggregated/10min/${stationId}`, {
+        stationId,
+        timestamp: intervalStart.toISO(),
+        avgSpeed: windData.avgSpeed,
+        minSpeed: windData.minSpeed,
+        maxSpeed: windData.maxSpeed,
+        dominantDirection: windData.dominantDirection,
+        tendency: windData.tendency,
+      })
 
       console.log(`Saved 10-minute wind aggregate for station ${stationId} at ${intervalStart.toISO()}`)
     } catch (error) {
@@ -332,7 +409,7 @@ export class WindAggregationService {
    */
   private calculateDominantDirectionFromRecords(records: WindData1Min[]): number {
     const directionFrequency: Record<number, number> = {}
-    
+
     for (const record of records) {
       const direction = Math.round(record.dominantDirection)
       directionFrequency[direction] = (directionFrequency[direction] || 0) + 1
@@ -346,7 +423,7 @@ export class WindAggregationService {
    */
   private async calculateTendency(stationId: string, currentInterval: DateTime, currentAvg: number): Promise<WindTendency> {
     const threshold = 0.5 // m/s
-    
+
     // Get previous 10-minute record
     const previousRecord = await WindData10Min.query()
       .where('stationId', stationId)
@@ -359,7 +436,7 @@ export class WindAggregationService {
     }
 
     const previousAvg = previousRecord.avgSpeed
-    
+
     if (currentAvg > previousAvg + threshold) {
       return 'increasing'
     } else if (currentAvg < previousAvg - threshold) {

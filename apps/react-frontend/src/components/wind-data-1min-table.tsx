@@ -32,7 +32,11 @@ export function WindData1MinTable({ stationId, selectedUnit }: WindData1MinTable
 
   // Update table data when new data is fetched
   useEffect(() => {
-    setTableData(data);
+    // Sort data to show latest first
+    const sortedData = [...data].sort((a, b) =>
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+    setTableData(sortedData);
   }, [data]);
 
   // Real-time updates for new aggregated data
@@ -41,10 +45,10 @@ export function WindData1MinTable({ stationId, selectedUnit }: WindData1MinTable
       // Remove any existing entry for the same timestamp and add the new one
       const filtered = prev.filter(item => item.timestamp !== newData.timestamp);
       const updated = [...filtered, newData].sort((a, b) =>
-        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime() // Sort descending (latest first)
       );
       // Keep only the last 10 records (most recent)
-      return updated.slice(-10);
+      return updated.slice(0, 10);
     });
   }, []);
 
@@ -79,8 +83,8 @@ export function WindData1MinTable({ stationId, selectedUnit }: WindData1MinTable
   };
 
   const getSpeedTrend = (current: WindAggregated1Min, index: number) => {
-    if (index === 0) return null;
-    const previous = tableData[index - 1];
+    if (index === tableData.length - 1) return null; // Last item (oldest) has no previous
+    const previous = tableData[index + 1]; // Next item in array is older due to descending sort
     const currentAvg = convertSpeed(current.avgSpeed);
     const previousAvg = convertSpeed(previous.avgSpeed);
 

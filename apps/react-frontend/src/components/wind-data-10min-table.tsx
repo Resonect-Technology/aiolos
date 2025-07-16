@@ -32,7 +32,11 @@ export function WindData10MinTable({ stationId, selectedUnit }: WindData10MinTab
 
   // Update table data when new data is fetched
   useEffect(() => {
-    setTableData(data);
+    // Sort data to show latest first
+    const sortedData = [...data].sort((a, b) =>
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+    setTableData(sortedData);
   }, [data]);
 
   // Real-time updates for new aggregated data
@@ -41,10 +45,10 @@ export function WindData10MinTable({ stationId, selectedUnit }: WindData10MinTab
       // Remove any existing entry for the same timestamp and add the new one
       const filtered = prev.filter(item => item.timestamp !== newData.timestamp);
       const updated = [...filtered, newData].sort((a, b) =>
-        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime() // Sort descending (latest first)
       );
       // Keep only the last 6 records (most recent)
-      return updated.slice(-6);
+      return updated.slice(0, 6);
     });
   }, []);
 

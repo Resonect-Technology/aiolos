@@ -19,6 +19,8 @@ const StationConfigsController = () => import('#app/controllers/station_configs_
 const SystemConfigsController = () => import('#app/controllers/system_configs_controller')
 const StationTemperatureController = () => import('#app/controllers/station_temperature_controller')
 const WindAggregatedController = () => import('#app/controllers/wind_aggregated_controller')
+const WindAggregationController = () => import('#app/controllers/wind_aggregation_controller')
+const WindDebugController = () => import('#app/controllers/wind_debug_controller')
 
 /**
  * Home route
@@ -70,6 +72,29 @@ router
       })
       .prefix('/system/config')
       .as('system.config')
+
+    /**
+     * Wind aggregation management routes
+     */
+    router
+      .group(() => {
+        router.post('/10min/trigger', [WindAggregationController, 'trigger10MinAggregation']).as('trigger10min')
+        router.post('/10min/process-last-hour', [WindAggregationController, 'processLastHour']).as('processLastHour')
+        router.get('/status', [WindAggregationController, 'status']).as('status')
+      })
+      .prefix('/wind/aggregation')
+      .as('wind.aggregation')
+
+    /**
+     * Wind debug routes (for development)
+     */
+    router
+      .group(() => {
+        router.get('/:station_id', [WindDebugController, 'debug']).as('debug')
+        router.post('/:station_id/create-mock-data', [WindDebugController, 'createMockData']).as('createMockData')
+      })
+      .prefix('/wind/debug')
+      .as('wind.debug')
 
     /**
      * Station API routes
