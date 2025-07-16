@@ -93,7 +93,7 @@ export const ConnectionStatus = memo(function ConnectionStatus({
       }
 
       setStationMode(isSleeping ? 'sleeping' : 'live');
-      
+
       // Calculate next sleep/wake time
       const nextInfo = calculateNextSleepWakeTime(sleepStart, sleepEnd);
       setNextSleepWakeInfo(nextInfo);
@@ -141,7 +141,7 @@ export const ConnectionStatus = memo(function ConnectionStatus({
     stationConfig?.sleepStartHour ?? null,
     stationConfig?.sleepEndHour ?? null
   );
-  
+
   return (
     <div className="space-y-4">
       <div className="space-y-2">
@@ -159,23 +159,6 @@ export const ConnectionStatus = memo(function ConnectionStatus({
           {modeDisplay.icon}
           {modeDisplay.label}
         </Badge>
-      </div>
-
-      {/* Sleep Schedule Information */}
-      <div className="flex flex-col gap-2">
-        <div className="text-sm font-medium text-muted-foreground">Sleep Schedule</div>
-        <div className="text-sm text-foreground">
-          {sleepScheduleText}
-        </div>
-        
-        {nextSleepWakeInfo.nextEventType && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Clock className="h-4 w-4" />
-            <span>
-              Next {nextSleepWakeInfo.nextEventType} in {nextSleepWakeInfo.timeUntilNext}
-            </span>
-          </div>
-        )}
       </div>
 
       {error && (
