@@ -1,41 +1,35 @@
 # Caddyfile for Aiolos frontend and backend
 (common_config) {
-    # Serve static frontend files from /srv (Docker volume)
-    root * /srv
-    
-    # Static file caching for assets
-    @assets {
-        path /assets/*
-    }
-    header @assets Cache-Control "public, max-age=31536000, immutable"
-
-    # Reverse proxy API/backend requests
-    @api {
-        path /api/*
-    }
-    reverse_proxy @api backend:8080
-
-    # Reverse proxy Transmit routes without /api prefix for compatibility
-    @transmit {
-        path /__transmit/*
-    }
-    reverse_proxy @transmit backend:8080
-
-    # SPA fallback - serve index.html for all non-API, non-asset requests
-    @spa {
-        not path /api/*
-        not path /__transmit/*
-        not path /assets/*
-        not file
-    }
-    rewrite @spa /index.html
-    file_server
-
     # Optional: gzip compression - exclude SSE connections
     @not_sse {
         not header_regexp Accept-Type text/event-stream
     }
     encode @not_sse gzip
+
+    # Handle API requests - proxy to backend
+    handle /api/* {
+        reverse_proxy backend:8080
+    }
+
+    # Handle Transmit SSE requests - proxy to backend
+    handle /__transmit/* {
+        reverse_proxy backend:8080
+    }
+
+    # Handle all other requests - serve static files with SPA fallback
+    handle {
+        root * /srv
+        
+        # Static file caching for assets
+        @assets {
+            path /assets/*
+        }
+        header @assets Cache-Control "public, max-age=31536000, immutable"
+        
+        # SPA fallback - try requested file, then index.html
+        try_files {path} /index.html
+        file_server
+    }
 }
 
 # Serve on domain name
