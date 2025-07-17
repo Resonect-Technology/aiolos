@@ -1,8 +1,7 @@
 import { memo, useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, Eye, Moon, Clock } from "lucide-react";
-import { formatSleepSchedule, calculateNextSleepWakeTime } from "@/lib/time-utils";
+import { AlertTriangle, Eye, Moon } from "lucide-react";
 
 interface StationConfig {
   stationId: string;
@@ -32,15 +31,6 @@ export const ConnectionStatus = memo(function ConnectionStatus({
 }: ConnectionStatusProps) {
   const [stationConfig, setStationConfig] = useState<StationConfig | null>(null);
   const [stationMode, setStationMode] = useState<'live' | 'sleeping' | 'unknown'>('unknown');
-  const [nextSleepWakeInfo, setNextSleepWakeInfo] = useState<{
-    nextEventType: 'sleep' | 'wake' | null;
-    nextEventTime: Date | null;
-    timeUntilNext: string;
-  }>({
-    nextEventType: null,
-    nextEventTime: null,
-    timeUntilNext: "No sleep schedule"
-  });
 
   // Fetch station config
   useEffect(() => {
@@ -66,11 +56,6 @@ export const ConnectionStatus = memo(function ConnectionStatus({
     const updateStationMode = () => {
       if (!stationConfig || stationConfig.sleepStartHour === null || stationConfig.sleepEndHour === null) {
         setStationMode('live'); // Default to live if no sleep config
-        setNextSleepWakeInfo({
-          nextEventType: null,
-          nextEventTime: null,
-          timeUntilNext: "No sleep schedule"
-        });
         return;
       }
 
@@ -93,15 +78,11 @@ export const ConnectionStatus = memo(function ConnectionStatus({
       }
 
       setStationMode(isSleeping ? 'sleeping' : 'live');
-
-      // Calculate next sleep/wake time
-      const nextInfo = calculateNextSleepWakeTime(sleepStart, sleepEnd);
-      setNextSleepWakeInfo(nextInfo);
     };
 
     updateStationMode();
 
-    // Update every 30 seconds to keep countdown accurate
+    // Update every 30 seconds to keep status accurate
     const interval = setInterval(updateStationMode, 30000);
 
     return () => clearInterval(interval);
@@ -137,10 +118,6 @@ export const ConnectionStatus = memo(function ConnectionStatus({
   };
 
   const modeDisplay = getModeDisplay();
-  const sleepScheduleText = formatSleepSchedule(
-    stationConfig?.sleepStartHour ?? null,
-    stationConfig?.sleepEndHour ?? null
-  );
 
   return (
     <div className="space-y-4">
