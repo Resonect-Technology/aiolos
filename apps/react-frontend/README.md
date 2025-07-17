@@ -2,6 +2,16 @@
 
 This application is the frontend for the Aiolos live wind data monitoring system. It features a professional, modular wind monitoring dashboard built with React (using Vite), TypeScript, Tailwind CSS, and modern UI components.
 
+## Architecture
+
+The frontend follows **Atomic Design principles** for component organization, providing a clear hierarchy and improved maintainability:
+
+- **Atoms**: Basic building blocks (buttons, inputs, icons)
+- **Molecules**: Simple component combinations (form fields, cards)
+- **Organisms**: Complex components (navigation, panels, complete sections)
+- **Pages**: Full page layouts combining organisms
+- **Providers**: Context providers for state management
+
 ## Key Features
 
 ### 🌪️ **Comprehensive Wind Dashboard**
@@ -52,17 +62,38 @@ This application is the frontend for the Aiolos live wind data monitoring system
 
 ## Component Architecture
 
-The application is built with a modular component structure for maintainability and reusability:
+The application is built with **Atomic Design methodology** for optimal component organization and reusability:
 
-### Core Components
+### Atomic Design Structure
 
-- **`WindDashboard`**: Main dashboard container with responsive grid layout
-- **`WindSpeedDisplay`**: Large wind speed gauge with unit conversion
-- **`WindDirectionCompass`**: Animated compass showing wind direction
-- **`WindRoseChart`**: Historical wind pattern visualization
-- **`UnitSelector`**: Wind speed unit selection dropdown
-- **`ControlPanel`**: Mock data controls and wind data display
-- **`ConnectionStatus`**: Real-time connection status indicator
+```
+src/components/
+├── atoms/              # Basic building blocks
+│   ├── ui/            # Base UI components (Button, Input, Card, etc.)
+│   └── icons/         # Icon components
+├── molecules/         # Simple component combinations
+│   ├── forms/         # Form-related components
+│   └── cards/         # Card-based components
+├── organisms/         # Complex, feature-complete components
+│   ├── navigation/    # Navigation components (AppSidebar, SiteHeader)
+│   ├── dashboard/     # Dashboard-specific organisms
+│   └── panels/        # Feature panels and sections
+├── pages/             # Complete page layouts
+│   ├── dashboard-page.tsx
+│   └── landing-page.tsx
+└── providers/         # Context providers and state management
+    └── wind-data-provider.tsx
+```
+
+### Wind Dashboard Components
+
+- **`WindDashboard`** (Organism): Main dashboard container with responsive grid layout
+- **`WindSpeedDisplay`** (Organism): Large wind speed gauge with unit conversion
+- **`WindDirectionCompass`** (Organism): Animated compass showing wind direction
+- **`WindRoseChart`** (Organism): Historical wind pattern visualization
+- **`UnitSelector`** (Molecule): Wind speed unit selection dropdown
+- **`ControlPanel`** (Organism): Mock data controls and wind data display
+- **`ConnectionStatus`** (Molecule): Real-time connection status indicator
 
 ### Utilities
 
@@ -136,17 +167,26 @@ Make sure the AdonisJS backend is running on port 3333 for full functionality.
 
 ```
 src/
-├── components/          # React components
-│   ├── WindDashboard.tsx
-│   ├── WindSpeedDisplay.tsx
-│   ├── WindDirectionCompass.tsx
-│   ├── WindRoseChart.tsx
-│   ├── UnitSelector.tsx
-│   ├── ControlPanel.tsx
-│   └── ConnectionStatus.tsx
-├── lib/                 # Utilities and helpers
-│   ├── utils.ts         # General utilities
-│   └── wind-utils.ts    # Wind-specific utilities
+├── components/          # Atomic Design component structure
+│   ├── atoms/          # Basic building blocks
+│   │   ├── ui/         # shadcn/ui base components
+│   │   └── icons/      # Icon components
+│   ├── molecules/      # Simple component combinations
+│   │   ├── forms/      # Form-related molecules
+│   │   └── cards/      # Card-based molecules
+│   ├── organisms/      # Complex, feature-complete components
+│   │   ├── navigation/ # Navigation components
+│   │   ├── dashboard/  # Dashboard organisms
+│   │   └── panels/     # Feature panels
+│   ├── pages/          # Complete page layouts
+│   │   ├── dashboard-page.tsx
+│   │   └── landing-page.tsx
+│   └── providers/      # Context providers
+├── lib/                # Utilities and helpers
+│   ├── utils.ts        # General utilities
+│   └── wind-utils.ts   # Wind-specific utilities
+├── types/              # TypeScript type definitions
+├── hooks/              # Custom React hooks
 ├── App.tsx             # Main application component
 └── main.tsx            # Application entry point
 ```

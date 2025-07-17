@@ -128,7 +128,7 @@ export function LandingPage() {
                                                     </CardHeader>
                                                     <CardContent>
                                                         <p className="text-sm text-foreground/70 text-center">
-                                                            20+ years of windsurfing experience. Mechanical engineer specializing in mounting systems and structural design. Responsible for the robust mechanical setup.
+                                                            30+ years of windsurfing experience. Mechanical engineer specializing in mounting systems and structural design. Responsible for the robust mechanical setup.
                                                         </p>
                                                     </CardContent>
                                                 </Card>
