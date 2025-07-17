@@ -5,6 +5,7 @@ import type { Config } from '@japa/runner/types'
 import { pluginAdonisJS } from '@japa/plugin-adonisjs'
 import testUtils from '@adonisjs/core/services/test_utils'
 import { unlink } from 'node:fs/promises'
+import { windAggregationService } from '#app/services/wind_aggregation_service'
 
 /**
  * This file is imported by the "bin/test.ts" entrypoint file
@@ -37,7 +38,12 @@ export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
       await testUtils.db().migrate()
     }
   ],
-  teardown: [],
+  teardown: [
+    async () => {
+      // Stop the wind aggregation timer to prevent hanging
+      windAggregationService.stopFlushTimer()
+    }
+  ],
 }
 
 /**

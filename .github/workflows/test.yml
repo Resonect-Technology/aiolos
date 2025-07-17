@@ -3,9 +3,9 @@ name: Test Aiolos Backend
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   test-backend:
@@ -43,7 +43,7 @@ jobs:
 
       - name: Run tests
         working-directory: ./apps/adonis-api
-        run: pnpm test
+        run: timeout 10m pnpm test
         env:
           NODE_ENV: test
           APP_KEY: test-key-for-ci-testing-only-not-secure
