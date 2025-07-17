@@ -1,4 +1,5 @@
 import { type Icon } from "@tabler/icons-react";
+import { type LucideIcon } from "lucide-react";
 
 import {
   SidebarGroup,
@@ -10,12 +11,16 @@ import {
 
 export function NavMain({
   items,
+  currentPath,
+  onNavigate,
 }: {
   items: {
     title: string;
     url: string;
-    icon?: Icon;
+    icon?: Icon | LucideIcon;
   }[];
+  currentPath?: string;
+  onNavigate?: (path: string) => void;
 }) {
   return (
     <SidebarGroup>
@@ -26,7 +31,11 @@ export function NavMain({
         <SidebarMenu>
           {items.map(item => (
             <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton tooltip={item.title}>
+              <SidebarMenuButton
+                tooltip={item.title}
+                isActive={currentPath === item.url}
+                onClick={() => onNavigate?.(item.url)}
+              >
                 {item.icon && <item.icon />}
                 <span>{item.title}</span>
               </SidebarMenuButton>
