@@ -39,14 +39,14 @@ export function LandingPage() {
                                         <div className="flex items-center justify-center gap-3 mb-4">
                                             <Wind className="h-12 w-12 text-primary" />
                                             <h1 className="text-4xl font-bold text-foreground">
-                                                Aiolos Weather Station
+                                                Aiolos Wind Station
                                             </h1>
                                         </div>
                                         <p className="text-xl text-muted-foreground mb-2">
-                                            Advanced Environmental Monitoring System
+                                            Live Wind Monitoring System
                                         </p>
                                         <p className="text-lg text-muted-foreground">
-                                            Real-time wind, temperature, and atmospheric data from remote locations
+                                            Real-time wind, temperature, and atmospheric data from Vasiliki
                                         </p>
                                     </div>
 
@@ -59,12 +59,6 @@ export function LandingPage() {
                                             <div className="prose prose-gray dark:prose-invert max-w-none">
                                                 <p className="text-lg leading-relaxed mb-4 text-foreground">
                                                     Aiolos is an advanced IoT weather monitoring system designed for reliable, long-term environmental data collection in remote locations. Named after the Greek god of wind, Aiolos represents the perfect fusion of cutting-edge technology and environmental science.
-                                                </p>
-                                                <p className="text-base leading-relaxed mb-4 text-muted-foreground">
-                                                    The system features a solar-powered weather station built around the ESP32 microcontroller and SIM7000G cellular modem, enabling continuous operation in challenging environments. With professional-grade sensors and intelligent power management, Aiolos delivers accurate wind speed, wind direction, and temperature measurements 24/7.
-                                                </p>
-                                                <p className="text-base leading-relaxed text-muted-foreground">
-                                                    Our web-based dashboard provides real-time data visualization, historical analysis, and mobile-responsive access to environmental data. Whether you're monitoring wind patterns for renewable energy projects, conducting environmental research, or tracking weather conditions for operational planning, Aiolos provides the reliability and insights you need.
                                                 </p>
                                             </div>
                                         </CardContent>
@@ -84,14 +78,14 @@ export function LandingPage() {
                                                 <Card className="hover:shadow-lg transition-shadow">
                                                     <CardHeader className="text-center">
                                                         <div className="w-24 h-24 bg-gradient-to-br from-primary to-primary/80 rounded-full mx-auto mb-4 flex items-center justify-center">
-                                                            <span className="text-primary-foreground font-bold text-xl">MS</span>
+                                                            <span className="text-primary-foreground font-bold text-xl">JD</span>
                                                         </div>
-                                                        <CardTitle className="text-lg">Martin Skalický</CardTitle>
+                                                        <CardTitle className="text-lg">Jakub David</CardTitle>
                                                         <p className="text-sm text-primary font-medium">Lead Developer & Architect</p>
                                                     </CardHeader>
                                                     <CardContent>
                                                         <p className="text-sm text-muted-foreground text-center">
-                                                            Full-stack developer specializing in IoT systems and embedded programming. Designed the hardware architecture and firmware for the weather station platform.
+                                                            Full-stack developer specializing in IoT systems. Designed the hardware architecture and firmware for the weather station platform.
                                                         </p>
                                                     </CardContent>
                                                 </Card>
@@ -100,30 +94,14 @@ export function LandingPage() {
                                                 <Card className="hover:shadow-lg transition-shadow">
                                                     <CardHeader className="text-center">
                                                         <div className="w-24 h-24 bg-gradient-to-br from-green-500 to-green-600 rounded-full mx-auto mb-4 flex items-center justify-center">
-                                                            <span className="text-white font-bold text-xl">PH</span>
+                                                            <span className="text-white font-bold text-xl">JD</span>
                                                         </div>
-                                                        <CardTitle className="text-lg">Petr Hájek</CardTitle>
-                                                        <p className="text-sm text-green-600 dark:text-green-400 font-medium">Hardware Engineer</p>
+                                                        <CardTitle className="text-lg">Jiří David</CardTitle>
+                                                        <p className="text-sm text-green-600 dark:text-green-400 font-medium">Mechanical Engineer</p>
                                                     </CardHeader>
                                                     <CardContent>
                                                         <p className="text-sm text-muted-foreground text-center">
-                                                            Electronics engineer focused on sensor integration and power management systems. Responsible for the robust hardware design and environmental testing.
-                                                        </p>
-                                                    </CardContent>
-                                                </Card>
-
-                                                {/* Team Member 3 */}
-                                                <Card className="hover:shadow-lg transition-shadow">
-                                                    <CardHeader className="text-center">
-                                                        <div className="w-24 h-24 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full mx-auto mb-4 flex items-center justify-center">
-                                                            <span className="text-white font-bold text-xl">AV</span>
-                                                        </div>
-                                                        <CardTitle className="text-lg">Anna Vorlová</CardTitle>
-                                                        <p className="text-sm text-purple-600 dark:text-purple-400 font-medium">Frontend Developer</p>
-                                                    </CardHeader>
-                                                    <CardContent>
-                                                        <p className="text-sm text-muted-foreground text-center">
-                                                            UI/UX specialist and React developer. Created the intuitive dashboard interface and real-time data visualization components for optimal user experience.
+                                                            Mechanical engineer specializing in mounting systems and structural design. Responsible for the robust mechanical setup, outdoor installation, and ensuring long-term durability in harsh environmental conditions.
                                                         </p>
                                                     </CardContent>
                                                 </Card>
