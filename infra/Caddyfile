@@ -2,8 +2,7 @@
 (common_config) {
     # Serve static frontend files from /srv (Docker volume)
     root * /srv
-    file_server
-
+    
     # Static file caching for assets
     @assets {
         path /assets/*
@@ -21,6 +20,16 @@
         path /__transmit/*
     }
     reverse_proxy @transmit backend:8080
+
+    # SPA fallback - serve index.html for all non-API, non-asset requests
+    @spa {
+        not path /api/*
+        not path /__transmit/*
+        not path /assets/*
+        not file
+    }
+    rewrite @spa /index.html
+    file_server
 
     # Optional: gzip compression - exclude SSE connections
     @not_sse {
