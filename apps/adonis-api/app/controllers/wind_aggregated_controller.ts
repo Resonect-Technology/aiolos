@@ -26,7 +26,7 @@ export default class WindAggregatedController {
     // Set default limits based on interval
     const defaultLimit = interval === '10min' ? 6 : 10
     const maxLimit = interval === '10min' ? 144 : 1440 // 144 = full day for 10min, 1440 = full day for 1min
-    
+
     // Parse and validate limit parameter
     const recordLimit = limit ? parseInt(limit) : defaultLimit
     if (recordLimit < 1 || recordLimit > maxLimit) {
@@ -43,14 +43,14 @@ export default class WindAggregatedController {
       }
     } catch (error) {
       console.error('Error fetching aggregated wind data:', error)
-      
+
       // Handle specific validation errors
       if (error.message && error.message.includes('Invalid date format')) {
         return response.badRequest({
           error: error.message
         })
       }
-      
+
       return response.internalServerError({
         error: 'Failed to fetch aggregated wind data'
       })
@@ -115,6 +115,8 @@ export default class WindAggregatedController {
    * Get 10-minute aggregated data
    */
   private async get10MinuteData(stationId: string, date: string | undefined, recordLimit: number) {
+    console.log(`Fetching 10-minute data for station ${stationId}, date: ${date || 'latest'}, limit: ${recordLimit}`)
+
     let aggregatedData
     let responseDate: string
 
@@ -142,6 +144,8 @@ export default class WindAggregatedController {
 
       responseDate = DateTime.now().toISODate()!
     }
+
+    console.log(`Found ${aggregatedData.length} 10-minute records for station ${stationId}`)
 
     // Format response data (reverse to get chronological order)
     const formattedData = aggregatedData.reverse().map(record => ({
@@ -259,7 +263,7 @@ export default class WindAggregatedController {
     // Set default limits based on interval
     const defaultLimit = interval === '10min' ? 6 : 10
     const maxLimit = interval === '10min' ? 144 : 1440
-    
+
     // Parse and validate limit parameter
     const recordLimit = limit ? parseInt(limit) : defaultLimit
     if (recordLimit < 1 || recordLimit > maxLimit) {
@@ -362,14 +366,14 @@ export default class WindAggregatedController {
       }
     } catch (error) {
       console.error('Error fetching converted aggregated wind data:', error)
-      
+
       // Handle specific validation errors
       if (error.message && error.message.includes('Invalid date format')) {
         return response.badRequest({
           error: error.message
         })
       }
-      
+
       return response.internalServerError({
         error: 'Failed to fetch aggregated wind data'
       })

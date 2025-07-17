@@ -1,5 +1,7 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import { windAggregationService } from '#services/wind_aggregation_service'
+import WindData1Min from '#models/wind_data_1_min'
+import { DateTime } from 'luxon'
 
 /**
  * Controller for managing wind aggregation processes
@@ -48,6 +50,28 @@ export default class WindAggregationController {
     }
 
     /**
+     * Force process any missing recent 10-minute intervals
+     * 
+     * POST /api/wind/aggregation/10min/force-catchup
+     */
+    async forceCatchup({ response }: HttpContext) {
+        try {
+            // Force process the main aggregation which now includes catchup logic
+            await windAggregationService.process10MinuteAggregation()
+
+            return response.ok({
+                message: 'Force catchup completed - missing 10-minute intervals processed'
+            })
+        } catch (error) {
+            console.error('Error in force catchup:', error)
+
+            return response.internalServerError({
+                error: 'Failed to complete force catchup'
+            })
+        }
+    }
+
+    /**
      * Get aggregation service status
      * 
      * GET /api/wind/aggregation/status
@@ -67,6 +91,151 @@ export default class WindAggregationController {
 
             return response.internalServerError({
                 error: 'Failed to get aggregation status'
+            })
+        }
+    }
+
+    /**
+     * Debug endpoint to test specific 10-minute aggregation queries
+     * 
+     * POST /api/debug/test-10min-query
+     */
+    async test10MinQuery({ response }: HttpContext) {
+        try {
+            console.log('🔍 Testing 10-minute query approaches...')
+
+            const station = 'vasiliki-001'
+            const now = DateTime.now()
+            const tenMinutesAgo = now.minus({ minutes: 10 })
+
+            console.log(`Station: ${station}`)
+            console.log(`Now: ${now.toISO()}`)
+            console.log(`10 minutes ago: ${tenMinutesAgo.toISO()}`)
+
+            // Test 1: Station ID only (camelCase) - SHOULD WORK
+            const stationCountResult = await WindData1Min.query().where('stationId', station).count('* as total')
+            const stationCount = stationCountResult[0].$extras.total
+            console.log(`1. Station ID (camelCase): ${stationCount} records`)
+
+            // Test 2: Get sample record to see actual timestamp format
+            const sampleRecord = await WindData1Min.query().where('stationId', station).first()
+            console.log(`Sample record timestamp: ${sampleRecord?.timestamp.toISO()}`)
+            console.log(`Sample record timestamp SQL: ${sampleRecord?.timestamp.toSQL()}`)
+
+            // Test 3: Try different DateTime formatting approaches
+            const isoCountResult = await WindData1Min.query()
+                .where('stationId', station)
+                .where('timestamp', '>=', tenMinutesAgo.toISO())
+                .count('* as total')
+            const isoCount = isoCountResult[0].$extras.total
+            console.log(`3. ISO format: ${isoCount} records`)
+
+            const sqlCountResult = await WindData1Min.query()
+                .where('stationId', station)
+                .where('timestamp', '>=', tenMinutesAgo.toSQL())
+                .count('* as total')
+            const sqlCount = sqlCountResult[0].$extras.total
+            console.log(`4. SQL format: ${sqlCount} records`)
+
+            // Test 5: Try raw DateTime object converted to JSDate
+            const rawCountResult = await WindData1Min.query()
+                .where('stationId', station)
+                .where('timestamp', '>=', tenMinutesAgo.toJSDate())
+                .count('* as total')
+            const rawCount = rawCountResult[0].$extras.total
+            console.log(`5. JSDate format: ${rawCount} records`)
+
+            // Test 6: Try plain string format
+            const plainCountResult = await WindData1Min.query()
+                .where('stationId', station)
+                .where('timestamp', '>=', '2025-01-17 12:00:00')
+                .count('* as total')
+            const plainCount = plainCountResult[0].$extras.total
+            console.log(`6. Plain string: ${plainCount} records`)
+
+            // Test 7: Check what the actual database sees with a raw query
+            const db = (await import('@adonisjs/lucid/services/db')).default
+
+            const rawResult = await db.rawQuery(
+                'SELECT COUNT(*) as count FROM wind_data_1min WHERE station_id = ? AND timestamp >= ?',
+                [station, tenMinutesAgo.toSQL()]
+            )
+            console.log(`7. Raw SQL query result:`, rawResult)
+
+            // Different databases return results differently
+            let rawQueryCount = 0
+            if (rawResult.rows && rawResult.rows[0]) {
+                rawQueryCount = rawResult.rows[0].count || rawResult.rows[0][0]
+            } else if (Array.isArray(rawResult) && rawResult[0]) {
+                rawQueryCount = rawResult[0].count || rawResult[0][0]
+            }
+            console.log(`7. Raw SQL query count: ${rawQueryCount} records`)
+
+            return response.ok({
+                success: true,
+                sampleTimestamp: sampleRecord?.timestamp.toISO(),
+                tests: {
+                    stationIdCamelCase: stationCount,
+                    isoFormat: isoCount,
+                    sqlFormat: sqlCount,
+                    jsDateFormat: rawCount,
+                    plainString: plainCount,
+                    rawSqlQuery: rawQueryCount,
+                },
+            })
+        } catch (error) {
+            console.error('❌ Test query failed:', error)
+            return response.internalServerError({
+                success: false,
+                error: error.message,
+            })
+        }
+    }
+
+    /**
+     * EMERGENCY FIX: Process all intervals with valid timestamps
+     * 
+     * POST /api/wind/aggregation/emergency-fix
+     */
+    async emergencyFix({ response }: HttpContext) {
+        try {
+            console.log('🚨 Starting emergency fix for 10-minute aggregations')
+            const result = await windAggregationService.emergencyProcessValidIntervals()
+
+            return response.ok({
+                message: 'Emergency fix completed successfully',
+                processed: result.processed,
+                created: result.created
+            })
+        } catch (error) {
+            console.error('Error during emergency fix:', error)
+
+            return response.internalServerError({
+                error: 'Emergency fix failed',
+                details: error.message
+            })
+        }
+    }
+
+    /**
+     * Direct manual aggregation - bypasses all complex logic
+     * 
+     * POST /api/wind/aggregation/direct-fix
+     */
+    async directFix({ response }: HttpContext) {
+        try {
+            const result = await windAggregationService.directManualAggregation()
+
+            return response.json({
+                message: 'Direct fix completed',
+                success: result.success,
+                created: result.created,
+                details: result.details
+            })
+        } catch (error) {
+            return response.status(500).json({
+                error: 'Direct fix failed',
+                message: error.message
             })
         }
     }
