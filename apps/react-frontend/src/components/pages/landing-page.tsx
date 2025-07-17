@@ -36,7 +36,7 @@ export function LandingPage() {
                                 <div className="max-w-4xl mx-auto">
                                     {/* Header */}
                                     <div className="text-center mb-12">
-                                        <div className="flex items-center justify-center gap-3 mb-4">
+                                        <div className="flex flex-col items-center gap-3 mb-4 md:flex-row md:justify-center">
                                             <Wind className="h-12 w-12 text-primary" />
                                             <h1 className="text-4xl font-bold text-foreground">
                                                 Aiolos Wind Station
@@ -56,10 +56,29 @@ export function LandingPage() {
                                             <CardTitle className="text-center text-2xl">About Aiolos</CardTitle>
                                         </CardHeader>
                                         <CardContent>
-                                            <div className="prose prose-gray dark:prose-invert max-w-none">
-                                                <p className="text-lg leading-relaxed mb-4 text-foreground">
-                                                    Aiolos is an advanced IoT weather monitoring system designed for reliable, long-term environmental data collection in remote locations. Named after the Greek god of wind, Aiolos represents the perfect fusion of cutting-edge technology and environmental science.
-                                                </p>
+                                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+                                                <div className="lg:col-span-2">
+                                                    <div className="prose prose-gray dark:prose-invert max-w-none">
+                                                        <p className="text-lg leading-relaxed mb-4 text-foreground">
+                                                            Aiolos is an IoT weather monitoring system that provides live wind data streaming from Vasiliki, Greece. The system helps windsurfers and water sports enthusiasts make informed decisions about when to head out on the water by delivering real-time wind speed, direction, and weather conditions.
+                                                        </p>
+                                                        <p className="text-base leading-relaxed text-foreground/80">
+                                                            Beyond live data, the station collects long-term wind statistics that enable seasonal pattern analysis and year-over-year comparisons. This historical data helps understand wind trends, identify the best seasons for different wind conditions, and track how weather patterns change over time in this popular windsurfing destination.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex justify-center lg:justify-end">
+                                                    <div className="w-full max-w-48">
+                                                        <img
+                                                            src="/station.webp"
+                                                            alt="Aiolos Weather Station"
+                                                            className="w-full h-auto object-cover rounded-lg shadow-md"
+                                                        />
+                                                        <p className="text-sm text-foreground/70 text-center mt-2">
+                                                            Aiolos Weather Station in Vasiliki
+                                                        </p>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </CardContent>
                                     </Card>
@@ -68,24 +87,28 @@ export function LandingPage() {
                                     <Card className="mb-8">
                                         <CardHeader>
                                             <CardTitle className="text-center text-2xl">Meet the Team</CardTitle>
-                                            <p className="text-center text-muted-foreground mt-2">
+                                            <p className="text-center text-foreground/70 mt-2">
                                                 The dedicated professionals behind Aiolos Weather Station
                                             </p>
                                         </CardHeader>
                                         <CardContent>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
                                                 {/* Team Member 1 */}
                                                 <Card className="hover:shadow-lg transition-shadow">
                                                     <CardHeader className="text-center">
-                                                        <div className="w-24 h-24 bg-gradient-to-br from-primary to-primary/80 rounded-full mx-auto mb-4 flex items-center justify-center">
-                                                            <span className="text-primary-foreground font-bold text-xl">JD</span>
+                                                        <div className="w-24 h-24 rounded-full mx-auto mb-4 overflow-hidden">
+                                                            <img
+                                                                src="/kuba.webp"
+                                                                alt="Kuba David"
+                                                                className="w-full h-full object-cover"
+                                                            />
                                                         </div>
-                                                        <CardTitle className="text-lg">Jakub David</CardTitle>
+                                                        <CardTitle className="text-lg">Kuba David</CardTitle>
                                                         <p className="text-sm text-primary font-medium">Lead Developer & Architect</p>
                                                     </CardHeader>
                                                     <CardContent>
-                                                        <p className="text-sm text-muted-foreground text-center">
-                                                            Full-stack developer specializing in IoT systems. Designed the hardware architecture and firmware for the weather station platform.
+                                                        <p className="text-sm text-foreground/70 text-center">
+                                                            10+ years windsurfing experience. Full-stack developer specializing in IoT systems. Designed the hardware architecture and firmware for the weather station platform.
                                                         </p>
                                                     </CardContent>
                                                 </Card>
@@ -93,15 +116,19 @@ export function LandingPage() {
                                                 {/* Team Member 2 */}
                                                 <Card className="hover:shadow-lg transition-shadow">
                                                     <CardHeader className="text-center">
-                                                        <div className="w-24 h-24 bg-gradient-to-br from-green-500 to-green-600 rounded-full mx-auto mb-4 flex items-center justify-center">
-                                                            <span className="text-white font-bold text-xl">JD</span>
+                                                        <div className="w-24 h-24 rounded-full mx-auto mb-4 overflow-hidden">
+                                                            <img
+                                                                src="/jiri.webp"
+                                                                alt="Jiří David"
+                                                                className="w-full h-full object-cover"
+                                                            />
                                                         </div>
                                                         <CardTitle className="text-lg">Jiří David</CardTitle>
                                                         <p className="text-sm text-green-600 dark:text-green-400 font-medium">Mechanical Engineer</p>
                                                     </CardHeader>
                                                     <CardContent>
-                                                        <p className="text-sm text-muted-foreground text-center">
-                                                            Mechanical engineer specializing in mounting systems and structural design. Responsible for the robust mechanical setup, outdoor installation, and ensuring long-term durability in harsh environmental conditions.
+                                                        <p className="text-sm text-foreground/70 text-center">
+                                                            20+ years of windsurfing experience. Mechanical engineer specializing in mounting systems and structural design. Responsible for the robust mechanical setup.
                                                         </p>
                                                     </CardContent>
                                                 </Card>
@@ -113,43 +140,29 @@ export function LandingPage() {
                                     <Card className="mb-8">
                                         <CardHeader>
                                             <CardTitle className="text-center text-2xl">Our Sponsors</CardTitle>
-                                            <p className="text-center text-muted-foreground mt-2">
+                                            <p className="text-center text-foreground/70 mt-2">
                                                 Supporting innovation in environmental monitoring
                                             </p>
                                         </CardHeader>
                                         <CardContent>
-                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 items-center justify-items-center">
-                                                {/* Sponsor 1 - Placeholder for Czech Technical University */}
-                                                <div className="flex items-center justify-center h-16 w-32 bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 rounded-lg grayscale hover:grayscale-0 transition-all duration-300 opacity-70 hover:opacity-100">
-                                                    <span className="text-xs font-medium text-gray-600 dark:text-gray-400 text-center px-2">
-                                                        Czech Technical University
-                                                    </span>
-                                                </div>
-
-                                                {/* Sponsor 2 - Placeholder for Technology Agency */}
-                                                <div className="flex items-center justify-center h-16 w-32 bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 rounded-lg grayscale hover:grayscale-0 transition-all duration-300 opacity-70 hover:opacity-100">
-                                                    <span className="text-xs font-medium text-gray-600 dark:text-gray-400 text-center px-2">
-                                                        Technology Agency
-                                                    </span>
-                                                </div>
-
-                                                {/* Sponsor 3 - Placeholder for EU Innovation Fund */}
-                                                <div className="flex items-center justify-center h-16 w-32 bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 rounded-lg grayscale hover:grayscale-0 transition-all duration-300 opacity-70 hover:opacity-100">
-                                                    <span className="text-xs font-medium text-gray-600 dark:text-gray-400 text-center px-2">
-                                                        EU Innovation Fund
-                                                    </span>
-                                                </div>
-
-                                                {/* Sponsor 4 - Placeholder for Research Institute */}
-                                                <div className="flex items-center justify-center h-16 w-32 bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 rounded-lg grayscale hover:grayscale-0 transition-all duration-300 opacity-70 hover:opacity-100">
-                                                    <span className="text-xs font-medium text-gray-600 dark:text-gray-400 text-center px-2">
-                                                        Research Institute
-                                                    </span>
-                                                </div>
+                                            <div className="flex items-center justify-center">
+                                                {/* Sponsor 1 - Resonect Technology */}
+                                                <a
+                                                    href="https://resonect.cz"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="flex items-center justify-center h-28 w-56 rounded-lg grayscale hover:grayscale-0 transition-all duration-300 opacity-70 hover:opacity-100"
+                                                >
+                                                    <img
+                                                        src="/Resonect_Logo_Full.svg"
+                                                        alt="Resonect Technology"
+                                                        className="h-20 w-auto object-contain"
+                                                    />
+                                                </a>
                                             </div>
 
                                             <div className="mt-6 text-center">
-                                                <p className="text-sm text-muted-foreground">
+                                                <p className="text-sm text-foreground/70">
                                                     Interested in supporting Aiolos? <Button variant="link" className="p-0 h-auto text-sm text-primary">Contact us</Button> to learn about sponsorship opportunities.
                                                 </p>
                                             </div>
@@ -158,16 +171,8 @@ export function LandingPage() {
 
                                     {/* Call to Action */}
                                     <div className="text-center">
-                                        <Button
-                                            onClick={handleViewDashboard}
-                                            size="lg"
-                                            className="px-8 py-3 text-lg font-semibold"
-                                        >
-                                            View Live Dashboard
-                                            <ArrowRight className="ml-2 h-5 w-5" />
-                                        </Button>
-                                        <p className="text-sm text-muted-foreground mt-3">
-                                            Access real-time weather data and interactive charts
+                                        <p className="text-lg text-foreground/80">
+                                            Experience real-time environmental monitoring with Aiolos
                                         </p>
                                     </div>
                                 </div>
@@ -175,11 +180,21 @@ export function LandingPage() {
                         </div>
                     </div>
 
-                    <footer className="mt-12 text-center text-muted-foreground text-sm p-4">
+                    <footer className="mt-12 text-center text-foreground/60 text-sm p-4">
                         <p>Resonect Technology s.r.o. &copy; {new Date().getFullYear()}</p>
                         <p className="mt-1">Advanced IoT Solutions for Environmental Monitoring</p>
                     </footer>
                 </div>
+
+                {/* Fixed Dashboard Button */}
+                <Button
+                    onClick={handleViewDashboard}
+                    size="lg"
+                    className="fixed bottom-6 right-6 px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 z-50"
+                >
+                    <ArrowRight className="mr-2 h-6 w-6" />
+                    Live Dashboard
+                </Button>
             </SidebarInset>
         </SidebarProvider>
     );
