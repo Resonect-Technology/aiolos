@@ -131,31 +131,49 @@ export function LandingPage() {
                                         </CardContent>
                                     </Card>
 
-                                    {/* System Features */}
+                                    {/* Sponsors Section */}
                                     <Card className="mb-8">
                                         <CardHeader>
-                                            <CardTitle className="text-center">System Features</CardTitle>
+                                            <CardTitle className="text-center text-2xl">Our Sponsors</CardTitle>
+                                            <p className="text-center text-muted-foreground mt-2">
+                                                Supporting innovation in environmental monitoring
+                                            </p>
                                         </CardHeader>
                                         <CardContent>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                <div>
-                                                    <h3 className="font-semibold mb-3 text-foreground">Hardware</h3>
-                                                    <ul className="space-y-2 text-sm text-muted-foreground">
-                                                        <li>• ESP32 + SIM7000G cellular modem</li>
-                                                        <li>• Solar power with battery backup</li>
-                                                        <li>• Weather-resistant enclosure</li>
-                                                        <li>• Professional-grade sensors</li>
-                                                    </ul>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 items-center justify-items-center">
+                                                {/* Sponsor 1 - Placeholder for Czech Technical University */}
+                                                <div className="flex items-center justify-center h-16 w-32 bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 rounded-lg grayscale hover:grayscale-0 transition-all duration-300 opacity-70 hover:opacity-100">
+                                                    <span className="text-xs font-medium text-gray-600 dark:text-gray-400 text-center px-2">
+                                                        Czech Technical University
+                                                    </span>
                                                 </div>
-                                                <div>
-                                                    <h3 className="font-semibold mb-3 text-foreground">Software</h3>
-                                                    <ul className="space-y-2 text-sm text-muted-foreground">
-                                                        <li>• Real-time data transmission</li>
-                                                        <li>• Power-efficient operation</li>
-                                                        <li>• Remote configuration</li>
-                                                        <li>• Automatic firmware updates</li>
-                                                    </ul>
+
+                                                {/* Sponsor 2 - Placeholder for Technology Agency */}
+                                                <div className="flex items-center justify-center h-16 w-32 bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 rounded-lg grayscale hover:grayscale-0 transition-all duration-300 opacity-70 hover:opacity-100">
+                                                    <span className="text-xs font-medium text-gray-600 dark:text-gray-400 text-center px-2">
+                                                        Technology Agency
+                                                    </span>
                                                 </div>
+
+                                                {/* Sponsor 3 - Placeholder for EU Innovation Fund */}
+                                                <div className="flex items-center justify-center h-16 w-32 bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 rounded-lg grayscale hover:grayscale-0 transition-all duration-300 opacity-70 hover:opacity-100">
+                                                    <span className="text-xs font-medium text-gray-600 dark:text-gray-400 text-center px-2">
+                                                        EU Innovation Fund
+                                                    </span>
+                                                </div>
+
+                                                {/* Sponsor 4 - Placeholder for Research Institute */}
+                                                <div className="flex items-center justify-center h-16 w-32 bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 rounded-lg grayscale hover:grayscale-0 transition-all duration-300 opacity-70 hover:opacity-100">
+                                                    <span className="text-xs font-medium text-gray-600 dark:text-gray-400 text-center px-2">
+                                                        Research Institute
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-6 text-center">
+                                                <p className="text-sm text-muted-foreground">
+                                                    Interested in supporting Aiolos? <Button variant="link" className="p-0 h-auto text-sm text-primary">Contact us</Button> to learn about sponsorship opportunities.
+                                                </p>
                                             </div>
                                         </CardContent>
                                     </Card>
