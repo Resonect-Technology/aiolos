@@ -3,7 +3,7 @@ import { Github, Home } from "lucide-react";
 import { IconWind } from "@tabler/icons-react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import { NavMain } from "@/components/nav-main";
+import { NavMain } from "./nav-main";
 import {
   Sidebar,
   SidebarContent,

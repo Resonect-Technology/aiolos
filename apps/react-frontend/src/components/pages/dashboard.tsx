@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Transmit } from "@adonisjs/transmit-client";
-import { AppSidebar } from "@/components/app-sidebar";
-import { SectionCards } from "@/components/section-cards-wind";
-import { WindChartInteractive } from "@/components/wind-chart-interactive";
-import { WindDataTable } from "@/components/wind-data-table";
-import { WindData1MinTable } from "@/components/wind-data-1min-table";
-import { WindData10MinTable } from "@/components/wind-data-10min-table";
-import { SiteHeader } from "@/components/site-header";
-import { FloatingStatusIndicator } from "@/components/floating-status-indicator";
-import { ConstructionModeAlert } from "@/components/construction-mode-alert";
+import { AppSidebar } from "@/components/organisms/navigation/app-sidebar";
+import { SectionCards } from "@/components/molecules/cards/section-cards-wind";
+import { WindChartInteractive } from "@/components/molecules/charts/wind-chart-interactive";
+import { WindDataTable } from "@/components/molecules/tables/wind-data-table";
+import { WindData1MinTable } from "@/components/molecules/tables/wind-data-1min-table";
+import { WindData10MinTable } from "@/components/molecules/tables/wind-data-10min-table";
+import { SiteHeader } from "@/components/organisms/navigation/site-header";
+import { FloatingStatusIndicator } from "@/components/atoms/indicators/floating-status-indicator";
+import { ConstructionModeAlert } from "@/components/atoms/alerts/construction-mode-alert";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 
 interface WindData {

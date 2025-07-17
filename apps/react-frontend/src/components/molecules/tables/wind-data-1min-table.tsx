@@ -11,9 +11,9 @@ import {
   TableHeader,
   TableRow
 } from "@/components/ui/table";
-import { useWindAggregatedData, useWindAggregatedSSE } from "../hooks/useWindAggregatedData";
-import { convertWindSpeed, WIND_UNIT_LABELS } from "../lib/wind-utils";
-import type { WindAggregated1Min } from "../types/wind-aggregated";
+import { useWindAggregatedData, useWindAggregatedSSE } from "../../../hooks/useWindAggregatedData";
+import { convertWindSpeed, WIND_UNIT_LABELS } from "../../../lib/wind-utils";
+import type { WindAggregated1Min } from "../../../types/wind-aggregated";
 
 interface WindData1MinTableProps {
   stationId: string;

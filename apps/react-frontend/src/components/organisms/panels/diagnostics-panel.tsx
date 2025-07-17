@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Activity, Battery, Sun, Wifi, Clock, AlertTriangle } from "lucide-react";
-import { formatLastUpdated } from "../lib/time-utils";
+import { formatLastUpdated } from "../../../lib/time-utils";
 
 interface DiagnosticsData {
   id?: number;

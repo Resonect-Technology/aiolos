@@ -11,10 +11,10 @@ import {
   TableHeader,
   TableRow
 } from "@/components/ui/table";
-import { useWind10MinData, useWind10MinSSE } from "../hooks/useWind10MinData";
-import { convertWindSpeed, WIND_UNIT_LABELS } from "../lib/wind-utils";
-import { TendencyIndicator } from "../components/tendency-indicator";
-import type { WindAggregated10Min } from "../types/wind-aggregated";
+import { useWind10MinData, useWind10MinSSE } from "../../../hooks/useWind10MinData";
+import { convertWindSpeed, WIND_UNIT_LABELS } from "../../../lib/wind-utils";
+import { TendencyIndicator } from "../../atoms/indicators/tendency-indicator";
+import type { WindAggregated10Min } from "../../../types/wind-aggregated";
 
 interface WindData10MinTableProps {
   stationId: string;

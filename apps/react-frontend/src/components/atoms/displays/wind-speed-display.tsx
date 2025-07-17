@@ -9,8 +9,8 @@ import {
   WIND_UNIT_LABELS,
   getGaugeMinValue,
   getGaugeMaxValue,
-} from "../lib/wind-utils";
-import { formatLastUpdated } from "../lib/time-utils";
+} from "../../../lib/wind-utils";
+import { formatLastUpdated } from "../../../lib/time-utils";
 
 interface WindData {
   windSpeed: number;

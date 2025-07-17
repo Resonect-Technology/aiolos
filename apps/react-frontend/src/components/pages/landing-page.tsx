@@ -1,8 +1,8 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AppSidebar } from "@/components/app-sidebar";
-import { SiteHeader } from "@/components/site-header";
+import { AppSidebar } from "@/components/organisms/navigation/app-sidebar";
+import { SiteHeader } from "@/components/organisms/navigation/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import {
     Wind,
