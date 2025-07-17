@@ -1,6 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { WindSpeedDisplay } from "./wind-speed-display";
-import { WindDirectionCompass } from "./wind-direction-compass";
+import { WindSpeedDisplay } from "../../atoms/displays/wind-speed-display";
+import { WindDirectionCompass } from "../../atoms/displays/wind-direction-compass";
 
 interface WindData {
   windSpeed: number;

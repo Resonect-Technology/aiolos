@@ -1,6 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { WindRoseChart } from "./wind-rose-chart";
-import { DiagnosticsPanel } from "./diagnostics-panel";
+import { WindRoseChart } from "../charts/wind-rose-chart";
+import { DiagnosticsPanel } from "../../organisms/panels/diagnostics-panel";
 import { Tornado } from "lucide-react";
 
 interface WindData {

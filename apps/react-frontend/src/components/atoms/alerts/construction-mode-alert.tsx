@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { HardHat } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { getSystemConfig, parseBooleanConfig } from "../lib/api/system-config";
+import { getSystemConfig, parseBooleanConfig } from "../../../lib/api/system-config";
 
 export function ConstructionModeAlert() {
   const [isConstructionMode, setIsConstructionMode] = useState(false);

@@ -1,7 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { ConnectionStatus } from "./connection-status";
-import { TemperatureDisplay } from "./temperature-display";
-import { UnitSelector } from "./unit-selector";
+import { ConnectionStatus } from "@/components/molecules/status/connection-status";
+import { TemperatureDisplay } from "@/components/atoms/displays/temperature-display";
+import { UnitSelector } from "@/components/atoms/controls/unit-selector";
 
 interface SectionCardsProps {
   stationId: string;

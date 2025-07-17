@@ -1,6 +1,6 @@
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { ThemeToggle } from "../../atoms/controls/theme-toggle";
 import { Wind } from "lucide-react";
 
 export function SiteHeader() {

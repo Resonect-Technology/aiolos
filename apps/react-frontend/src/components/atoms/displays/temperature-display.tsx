@@ -3,7 +3,7 @@ import { Transmit } from "@adonisjs/transmit-client";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Thermometer } from "lucide-react";
-import { formatLastUpdated } from "../lib/time-utils";
+import { formatLastUpdated } from "../../../lib/time-utils";
 
 interface TemperatureData {
   temperature: number;

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Compass, Info, ChevronsDown } from "lucide-react";
-import "./wind-direction-compass.css"; // Uses the CSS provided by the user
+import "../../wind-direction-compass.css"; // Uses the CSS provided by the user
 
 interface WindDirectionCompassProps {
   windDirection: number | null | undefined;

@@ -5,8 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { BarChart3, Info } from "lucide-react";
-import { getWindRoseColumns, getWindSpeedRangeDisplay, WIND_SPEED_COLORS } from "../lib/wind-utils";
-import { calculateCustomWindRose, createEmptyWindRoseData } from "../lib/windrose-utils";
+import { getWindRoseColumns, getWindSpeedRangeDisplay, WIND_SPEED_COLORS } from "../../../lib/wind-utils";
+import { calculateCustomWindRose, createEmptyWindRoseData } from "../../../lib/windrose-utils";
 
 interface WindData {
   windSpeed: number;
