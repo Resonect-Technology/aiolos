@@ -90,7 +90,7 @@ export const FloatingStatusIndicator = memo(function FloatingStatusIndicator({
       }
 
       setStationMode(isSleeping ? 'sleeping' : 'live');
-      
+
       // Calculate next sleep/wake time
       const nextInfo = calculateNextSleepWakeTime(sleepStart, sleepEnd);
       setNextSleepWakeInfo(nextInfo);
@@ -98,7 +98,7 @@ export const FloatingStatusIndicator = memo(function FloatingStatusIndicator({
 
     updateStationMode();
 
-    // Update every 30 seconds to keep countdown accurate
+    // Update every 30 seconds to keep status accurate
     const interval = setInterval(updateStationMode, 30000);
 
     return () => clearInterval(interval);
@@ -109,19 +109,19 @@ export const FloatingStatusIndicator = memo(function FloatingStatusIndicator({
       case 'live':
         return {
           label: 'Live',
-          icon: <Eye className="h-4 w-4" />,
+          icon: <Eye className="h-3 w-3" />,
           className: 'bg-green-600 hover:bg-green-700 text-white border-green-600'
         };
       case 'sleeping':
         return {
           label: 'Sleeping',
-          icon: <Moon className="h-4 w-4" />,
+          icon: <Moon className="h-3 w-3" />,
           className: 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600'
         };
       default:
         return {
           label: 'Unknown',
-          icon: <AlertTriangle className="h-4 w-4" />,
+          icon: <AlertTriangle className="h-3 w-3" />,
           className: 'bg-gray-500 hover:bg-gray-600 text-white border-gray-500'
         };
     }
@@ -134,27 +134,26 @@ export const FloatingStatusIndicator = memo(function FloatingStatusIndicator({
   );
 
   return (
-    <div className="fixed top-16 right-4 z-40 transition-all duration-300 ease-in-out">
-      <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border rounded-lg shadow-lg p-3 min-w-[200px]">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium text-muted-foreground">Status</span>
+    <div className="fixed bottom-4 right-4 z-40 transition-all duration-300 ease-in-out">
+      <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border rounded-lg shadow-lg p-1.5 min-w-[100px]">
+        <div className="flex flex-col items-center gap-1">
           <Badge
-            className={`flex items-center gap-2 px-3 py-1 text-sm font-medium transition-all duration-200 ${modeDisplay.className}`}
+            className={`flex items-center justify-center gap-1 px-1.5 py-0.5 text-xs font-medium transition-all duration-200 ${modeDisplay.className}`}
           >
-            {modeDisplay.icon}
+            <span className="w-3 h-3 flex items-center justify-center">{modeDisplay.icon}</span>
             {modeDisplay.label}
           </Badge>
-        </div>
-        
-        <div className="text-xs text-muted-foreground mb-1">
-          {sleepScheduleText}
-        </div>
-        
-        {nextSleepWakeInfo.nextEventType && (
-          <div className="text-xs text-muted-foreground">
-            Next {nextSleepWakeInfo.nextEventType} in {nextSleepWakeInfo.timeUntilNext}
+
+          {/* Sleep schedule and next event info */}
+          <div className="text-center">
+            <div className="text-xs text-muted-foreground font-medium">
+              {sleepScheduleText}
+            </div>
+            <div className="text-xs text-muted-foreground mt-0.5">
+              {nextSleepWakeInfo.timeUntilNext}
+            </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
