@@ -191,4 +191,29 @@ export default class WindAggregationController {
             })
         }
     }
+
+    /**
+     * Recalculate tendencies for existing 10-minute records
+     * 
+     * POST /api/wind/aggregation/recalculate-tendencies
+     */
+    async recalculateTendencies({ request, response }: HttpContext) {
+        try {
+            const { stationId } = request.qs()
+
+            await windAggregationService.recalculateTendencies(stationId)
+
+            return response.ok({
+                message: 'Tendencies recalculated successfully',
+                stationId: stationId || 'all stations'
+            })
+        } catch (error) {
+            console.error('Error recalculating tendencies:', error)
+
+            return response.internalServerError({
+                error: 'Failed to recalculate tendencies',
+                details: error.message
+            })
+        }
+    }
 }

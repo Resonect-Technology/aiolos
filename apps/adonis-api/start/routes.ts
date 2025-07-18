@@ -81,6 +81,7 @@ router
         router.post('/10min/trigger', [WindAggregationController, 'trigger10MinAggregation']).as('trigger10min')
         router.post('/10min/process-last-hour', [WindAggregationController, 'processLastHour']).as('processLastHour')
         router.post('/10min/force-catchup', [WindAggregationController, 'forceCatchup']).as('forceCatchup')
+        router.post('/recalculate-tendencies', [WindAggregationController, 'recalculateTendencies']).as('recalculateTendencies')
         router.get('/status', [WindAggregationController, 'status']).as('status')
       })
       .prefix('/wind/aggregation')

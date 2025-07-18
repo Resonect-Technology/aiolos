@@ -443,6 +443,66 @@ export class WindAggregationService {
       console.log('Wind aggregation flush timer stopped')
     }
   }
+
+  /**
+   * Recalculate tendencies for existing 10-minute records
+   * This is useful when records were created out of order or tendencies need updating
+   */
+  async recalculateTendencies(stationId?: string): Promise<void> {
+    try {
+      // Get all 10-minute records, optionally filtered by station
+      const query = WindData10Min.query().orderBy('timestamp', 'asc')
+      if (stationId) {
+        query.where('stationId', stationId)
+      }
+
+      const records = await query
+
+      // Group by station for processing
+      const recordsByStation = new Map<string, typeof records>()
+      for (const record of records) {
+        if (!recordsByStation.has(record.stationId)) {
+          recordsByStation.set(record.stationId, [])
+        }
+        recordsByStation.get(record.stationId)!.push(record)
+      }
+
+      // Process each station's records in chronological order
+      for (const [station, stationRecords] of recordsByStation.entries()) {
+        for (let i = 0; i < stationRecords.length; i++) {
+          const currentRecord = stationRecords[i]
+          const previousRecord = i > 0 ? stationRecords[i - 1] : null
+
+          let newTendency: WindTendency = 'stable'
+
+          if (previousRecord) {
+            const threshold = 0.5 // m/s
+            const currentAvg = currentRecord.avgSpeed
+            const previousAvg = previousRecord.avgSpeed
+
+            if (currentAvg > previousAvg + threshold) {
+              newTendency = 'increasing'
+            } else if (currentAvg < previousAvg - threshold) {
+              newTendency = 'decreasing'
+            } else {
+              newTendency = 'stable'
+            }
+          }
+
+          // Update the record if tendency changed
+          if (currentRecord.tendency !== newTendency) {
+            await currentRecord.merge({ tendency: newTendency }).save()
+            console.log(`Updated tendency for ${station} at ${currentRecord.timestamp?.toISO()}: ${currentRecord.tendency} -> ${newTendency}`)
+          }
+        }
+      }
+
+      console.log('Tendency recalculation completed')
+    } catch (error) {
+      console.error('Error recalculating tendencies:', error)
+      throw error
+    }
+  }
 }
 
 // Export singleton instance
