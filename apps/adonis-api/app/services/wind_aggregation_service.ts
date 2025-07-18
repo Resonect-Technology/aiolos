@@ -190,8 +190,8 @@ export class WindAggregationService {
       const stations = await WindData1Min.query()
         .select('stationId')
         .whereNotNull('timestamp')  // Exclude corrupted records
-        .where('timestamp', '>=', intervalStart.toJSDate())
-        .where('timestamp', '<', intervalStart.plus({ minutes: 10 }).toJSDate())
+        .where('timestamp', '>=', intervalStart.toISO()!)
+        .where('timestamp', '<', intervalStart.plus({ minutes: 10 }).toISO()!)
         .groupBy('stationId')
 
       for (const station of stations) {
@@ -249,15 +249,15 @@ export class WindAggregationService {
       try {
         // Check if we already have data for this interval
         const existingData = await WindData10Min.query()
-          .where('timestamp', interval.toJSDate())
+          .where('timestamp', interval.toISO()!)
           .first()
 
         if (!existingData) {
           // Check if we have 1-minute data for this interval
           const oneMinuteCount = await WindData1Min.query()
             .whereNotNull('timestamp')
-            .where('timestamp', '>=', interval.toJSDate())
-            .where('timestamp', '<', interval.plus({ minutes: 10 }).toJSDate())
+            .where('timestamp', '>=', interval.toISO()!)
+            .where('timestamp', '<', interval.plus({ minutes: 10 }).toISO()!)
             .count('* as total')
 
           const total = oneMinuteCount[0].$extras.total
@@ -302,8 +302,8 @@ export class WindAggregationService {
       const oneMinuteData = await WindData1Min.query()
         .where('stationId', stationId)
         .whereNotNull('timestamp')  // Exclude records with null timestamps
-        .where('timestamp', '>=', intervalStart.toJSDate())
-        .where('timestamp', '<', intervalStart.plus({ minutes: 10 }).toJSDate())
+        .where('timestamp', '>=', intervalStart.toISO()!)
+        .where('timestamp', '<', intervalStart.plus({ minutes: 10 }).toISO()!)
         .orderBy('timestamp', 'asc')
 
       if (oneMinuteData.length === 0) {
@@ -327,7 +327,7 @@ export class WindAggregationService {
       // Check if record already exists
       const existingRecord = await WindData10Min.query()
         .where('stationId', stationId)
-        .where('timestamp', intervalStart.toJSDate())
+        .where('timestamp', intervalStart.toISO()!)
         .first()
 
       if (existingRecord) {
@@ -392,7 +392,7 @@ export class WindAggregationService {
     // Get previous 10-minute record
     const previousRecord = await WindData10Min.query()
       .where('stationId', stationId)
-      .where('timestamp', '<', currentInterval.toJSDate())
+      .where('timestamp', '<', currentInterval.toISO()!)
       .orderBy('timestamp', 'desc')
       .first()
 
