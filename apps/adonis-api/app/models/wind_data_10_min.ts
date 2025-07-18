@@ -22,8 +22,26 @@ export default class WindData10Min extends BaseModel {
 
   /**
    * @summary Timestamp for the start of the 10-minute interval
+   * Stored as ISO string for universal timezone compatibility
    */
-  @column.dateTime()
+  @column({
+    prepare: (value: DateTime | string) => {
+      // Always store as UTC ISO string for universal compatibility
+      if (value instanceof DateTime) {
+        return value.setZone('utc').toISO()
+      }
+      // If already a string, ensure it's in UTC ISO format
+      return DateTime.fromISO(value).setZone('utc').toISO()
+    },
+    consume: (value: string) => {
+      // Always return as UTC DateTime for consistent queries
+      return DateTime.fromISO(value, { zone: 'utc' })
+    },
+    serialize: (value: DateTime) => {
+      // Always serialize as UTC ISO string for API responses
+      return value?.setZone('utc').toISO()
+    }
+  })
   declare timestamp: DateTime
 
   /**

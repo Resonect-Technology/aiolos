@@ -4,17 +4,6 @@
 		"dockerfile": "Dockerfile"
 	},
 	"postCreateCommand": "pnpm i",
-	"forwardPorts": [5173, 8080],
-	"portsAttributes": {
-		"5173": {
-			"label": "React Frontend",
-			"onAutoForward": "notify"
-		},
-		"8080": {
-			"label": "AdonisJS Backend",
-			"onAutoForward": "notify"
-		}
-	},
 	"customizations": {
 		"vscode": {
 			"settings": {
