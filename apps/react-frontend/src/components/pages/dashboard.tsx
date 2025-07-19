@@ -118,14 +118,14 @@ export function Dashboard() {
                             </div>
 
                             <div className="px-4 lg:px-6">
-                                <WindData1MinTable
+                                <WindData10MinTable
                                     stationId={stationId}
                                     selectedUnit={selectedUnit}
                                 />
                             </div>
 
                             <div className="px-4 lg:px-6">
-                                <WindData10MinTable
+                                <WindData1MinTable
                                     stationId={stationId}
                                     selectedUnit={selectedUnit}
                                 />

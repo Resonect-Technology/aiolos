@@ -55,7 +55,10 @@ export function WindData10MinTable({ stationId, selectedUnit }: WindData10MinTab
   useWind10MinSSE({ stationId, onNewAggregate: handleNewAggregate });
 
   const formatTime = (timestamp: string) => {
-    return new Date(timestamp).toLocaleTimeString('en-US', {
+    // Show the END of the 10-minute interval (more intuitive for users)
+    const intervalStart = new Date(timestamp);
+    const intervalEnd = new Date(intervalStart.getTime() + 10 * 60 * 1000); // Add 10 minutes
+    return intervalEnd.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: false
@@ -87,7 +90,7 @@ export function WindData10MinTable({ stationId, selectedUnit }: WindData10MinTab
       <CardHeader>
         <div className="flex items-center gap-2">
           <Clock className="h-5 w-5 text-primary" />
-          <CardTitle>Wind Trends (Last Hour)</CardTitle>
+          <CardTitle>10-Min Wind Intervals</CardTitle>
         </div>
       </CardHeader>
       <CardContent>
