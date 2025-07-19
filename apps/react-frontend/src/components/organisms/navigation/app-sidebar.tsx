@@ -67,21 +67,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarMenu>
           <SidebarMenuItem>
             <DropdownMenu>
-              <SidebarMenuButton>
-                <Github className="h-4 w-4" />
-                <span>GitHub</span>
-              </SidebarMenuButton>
+              <a
+                href="https://github.com/Resonect-Technology/aiolos"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 w-full"
+              >
+                <SidebarMenuButton>
+                  <Github className="h-4 w-4" />
+                  <span>GitHub</span>
+                </SidebarMenuButton>
+              </a>
               <DropdownMenuContent side="top" className="w-[--radix-popper-anchor-width]">
                 <DropdownMenuItem>
-                  <a
-                    href="https://github.com/resonect/aiolos"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 w-full"
-                  >
-                    <Github className="h-4 w-4" />
-                    View Repository
-                  </a>
+                  <Github className="h-4 w-4" />
+                  View Repository
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
