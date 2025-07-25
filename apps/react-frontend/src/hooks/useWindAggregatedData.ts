@@ -5,7 +5,6 @@ import type { WindAggregatedResponse, WindAggregated1Min } from "../types/wind-a
 interface UseWindAggregatedDataProps {
   stationId: string;
   date?: string;
-  unit?: string;
   interval?: string;
   limit?: number;
 }
@@ -20,7 +19,6 @@ interface UseWindAggregatedDataReturn {
 export function useWindAggregatedData({
   stationId,
   date,
-  unit = "ms",
   interval = "1min",
   limit = 10
 }: UseWindAggregatedDataProps): UseWindAggregatedDataReturn {
@@ -36,13 +34,11 @@ export function useWindAggregatedData({
       const queryParams = new URLSearchParams({
         interval,
         limit: limit.toString(),
-        ...(date && { date }),
-        ...(unit && { unit })
+        ...(date && { date })
       });
 
-      const endpoint = unit && unit !== "ms"
-        ? `/api/stations/${stationId}/wind/aggregated/converted?${queryParams}`
-        : `/api/stations/${stationId}/wind/aggregated?${queryParams}`;
+      // Always use the base endpoint - data comes in m/s and conversion happens in frontend
+      const endpoint = `/api/stations/${stationId}/wind/aggregated?${queryParams}`;
 
       const response = await fetch(endpoint);
 
@@ -58,7 +54,7 @@ export function useWindAggregatedData({
     } finally {
       setLoading(false);
     }
-  }, [stationId, date, unit, interval, limit]);
+  }, [stationId, date, interval, limit]); // Removed 'unit' from dependencies since we don't use it for API calls anymore
 
   useEffect(() => {
     fetchData();

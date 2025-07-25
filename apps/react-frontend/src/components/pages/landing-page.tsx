@@ -160,6 +160,20 @@ export function LandingPage() {
                                                     />
                                                 </a>
                                             </div>
+                                            <div className="flex items-center justify-center">
+                                                <a
+                                                    href="https://www.protography.shop"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="flex items-center justify-center h-28 w-140 rounded-lg grayscale hover:grayscale-0 transition-all duration-300 opacity-70 hover:opacity-100"
+                                                >
+                                                    <img
+                                                        src="/protography.webp"
+                                                        alt="Protography"
+                                                        className="h-20 w-auto object-contain"
+                                                    />
+                                                </a>
+                                            </div>
 
                                             <div className="mt-6 text-center">
                                                 <p className="text-sm text-foreground/70">

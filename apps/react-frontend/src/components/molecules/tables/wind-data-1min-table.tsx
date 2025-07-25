@@ -25,7 +25,6 @@ export function WindData1MinTable({ stationId, selectedUnit }: WindData1MinTable
 
   const { data, loading, error } = useWindAggregatedData({
     stationId,
-    unit: selectedUnit === "m/s" ? "ms" : selectedUnit,
     interval: "1min",
     limit: 10
   });
@@ -69,7 +68,7 @@ export function WindData1MinTable({ stationId, selectedUnit }: WindData1MinTable
   };
 
   const convertSpeed = (speed: number) => {
-    if (selectedUnit === "m/s") return speed;
+    // Data always comes in m/s from backend, convert to selected unit
     return convertWindSpeed(speed, selectedUnit);
   };
 
