@@ -84,6 +84,7 @@ export function WindData1MinTable({ stationId, selectedUnit }: WindData1MinTable
   const getSpeedTrend = (current: WindAggregated1Min, index: number) => {
     if (index === tableData.length - 1) return null; // Last item (oldest) has no previous
     const previous = tableData[index + 1]; // Next item in array is older due to descending sort
+    if (!previous) return null;
     const currentAvg = convertSpeed(current.avgSpeed);
     const previousAvg = convertSpeed(previous.avgSpeed);
 

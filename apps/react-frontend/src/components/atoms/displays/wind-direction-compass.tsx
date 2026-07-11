@@ -98,5 +98,5 @@ function getCompassDirection(degrees: number): string {
     "NNW",
   ];
   const index = Math.round(degrees / 22.5) % 16;
-  return directions[index];
+  return directions[index] ?? "N";
 }

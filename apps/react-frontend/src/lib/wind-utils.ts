@@ -100,20 +100,15 @@ export const WIND_SPEED_COLORS = [
 
 // Helper function to get color by wind speed range index
 export const getWindSpeedColor = (rangeIndex: number): string => {
-  return WIND_SPEED_COLORS[Math.min(rangeIndex, WIND_SPEED_COLORS.length - 1)];
+  return WIND_SPEED_COLORS[Math.min(rangeIndex, WIND_SPEED_COLORS.length - 1)] ?? "#f44242";
 };
 
 // Helper function to get color by wind speed value (in m/s)
 export const getWindSpeedColorByValue = (speed: number): string => {
-  if (speed < 1) return WIND_SPEED_COLORS[0]; // 0-1 m/s
-  if (speed < 3) return WIND_SPEED_COLORS[1]; // 1-3 m/s
-  if (speed < 5) return WIND_SPEED_COLORS[2]; // 3-5 m/s
-  if (speed < 8) return WIND_SPEED_COLORS[3]; // 5-8 m/s
-  if (speed < 11) return WIND_SPEED_COLORS[4]; // 8-11 m/s
-  if (speed < 14) return WIND_SPEED_COLORS[5]; // 11-14 m/s
-  if (speed < 17) return WIND_SPEED_COLORS[6]; // 14-17 m/s
-  if (speed < 20) return WIND_SPEED_COLORS[7]; // 17-20 m/s
-  return WIND_SPEED_COLORS[8]; // 20+ m/s
+  // Range boundaries matching WIND_SPEED_RANGES / WIND_SPEED_COLORS
+  const thresholds = [1, 3, 5, 8, 11, 14, 17, 20];
+  const index = thresholds.findIndex(threshold => speed < threshold);
+  return getWindSpeedColor(index === -1 ? WIND_SPEED_COLORS.length - 1 : index);
 };
 
 /**

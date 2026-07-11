@@ -66,7 +66,7 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
   const gaugeSubArcs = useMemo((): GaugeArc[] => {
     const arcs: GaugeArc[] = [];
     // Theme colors: light to dark green progression for better visual distribution
-    const themeColors = ["#22c55e", "#10b981", "#059669", "#047857", "#065f46"];
+    const themeColors = ["#22c55e", "#10b981", "#059669", "#047857", "#065f46"] as const;
 
     switch (selectedUnit) {
       case "m/s":

@@ -42,7 +42,7 @@ export const classifyDir = (dir: number): WindDirectionAngle => {
   // Calculate the index (0-15) of the direction
   const index = Math.round(normalizedDir / 22.5) % 16;
 
-  return directions[index];
+  return directions[index] ?? "N";
 };
 
 /**

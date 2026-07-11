@@ -1,18 +1,24 @@
 {
-    "name": "aiolos-monorepo",
-    "private": true,
-    "version": "0.1.0",
-    "packageManager": "pnpm@10.5.0",
-    "scripts": {
-        "dev": "turbo run dev",
-        "build": "turbo run build",
-        "format": "prettier --write .",
-        "format:check": "prettier --check .",
-        "format:apps": "prettier --write 'apps/**/*.{js,jsx,ts,tsx,json,css,md}'",
-        "format:apps:check": "prettier --check 'apps/**/*.{js,jsx,ts,tsx,json,css,md}'"
-    },
-    "devDependencies": {
-        "prettier": "^3.5.3",
-        "turbo": "^1.13.0"
-    }
+  "name": "aiolos-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@11.1.2",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "check-types": "turbo run check-types",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "prettier": "^3.5.3",
+    "turbo": "^2.9.14",
+    "typescript": "5.9.3"
+  }
 }
