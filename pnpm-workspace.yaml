@@ -3,7 +3,9 @@ packages:
   - packages/*
 
 allowBuilds:
+  "@prisma/engines": false
   "@swc/core": false
   "@tailwindcss/oxide": false
   better-sqlite3: true
   esbuild: false
+  prisma: false

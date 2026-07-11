@@ -1,32 +1,33 @@
 import { test } from '@japa/runner';
 import { DateTime } from 'luxon';
 
-import WeatherStation from '#app/models/weather_station';
-import WindData1Min from '#app/models/wind_data_1_min';
 import { windAggregationService } from '#app/services/wind_aggregation_service';
+import { prisma } from '#services/prisma';
 
 test.group('Wind Aggregation Service', (group) => {
   const testStationId = 'test-station-aggregation';
 
   group.each.setup(async () => {
     // Clean up any existing test data
-    await WindData1Min.query().delete();
-    await WeatherStation.query().delete();
+    await prisma.windData1Min.deleteMany();
+    await prisma.weatherStation.deleteMany();
 
     // Create the test weather station
-    await WeatherStation.create({
-      stationId: testStationId,
-      name: 'Test Aggregation Station',
-      location: 'Test Environment',
-      description: 'Test station for wind aggregation',
-      isActive: true,
+    await prisma.weatherStation.create({
+      data: {
+        stationId: testStationId,
+        name: 'Test Aggregation Station',
+        location: 'Test Environment',
+        description: 'Test station for wind aggregation',
+        isActive: true,
+      },
     });
   });
 
   group.each.teardown(async () => {
     // Clean up after each test
-    await WindData1Min.query().delete();
-    await WeatherStation.query().delete();
+    await prisma.windData1Min.deleteMany();
+    await prisma.weatherStation.deleteMany();
   });
 
   test('should aggregate wind data into 1-minute intervals', async ({ assert }) => {
@@ -41,7 +42,9 @@ test.group('Wind Aggregation Service', (group) => {
     await windAggregationService.forceFlushBuckets();
 
     // Check that aggregated data was saved
-    const aggregatedData = await WindData1Min.query().where('stationId', testStationId).first();
+    const aggregatedData = await prisma.windData1Min.findFirst({
+      where: { stationId: testStationId },
+    });
 
     assert.isNotNull(aggregatedData);
     assert.equal(aggregatedData!.stationId, testStationId);
@@ -62,7 +65,9 @@ test.group('Wind Aggregation Service', (group) => {
 
     await windAggregationService.forceFlushBuckets();
 
-    const aggregatedData = await WindData1Min.query().where('stationId', testStationId).first();
+    const aggregatedData = await prisma.windData1Min.findFirst({
+      where: { stationId: testStationId },
+    });
 
     assert.isNotNull(aggregatedData);
     assert.equal(aggregatedData!.dominantDirection, 270); // Most frequent direction
@@ -70,12 +75,14 @@ test.group('Wind Aggregation Service', (group) => {
 
   test('should handle multiple stations independently', async ({ assert }) => {
     const station2Id = 'test-station-2';
-    await WeatherStation.create({
-      stationId: station2Id,
-      name: 'Test Station 2',
-      location: 'Test Environment',
-      description: 'Second test station',
-      isActive: true,
+    await prisma.weatherStation.create({
+      data: {
+        stationId: station2Id,
+        name: 'Test Station 2',
+        location: 'Test Environment',
+        description: 'Second test station',
+        isActive: true,
+      },
     });
 
     const baseTimestamp = DateTime.now().startOf('minute').toISO();
@@ -85,9 +92,11 @@ test.group('Wind Aggregation Service', (group) => {
 
     await windAggregationService.forceFlushBuckets();
 
-    const station1Data = await WindData1Min.query().where('stationId', testStationId).first();
+    const station1Data = await prisma.windData1Min.findFirst({
+      where: { stationId: testStationId },
+    });
 
-    const station2Data = await WindData1Min.query().where('stationId', station2Id).first();
+    const station2Data = await prisma.windData1Min.findFirst({ where: { stationId: station2Id } });
 
     assert.isNotNull(station1Data);
     assert.isNotNull(station2Data);

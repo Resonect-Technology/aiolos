@@ -1,9 +1,6 @@
 import { DateTime } from 'luxon';
 
-import DataRetentionPolicy from '#models/data_retention_policy';
-import StationDiagnostic from '#models/station_diagnostic';
-import TemperatureReading from '#models/temperature_reading';
-import WindData1Min from '#models/wind_data_1_min';
+import { prisma } from '#services/prisma';
 
 /**
  * Data Cleanup Service
@@ -15,10 +12,9 @@ export class DataCleanupService {
    * Clean up temperature readings based on retention policy
    */
   async cleanupTemperatureReadings(): Promise<{ deleted: number; policy: string }> {
-    const policy = await DataRetentionPolicy.query()
-      .where('dataType', 'temperature')
-      .where('isActive', true)
-      .first();
+    const policy = await prisma.dataRetentionPolicy.findFirst({
+      where: { dataType: 'temperature', isActive: true },
+    });
 
     if (!policy) {
       return { deleted: 0, policy: 'No active policy found' };
@@ -26,16 +22,16 @@ export class DataCleanupService {
 
     const cutoffDate = DateTime.now().minus({ days: policy.retentionDays });
 
-    const result = await TemperatureReading.query()
-      .where('readingTimestamp', '<', cutoffDate.toSQL())
-      .delete();
+    const result = await prisma.temperatureReading.deleteMany({
+      where: { readingTimestamp: { lt: cutoffDate.toJSDate() } },
+    });
 
     console.log(
-      `Cleaned up ${result.length || 0} temperature readings older than ${policy.retentionDays} days`,
+      `Cleaned up ${result.count} temperature readings older than ${policy.retentionDays} days`,
     );
 
     return {
-      deleted: result.length || 0,
+      deleted: result.count,
       policy: `Retention: ${policy.retentionDays} days`,
     };
   }
@@ -45,23 +41,25 @@ export class DataCleanupService {
    * Default retention: 1 day (configurable via retention policy)
    */
   async cleanupWindData1Min(): Promise<{ deleted: number; policy: string }> {
-    const policy = await DataRetentionPolicy.query()
-      .where('dataType', 'wind_1min')
-      .where('isActive', true)
-      .first();
+    const policy = await prisma.dataRetentionPolicy.findFirst({
+      where: { dataType: 'wind_1min', isActive: true },
+    });
 
     // Default to 1 day retention if no policy exists
     const retentionDays = policy?.retentionDays || 1;
     const cutoffDate = DateTime.now().minus({ days: retentionDays });
 
-    const result = await WindData1Min.query().where('timestamp', '<', cutoffDate.toSQL()).delete();
+    // Wind timestamps are UTC ISO strings compared lexicographically
+    const result = await prisma.windData1Min.deleteMany({
+      where: { timestamp: { lt: cutoffDate.toUTC().toISO()! } },
+    });
 
     console.log(
-      `Cleaned up ${result.length || 0} 1-minute wind records older than ${retentionDays} days`,
+      `Cleaned up ${result.count} 1-minute wind records older than ${retentionDays} days`,
     );
 
     return {
-      deleted: result.length || 0,
+      deleted: result.count,
       policy: policy
         ? `Retention: ${retentionDays} days`
         : `Default retention: ${retentionDays} days`,
@@ -71,10 +69,9 @@ export class DataCleanupService {
    * Clean up diagnostics data based on retention policy
    */
   async cleanupDiagnostics(): Promise<{ deleted: number; policy: string }> {
-    const policy = await DataRetentionPolicy.query()
-      .where('dataType', 'diagnostics')
-      .where('isActive', true)
-      .first();
+    const policy = await prisma.dataRetentionPolicy.findFirst({
+      where: { dataType: 'diagnostics', isActive: true },
+    });
 
     if (!policy) {
       return { deleted: 0, policy: 'No active policy found' };
@@ -82,16 +79,16 @@ export class DataCleanupService {
 
     const cutoffDate = DateTime.now().minus({ days: policy.retentionDays });
 
-    const result = await StationDiagnostic.query()
-      .where('createdAt', '<', cutoffDate.toSQL())
-      .delete();
+    const result = await prisma.stationDiagnostic.deleteMany({
+      where: { createdAt: { lt: cutoffDate.toJSDate() } },
+    });
 
     console.log(
-      `Cleaned up ${result.length || 0} diagnostics records older than ${policy.retentionDays} days`,
+      `Cleaned up ${result.count} diagnostics records older than ${policy.retentionDays} days`,
     );
 
     return {
-      deleted: result.length || 0,
+      deleted: result.count,
       policy: `Retention: ${policy.retentionDays} days`,
     };
   }

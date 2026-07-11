@@ -1,9 +1,8 @@
 import type { HttpContext } from '@adonisjs/core/http';
 import transmit from '@adonisjs/transmit/services/main';
-import { DateTime } from 'luxon';
 
 import { stationDataCache } from '#app/services/station_data_cache';
-import TemperatureReading from '#models/temperature_reading';
+import { prisma } from '#services/prisma';
 
 export default class StationTemperatureController {
   /**
@@ -20,7 +19,7 @@ export default class StationTemperatureController {
    * @description Store a temperature reading from the station's external temperature sensor
    * @paramPath station_id - The station's unique ID - @type(string) @required
    * @requestBody temperature - The temperature value - @type(number) @required
-   * @responseBody 201 - <TemperatureReading> - The created temperature reading
+   * @responseBody 201 - The created temperature reading
    */
   async store({ request, response, params }: HttpContext) {
     // Capture arrival timestamp immediately for accuracy
@@ -59,10 +58,12 @@ export default class StationTemperatureController {
       timestamp: temperatureTimestamp,
     });
 
-    const reading = await TemperatureReading.create({
-      stationId: params.station_id,
-      temperature,
-      readingTimestamp: DateTime.fromISO(temperatureTimestamp),
+    const reading = await prisma.temperatureReading.create({
+      data: {
+        stationId: params.station_id,
+        temperature,
+        readingTimestamp: new Date(temperatureTimestamp),
+      },
     });
 
     // Return the same structure as the old SensorReading for API compatibility
@@ -82,14 +83,14 @@ export default class StationTemperatureController {
    * @summary Get the most recent temperature reading
    * @description Get the most recent temperature reading for the specified station
    * @paramPath station_id - The station's unique ID - @type(string) @required
-   * @responseBody 200 - <TemperatureReading> - The most recent temperature reading with last update time
+   * @responseBody 200 - The most recent temperature reading with last update time
    * @responseBody 404 - Not found
    */
   async latest({ params, response }: HttpContext) {
-    const reading = await TemperatureReading.query()
-      .where('stationId', params.station_id)
-      .orderBy('readingTimestamp', 'desc')
-      .first();
+    const reading = await prisma.temperatureReading.findFirst({
+      where: { stationId: params.station_id },
+      orderBy: { readingTimestamp: 'desc' },
+    });
 
     if (!reading) return response.notFound({ message: 'No temperature readings found' });
 
@@ -103,7 +104,7 @@ export default class StationTemperatureController {
       windDirection: null,
       createdAt: reading.createdAt,
       updatedAt: reading.updatedAt,
-      lastUpdated: reading.readingTimestamp.toISO(),
+      lastUpdated: reading.readingTimestamp.toISOString(),
     };
   }
 
@@ -114,35 +115,28 @@ export default class StationTemperatureController {
    * @paramQuery limit - Maximum number of results to return - @type(number)
    * @paramQuery from - Start date (ISO format) - @type(string)
    * @paramQuery to - End date (ISO format) - @type(string)
-   * @responseBody 200 - <TemperatureReading[]> - List of temperature readings
+   * @responseBody 200 - List of temperature readings
    */
   async index({ request, params }: HttpContext) {
     const limit = request.input('limit', 100);
     const from = request.input('from');
     const to = request.input('to');
 
-    const query = TemperatureReading.query()
-      .where('stationId', params.station_id)
-      .orderBy('readingTimestamp', 'desc')
-      .limit(limit);
-
-    if (from) {
-      query.where(
-        'readingTimestamp',
-        '>=',
-        DateTime.fromISO(from).toUTC().toSQL({ includeOffset: false })!,
-      );
-    }
-
-    if (to) {
-      query.where(
-        'readingTimestamp',
-        '<=',
-        DateTime.fromISO(to).toUTC().toSQL({ includeOffset: false })!,
-      );
-    }
-
-    const readings = await query;
+    const readings = await prisma.temperatureReading.findMany({
+      where: {
+        stationId: params.station_id,
+        ...(from || to
+          ? {
+              readingTimestamp: {
+                ...(from ? { gte: new Date(from) } : {}),
+                ...(to ? { lte: new Date(to) } : {}),
+              },
+            }
+          : {}),
+      },
+      orderBy: { readingTimestamp: 'desc' },
+      take: Number(limit),
+    });
 
     // Return the same structure as the old SensorReading for API compatibility
     return readings.map((reading) => ({

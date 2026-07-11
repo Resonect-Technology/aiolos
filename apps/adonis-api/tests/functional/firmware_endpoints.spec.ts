@@ -1,9 +1,6 @@
 import { test } from '@japa/runner';
 
-import StationConfig from '#app/models/station_config';
-import StationDiagnostic from '#app/models/station_diagnostic';
-import TemperatureReading from '#app/models/temperature_reading';
-import WeatherStation from '#app/models/weather_station';
+import { prisma } from '#services/prisma';
 
 /**
  * Firmware Critical Endpoints Test Suite
@@ -25,27 +22,29 @@ test.group('Firmware Critical Endpoints', (group) => {
 
   group.each.setup(async () => {
     // Clean up any existing test data
-    await TemperatureReading.query().delete();
-    await StationDiagnostic.query().delete();
-    await StationConfig.query().delete();
-    await WeatherStation.query().delete();
+    await prisma.temperatureReading.deleteMany();
+    await prisma.stationDiagnostic.deleteMany();
+    await prisma.stationConfig.deleteMany();
+    await prisma.weatherStation.deleteMany();
 
     // Create the test weather station
-    await WeatherStation.create({
-      stationId: testStationId,
-      name: 'Test Station',
-      location: 'Test Environment',
-      description: 'Test station for firmware endpoints',
-      isActive: true,
+    await prisma.weatherStation.create({
+      data: {
+        stationId: testStationId,
+        name: 'Test Station',
+        location: 'Test Environment',
+        description: 'Test station for firmware endpoints',
+        isActive: true,
+      },
     });
   });
 
   group.each.teardown(async () => {
     // Clean up after each test
-    await TemperatureReading.query().delete();
-    await StationDiagnostic.query().delete();
-    await StationConfig.query().delete();
-    await WeatherStation.query().delete();
+    await prisma.temperatureReading.deleteMany();
+    await prisma.stationDiagnostic.deleteMany();
+    await prisma.stationConfig.deleteMany();
+    await prisma.weatherStation.deleteMany();
   });
 
   /**
@@ -215,7 +214,9 @@ test.group('Firmware Critical Endpoints', (group) => {
     response.assertBody({ ok: true });
 
     // Verify data was stored in database
-    const stored = await StationDiagnostic.query().where('stationId', testStationId).first();
+    const stored = await prisma.stationDiagnostic.findFirst({
+      where: { stationId: testStationId },
+    });
 
     assert.exists(stored);
     assert.equal(stored!.batteryVoltage, 3.7);
@@ -416,20 +417,22 @@ test.group('Firmware Critical Endpoints', (group) => {
 
   test('should return actual config when configuration exists', async ({ client, assert }) => {
     // First, create a configuration (this would normally be done via admin API)
-    await StationConfig.create({
-      stationId: testStationId,
-      tempInterval: 60,
-      windSendInterval: 30,
-      windSampleInterval: 5,
-      diagInterval: 300,
-      timeInterval: 3600,
-      restartInterval: 86400,
-      sleepStartHour: 22,
-      sleepEndHour: 6,
-      otaHour: 3,
-      otaMinute: 0,
-      otaDuration: 30,
-      remoteOta: true,
+    await prisma.stationConfig.create({
+      data: {
+        stationId: testStationId,
+        tempInterval: 60,
+        windSendInterval: 30,
+        windSampleInterval: 5,
+        diagInterval: 300,
+        timeInterval: 3600,
+        restartInterval: 86400,
+        sleepStartHour: 22,
+        sleepEndHour: 6,
+        otaHour: 3,
+        otaMinute: 0,
+        otaDuration: 30,
+        remoteOta: true,
+      },
     });
 
     const response = await client.get(`/api/stations/${testStationId}/config`);
@@ -461,23 +464,27 @@ test.group('Firmware Critical Endpoints', (group) => {
     assert,
   }) => {
     // Create an older configuration
-    await StationConfig.create({
-      stationId: testStationId,
-      tempInterval: 120,
-      windSendInterval: 60,
-      windSampleInterval: 10,
-      diagInterval: 600,
-      remoteOta: false,
+    await prisma.stationConfig.create({
+      data: {
+        stationId: testStationId,
+        tempInterval: 120,
+        windSendInterval: 60,
+        windSampleInterval: 10,
+        diagInterval: 600,
+        remoteOta: false,
+      },
     });
 
     // Create a newer configuration
-    await StationConfig.create({
-      stationId: testStationId,
-      tempInterval: 30,
-      windSendInterval: 15,
-      windSampleInterval: 2,
-      diagInterval: 150,
-      remoteOta: true,
+    await prisma.stationConfig.create({
+      data: {
+        stationId: testStationId,
+        tempInterval: 30,
+        windSendInterval: 15,
+        windSampleInterval: 2,
+        diagInterval: 150,
+        remoteOta: true,
+      },
     });
 
     const response = await client.get(`/api/stations/${testStationId}/config`);
@@ -499,12 +506,14 @@ test.group('Firmware Critical Endpoints', (group) => {
    */
   test('should handle OTA confirmation', async ({ client }) => {
     // First, create a configuration with OTA enabled
-    await StationConfig.create({
-      stationId: testStationId,
-      remoteOta: true,
-      otaHour: 3,
-      otaMinute: 0,
-      otaDuration: 30,
+    await prisma.stationConfig.create({
+      data: {
+        stationId: testStationId,
+        remoteOta: true,
+        otaHour: 3,
+        otaMinute: 0,
+        otaDuration: 30,
+      },
     });
 
     const response = await client.post(`/api/stations/${testStationId}/ota-confirm`);
@@ -577,13 +586,15 @@ test.group('Firmware Critical Endpoints', (group) => {
 
   test('configuration response structure should remain consistent', async ({ client, assert }) => {
     // Create a config first
-    await StationConfig.create({
-      stationId: testStationId,
-      tempInterval: 60,
-      windSendInterval: 30,
-      windSampleInterval: 5,
-      diagInterval: 300,
-      remoteOta: true,
+    await prisma.stationConfig.create({
+      data: {
+        stationId: testStationId,
+        tempInterval: 60,
+        windSendInterval: 30,
+        windSampleInterval: 5,
+        diagInterval: 300,
+        remoteOta: true,
+      },
     });
 
     const response = await client.get(`/api/stations/${testStationId}/config`);
@@ -629,12 +640,14 @@ test.group('Firmware Critical Endpoints', (group) => {
     assert,
   }) => {
     // First, create a configuration with OTA enabled (needed for successful confirmation)
-    await StationConfig.create({
-      stationId: testStationId,
-      remoteOta: true,
-      otaHour: 3,
-      otaMinute: 0,
-      otaDuration: 30,
+    await prisma.stationConfig.create({
+      data: {
+        stationId: testStationId,
+        remoteOta: true,
+        otaHour: 3,
+        otaMinute: 0,
+        otaDuration: 30,
+      },
     });
 
     const response = await client.post(`/api/stations/${testStationId}/ota-confirm`);

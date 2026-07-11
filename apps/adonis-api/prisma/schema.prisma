@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+
+  runtime                = "nodejs"
+  moduleFormat           = "esm"
+  generatedFileExtension = "ts"
+  importFileExtension    = "js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model WeatherStation {
+  id          Int       @id @default(autoincrement())
+  stationId   String    @unique @map("station_id")
+  name        String
+  location    String?
+  description String?
+  isActive    Boolean?  @default(true) @map("is_active")
+  createdAt   DateTime? @default(now()) @map("created_at")
+  updatedAt   DateTime? @updatedAt @map("updated_at")
+
+  configs      StationConfig[]
+  diagnostics  StationDiagnostic[]
+  temperatures TemperatureReading[]
+
+  @@index([stationId])
+  @@index([isActive])
+  @@map("weather_stations")
+}
+
+model StationConfig {
+  id                 Int       @id @default(autoincrement())
+  stationId          String    @map("station_id")
+  tempInterval       Int?      @map("temp_interval")
+  diagInterval       Int?      @map("diag_interval")
+  timeInterval       Int?      @map("time_interval")
+  restartInterval    Int?      @map("restart_interval")
+  sleepStartHour     Int?      @map("sleep_start_hour")
+  sleepEndHour       Int?      @map("sleep_end_hour")
+  otaHour            Int?      @map("ota_hour")
+  otaMinute          Int?      @map("ota_minute")
+  otaDuration        Int?      @map("ota_duration")
+  remoteOta          Boolean?  @default(false) @map("remote_ota")
+  windSendInterval   Int?      @map("wind_send_interval")
+  windSampleInterval Int?      @map("wind_sample_interval")
+  createdAt          DateTime? @default(now()) @map("created_at")
+  updatedAt          DateTime? @updatedAt @map("updated_at")
+
+  station WeatherStation @relation(fields: [stationId], references: [stationId], onDelete: Cascade)
+
+  @@index([stationId])
+  @@map("station_configs")
+}
+
+model StationDiagnostic {
+  id                  Int       @id @default(autoincrement())
+  stationId           String    @map("station_id")
+  batteryVoltage      Float     @map("battery_voltage")
+  solarVoltage        Float     @map("solar_voltage")
+  internalTemperature Float?    @map("internal_temperature")
+  signalQuality       Int       @map("signal_quality")
+  uptime              Int
+  createdAt           DateTime? @default(now()) @map("created_at")
+  updatedAt           DateTime? @updatedAt @map("updated_at")
+
+  station WeatherStation @relation(fields: [stationId], references: [stationId], onDelete: Cascade)
+
+  @@map("station_diagnostics")
+}
+
+model SystemConfig {
+  id        Int       @id @default(autoincrement())
+  key       String    @unique
+  value     String
+  createdAt DateTime? @default(now()) @map("created_at")
+  updatedAt DateTime? @updatedAt @map("updated_at")
+
+  @@map("system_configs")
+}
+
+model TemperatureReading {
+  id               Int       @id @default(autoincrement())
+  stationId        String    @map("station_id")
+  temperature      Float
+  readingTimestamp DateTime  @map("reading_timestamp")
+  createdAt        DateTime? @default(now()) @map("created_at")
+  updatedAt        DateTime? @updatedAt @map("updated_at")
+
+  station WeatherStation @relation(fields: [stationId], references: [stationId], onDelete: Cascade)
+
+  @@index([stationId])
+  @@index([readingTimestamp])
+  @@index([stationId, readingTimestamp])
+  @@map("temperature_readings")
+}
+
+model DataRetentionPolicy {
+  id            Int       @id @default(autoincrement())
+  dataType      String    @map("data_type")
+  retentionDays Int       @map("retention_days")
+  isActive      Boolean?  @default(true) @map("is_active")
+  description   String?
+  createdAt     DateTime? @default(now()) @map("created_at")
+  updatedAt     DateTime? @updatedAt @map("updated_at")
+
+  @@index([dataType])
+  @@index([isActive])
+  @@map("data_retention_policies")
+}
+
+/// Wind timestamps are stored as UTC ISO-8601 text (e.g. "2025-07-25T11:53:00.000Z")
+/// and range-queried lexicographically. They stay String by design — do NOT change
+/// to DateTime, it would break query semantics against existing data.
+model WindData1Min {
+  id                Int       @id @default(autoincrement())
+  stationId         String    @map("station_id")
+  timestamp         String
+  avgSpeed          Float     @map("avg_speed")
+  minSpeed          Float     @map("min_speed")
+  maxSpeed          Float     @map("max_speed")
+  dominantDirection Int       @map("dominant_direction")
+  sampleCount       Int       @map("sample_count")
+  createdAt         DateTime? @default(now()) @map("created_at")
+  updatedAt         DateTime? @updatedAt @map("updated_at")
+
+  @@unique([stationId, timestamp])
+  @@index([stationId])
+  @@index([timestamp])
+  @@map("wind_data_1min")
+}
+
+/// tendency is 'increasing' | 'decreasing' | 'stable' (CHECK constraint in the
+/// legacy DDL; enforced at app level via the WindTendency union type).
+model WindData10Min {
+  id                Int       @id @default(autoincrement())
+  stationId         String    @map("station_id")
+  timestamp         String
+  avgSpeed          Float     @map("avg_speed")
+  minSpeed          Float     @map("min_speed")
+  maxSpeed          Float     @map("max_speed")
+  dominantDirection Int       @map("dominant_direction")
+  tendency          String
+  createdAt         DateTime? @default(now()) @map("created_at")
+  updatedAt         DateTime? @updatedAt @map("updated_at")
+
+  @@unique([stationId, timestamp])
+  @@index([stationId])
+  @@index([timestamp])
+  @@map("wind_data_10min")
+}

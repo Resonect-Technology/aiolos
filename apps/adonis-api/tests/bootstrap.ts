@@ -1,4 +1,6 @@
+import { execFileSync } from 'node:child_process';
 import { unlink } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 
 import app from '@adonisjs/core/services/app';
 import testUtils from '@adonisjs/core/services/test_utils';
@@ -8,6 +10,7 @@ import { pluginAdonisJS } from '@japa/plugin-adonisjs';
 import type { Config } from '@japa/runner/types';
 
 import { windAggregationService } from '#app/services/wind_aggregation_service';
+import { prisma } from '#services/prisma';
 
 /**
  * This file is imported by the "bin/test.ts" entrypoint file
@@ -32,18 +35,24 @@ export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
       // Delete the database file to start completely fresh
       try {
         await unlink(app.tmpPath('db.sqlite3'));
-      } catch (error) {
+      } catch {
         // File doesn't exist, that's fine
       }
 
-      // Run migrations on fresh database
-      await testUtils.db().migrate();
+      // Run Prisma migrations on the fresh database
+      const packageRoot = fileURLToPath(new URL('../', import.meta.url));
+      execFileSync('node', ['node_modules/prisma/build/index.js', 'migrate', 'deploy'], {
+        cwd: packageRoot,
+        env: { ...process.env, DATABASE_URL: `file:${app.tmpPath('db.sqlite3')}` },
+        stdio: 'inherit',
+      });
     },
   ],
   teardown: [
     async () => {
       // Stop the wind aggregation timer to prevent hanging
       windAggregationService.stopFlushTimer();
+      await prisma.$disconnect();
     },
   ],
 };

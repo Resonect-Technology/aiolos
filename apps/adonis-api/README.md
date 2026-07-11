@@ -28,7 +28,8 @@ monitoring system. It is built with AdonisJS and TypeScript.
 - [@adonisjs/transmit](https://github.com/adonisjs/transmit) for SSE
 - [SQLite](https://www.sqlite.org/) with
   [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) driver
-- [Lucid ORM](https://lucid.adonisjs.com/) for database interactions
+- [Prisma ORM](https://www.prisma.io/) for database interactions (better-sqlite3
+  driver adapter)
 - [adonis-autoswagger](https://github.com/Julien-R44/adonis-autoswagger) for
   OpenAPI documentation
 
@@ -36,7 +37,7 @@ monitoring system. It is built with AdonisJS and TypeScript.
 
 1.  Navigate to the `apps/adonis-api` directory.
 2.  Install dependencies: `pnpm install` (or `npm install`)
-3.  Run database migrations: `node ace migration:run`
+3.  Run database migrations: `pnpm exec prisma migrate deploy`
 4.  Start the development server: `node ace serve --watch`
 
 The API will typically run on `http://localhost:3333`.
@@ -74,7 +75,7 @@ pnpm install
 
 ```sh
 cd apps/adonis-api
-node ace migration:run
+pnpm exec prisma migrate deploy
 ```
 
 ### Start the API server
@@ -232,7 +233,7 @@ order has been carefully configured to ensure proper table creation:
 
 ```bash
 # Run pending migrations
-node ace migration:run
+pnpm exec prisma migrate deploy
 
 # Rollback last migration
 node ace migration:rollback
@@ -352,7 +353,7 @@ modern JavaScript/TypeScript best practices.
   `batteryVoltage`
 - **Database columns use snake_case**: `wind_speed`, `wind_direction`,
   `battery_voltage`
-- **Model properties use camelCase**: Lucid ORM automatically maps between
+- **Model properties use camelCase**: Prisma automatically maps between
   conventions
 
 ### API Examples
@@ -406,8 +407,8 @@ GET /api/stations/vasiliki-001/config
 ### Implementation Notes
 
 - **Controllers**: All request validation and response formatting uses camelCase
-- **Models**: Lucid ORM models define camelCase properties that map to
-  snake_case database columns
+- **Models**: The Prisma schema defines camelCase fields that map to snake_case
+  database columns
 - **Tests**: All test cases validate camelCase field names in requests and
   responses
 - **No Backward Compatibility**: The API only accepts camelCase; snake_case

@@ -1,34 +1,34 @@
 import { test } from '@japa/runner';
 import { DateTime } from 'luxon';
 
-import WeatherStation from '#app/models/weather_station';
-import WindData1Min from '#app/models/wind_data_1_min';
-import WindData10Min from '#app/models/wind_data_10_min';
 import { windAggregationService } from '#app/services/wind_aggregation_service';
+import { prisma } from '#services/prisma';
 
 test.group('Wind 10-Minute Aggregation', (group) => {
   const testStationId = 'test-station-10min';
 
   group.each.setup(async () => {
     // Clean up any existing test data first
-    await WindData10Min.query().delete();
-    await WindData1Min.query().delete();
-    await WeatherStation.query().delete();
+    await prisma.windData10Min.deleteMany();
+    await prisma.windData1Min.deleteMany();
+    await prisma.weatherStation.deleteMany();
 
     // Create the test weather station
-    await WeatherStation.create({
-      stationId: testStationId,
-      name: 'Test 10-Minute Station',
-      location: 'Test Environment',
-      description: 'Test station for 10-minute aggregation',
-      isActive: true,
+    await prisma.weatherStation.create({
+      data: {
+        stationId: testStationId,
+        name: 'Test 10-Minute Station',
+        location: 'Test Environment',
+        description: 'Test station for 10-minute aggregation',
+        isActive: true,
+      },
     });
   });
 
   group.each.teardown(async () => {
-    await WindData10Min.query().delete();
-    await WindData1Min.query().delete();
-    await WeatherStation.query().delete();
+    await prisma.windData10Min.deleteMany();
+    await prisma.windData1Min.deleteMany();
+    await prisma.weatherStation.deleteMany();
   });
 
   test('should support 10min interval in API', async ({ client }) => {
@@ -173,14 +173,16 @@ test.group('Wind 10-Minute Aggregation', (group) => {
 
     // Insert 1-minute data
     for (const data of testData) {
-      await WindData1Min.create({
-        stationId: testStationId,
-        timestamp: data.timestamp,
-        avgSpeed: data.avgSpeed,
-        minSpeed: data.minSpeed,
-        maxSpeed: data.maxSpeed,
-        dominantDirection: data.dominantDirection,
-        sampleCount: 6,
+      await prisma.windData1Min.create({
+        data: {
+          stationId: testStationId,
+          timestamp: data.timestamp.toUTC().toISO()!,
+          avgSpeed: data.avgSpeed,
+          minSpeed: data.minSpeed,
+          maxSpeed: data.maxSpeed,
+          dominantDirection: data.dominantDirection,
+          sampleCount: 6,
+        },
       });
     }
 
@@ -188,10 +190,9 @@ test.group('Wind 10-Minute Aggregation', (group) => {
     await windAggregationService.processIntervalAggregation(intervalStart);
 
     // Check that 10-minute data was created
-    const tenMinData = await WindData10Min.query()
-      .where('stationId', testStationId)
-      .where('timestamp', intervalStart.toUTC().toISO()!)
-      .first();
+    const tenMinData = await prisma.windData10Min.findFirst({
+      where: { stationId: testStationId, timestamp: intervalStart.toUTC().toISO()! },
+    });
 
     assert.isNotNull(tenMinData);
 
@@ -209,14 +210,16 @@ test.group('Wind 10-Minute Aggregation', (group) => {
     const baseTime = DateTime.now().startOf('minute').set({ minute: 0 });
 
     // First interval (previous) - lower average speed
-    await WindData10Min.create({
-      stationId: testStationId,
-      timestamp: baseTime.minus({ minutes: 10 }),
-      avgSpeed: 8.0,
-      minSpeed: 6.0,
-      maxSpeed: 10.0,
-      dominantDirection: 270,
-      tendency: 'stable',
+    await prisma.windData10Min.create({
+      data: {
+        stationId: testStationId,
+        timestamp: baseTime.minus({ minutes: 10 }).toUTC().toISO()!,
+        avgSpeed: 8.0,
+        minSpeed: 6.0,
+        maxSpeed: 10.0,
+        dominantDirection: 270,
+        tendency: 'stable',
+      },
     });
 
     // Create 1-minute data for second interval with higher average speed
@@ -260,14 +263,16 @@ test.group('Wind 10-Minute Aggregation', (group) => {
 
     // Insert 1-minute data
     for (const data of testData) {
-      await WindData1Min.create({
-        stationId: testStationId,
-        timestamp: data.timestamp,
-        avgSpeed: data.avgSpeed,
-        minSpeed: data.minSpeed,
-        maxSpeed: data.maxSpeed,
-        dominantDirection: data.dominantDirection,
-        sampleCount: 6,
+      await prisma.windData1Min.create({
+        data: {
+          stationId: testStationId,
+          timestamp: data.timestamp.toUTC().toISO()!,
+          avgSpeed: data.avgSpeed,
+          minSpeed: data.minSpeed,
+          maxSpeed: data.maxSpeed,
+          dominantDirection: data.dominantDirection,
+          sampleCount: 6,
+        },
       });
     }
 
@@ -275,10 +280,9 @@ test.group('Wind 10-Minute Aggregation', (group) => {
     await windAggregationService.processIntervalAggregation(baseTime);
 
     // Check tendency calculation
-    const newInterval = await WindData10Min.query()
-      .where('stationId', testStationId)
-      .where('timestamp', baseTime.toUTC().toISO()!)
-      .first();
+    const newInterval = await prisma.windData10Min.findFirst({
+      where: { stationId: testStationId, timestamp: baseTime.toUTC().toISO()! },
+    });
 
     assert.isNotNull(newInterval);
     assert.equal(newInterval!.tendency, 'increasing'); // Should be increasing since avg went from 8.0 to ~12.5
@@ -286,14 +290,21 @@ test.group('Wind 10-Minute Aggregation', (group) => {
 
   test('should handle tendency threshold correctly', async ({ assert }) => {
     // Create previous interval
-    await WindData10Min.create({
-      stationId: testStationId,
-      timestamp: DateTime.now().startOf('minute').set({ minute: 0 }).minus({ minutes: 10 }),
-      avgSpeed: 10.0,
-      minSpeed: 8.0,
-      maxSpeed: 12.0,
-      dominantDirection: 270,
-      tendency: 'stable',
+    await prisma.windData10Min.create({
+      data: {
+        stationId: testStationId,
+        timestamp: DateTime.now()
+          .startOf('minute')
+          .set({ minute: 0 })
+          .minus({ minutes: 10 })
+          .toUTC()
+          .toISO()!,
+        avgSpeed: 10.0,
+        minSpeed: 8.0,
+        maxSpeed: 12.0,
+        dominantDirection: 270,
+        tendency: 'stable',
+      },
     });
 
     // Create 1-minute data for current interval with similar average (within threshold)
@@ -324,14 +335,16 @@ test.group('Wind 10-Minute Aggregation', (group) => {
 
     // Insert 1-minute data
     for (const data of testData) {
-      await WindData1Min.create({
-        stationId: testStationId,
-        timestamp: data.timestamp,
-        avgSpeed: data.avgSpeed,
-        minSpeed: data.minSpeed,
-        maxSpeed: data.maxSpeed,
-        dominantDirection: data.dominantDirection,
-        sampleCount: 6,
+      await prisma.windData1Min.create({
+        data: {
+          stationId: testStationId,
+          timestamp: data.timestamp.toUTC().toISO()!,
+          avgSpeed: data.avgSpeed,
+          minSpeed: data.minSpeed,
+          maxSpeed: data.maxSpeed,
+          dominantDirection: data.dominantDirection,
+          sampleCount: 6,
+        },
       });
     }
 
@@ -339,10 +352,9 @@ test.group('Wind 10-Minute Aggregation', (group) => {
     await windAggregationService.processIntervalAggregation(baseTime);
 
     // Check tendency calculation
-    const newInterval = await WindData10Min.query()
-      .where('stationId', testStationId)
-      .where('timestamp', baseTime.toUTC().toISO()!)
-      .first();
+    const newInterval = await prisma.windData10Min.findFirst({
+      where: { stationId: testStationId, timestamp: baseTime.toUTC().toISO()! },
+    });
 
     assert.isNotNull(newInterval);
     assert.equal(newInterval!.tendency, 'stable'); // Should be stable since change is < 0.5 m/s
@@ -406,14 +418,16 @@ test.group('Wind 10-Minute Aggregation', (group) => {
 
     // Insert 1-minute data
     for (const data of testData) {
-      await WindData1Min.create({
-        stationId: testStationId,
-        timestamp: data.timestamp,
-        avgSpeed: data.avgSpeed,
-        minSpeed: data.minSpeed,
-        maxSpeed: data.maxSpeed,
-        dominantDirection: data.dominantDirection,
-        sampleCount: 6,
+      await prisma.windData1Min.create({
+        data: {
+          stationId: testStationId,
+          timestamp: data.timestamp.toUTC().toISO()!,
+          avgSpeed: data.avgSpeed,
+          minSpeed: data.minSpeed,
+          maxSpeed: data.maxSpeed,
+          dominantDirection: data.dominantDirection,
+          sampleCount: 6,
+        },
       });
     }
 
@@ -421,10 +435,9 @@ test.group('Wind 10-Minute Aggregation', (group) => {
     await windAggregationService.processIntervalAggregation(intervalStart);
 
     // Check dominant direction calculation (270 appears 6 times, 275 appears 1 time)
-    const tenMinData = await WindData10Min.query()
-      .where('stationId', testStationId)
-      .where('timestamp', intervalStart.toUTC().toISO()!)
-      .first();
+    const tenMinData = await prisma.windData10Min.findFirst({
+      where: { stationId: testStationId, timestamp: intervalStart.toUTC().toISO()! },
+    });
 
     assert.isNotNull(tenMinData);
     assert.equal(tenMinData!.dominantDirection, 270); // Should be 270 (most frequent)

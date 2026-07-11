@@ -1,8 +1,7 @@
 import type { HttpContext } from '@adonisjs/core/http';
 import { DateTime } from 'luxon';
 
-import WindData1Min from '#models/wind_data_1_min';
-import WindData10Min from '#models/wind_data_10_min';
+import { prisma } from '#services/prisma';
 
 /**
  * Controller for aggregated wind data endpoints
@@ -59,43 +58,38 @@ export default class WindAggregatedController {
   }
 
   /**
+   * Build the timestamp range filter for a YYYY-MM-DD date (UTC day bounds).
+   * Wind timestamps are UTC ISO strings compared lexicographically.
+   */
+  private dateRange(date: string): { gte: string; lte: string } {
+    const queryDate = DateTime.fromISO(date);
+    if (!queryDate.isValid) {
+      throw new Error('Invalid date format. Use YYYY-MM-DD format.');
+    }
+    return {
+      gte: queryDate.startOf('day').toUTC().toISO()!,
+      lte: queryDate.endOf('day').toUTC().toISO()!,
+    };
+  }
+
+  /**
    * Get 1-minute aggregated data
    */
   private async get1MinuteData(stationId: string, date: string | undefined, recordLimit: number) {
-    let aggregatedData;
-    let responseDate: string;
+    const aggregatedData = await prisma.windData1Min.findMany({
+      where: {
+        stationId,
+        ...(date ? { timestamp: this.dateRange(date) } : {}),
+      },
+      orderBy: { timestamp: 'desc' },
+      take: recordLimit,
+    });
 
-    if (date) {
-      // Date-specific query: get data for the specified date
-      const queryDate = DateTime.fromISO(date);
-      if (!queryDate.isValid) {
-        throw new Error('Invalid date format. Use YYYY-MM-DD format.');
-      }
-
-      const startOfDay = queryDate.startOf('day');
-      const endOfDay = queryDate.endOf('day');
-
-      aggregatedData = await WindData1Min.query()
-        .where('stationId', stationId)
-        .where('timestamp', '>=', startOfDay.toJSDate())
-        .where('timestamp', '<=', endOfDay.toJSDate())
-        .orderBy('timestamp', 'desc')
-        .limit(recordLimit);
-
-      responseDate = queryDate.toISODate()!;
-    } else {
-      // Latest data query: get most recent records regardless of date
-      aggregatedData = await WindData1Min.query()
-        .where('stationId', stationId)
-        .orderBy('timestamp', 'desc')
-        .limit(recordLimit);
-
-      responseDate = DateTime.now().toISODate()!;
-    }
+    const responseDate = date ? DateTime.fromISO(date).toISODate()! : DateTime.now().toISODate()!;
 
     // Format response data (reverse to get chronological order)
     const formattedData = aggregatedData.reverse().map((record) => ({
-      timestamp: record.timestamp.toISO(),
+      timestamp: record.timestamp,
       avgSpeed: record.avgSpeed,
       minSpeed: record.minSpeed,
       maxSpeed: record.maxSpeed,
@@ -120,39 +114,22 @@ export default class WindAggregatedController {
       `Fetching 10-minute data for station ${stationId}, date: ${date || 'latest'}, limit: ${recordLimit}`,
     );
 
-    let aggregatedData;
-    let responseDate: string;
+    const aggregatedData = await prisma.windData10Min.findMany({
+      where: {
+        stationId,
+        ...(date ? { timestamp: this.dateRange(date) } : {}),
+      },
+      orderBy: { timestamp: 'desc' },
+      take: recordLimit,
+    });
 
-    if (date) {
-      // Date-specific query: get data for the specified date
-      const queryDate = DateTime.fromISO(date);
-      if (!queryDate.isValid) {
-        throw new Error('Invalid date format. Use YYYY-MM-DD format.');
-      }
-
-      aggregatedData = await WindData10Min.query()
-        .where('stationId', stationId)
-        .where('timestamp', '>=', queryDate.startOf('day').toJSDate())
-        .where('timestamp', '<=', queryDate.endOf('day').toJSDate())
-        .orderBy('timestamp', 'desc')
-        .limit(recordLimit);
-
-      responseDate = queryDate.toISODate()!;
-    } else {
-      // Latest data query: get most recent records regardless of date
-      aggregatedData = await WindData10Min.query()
-        .where('stationId', stationId)
-        .orderBy('timestamp', 'desc')
-        .limit(recordLimit);
-
-      responseDate = DateTime.now().toISODate()!;
-    }
+    const responseDate = date ? DateTime.fromISO(date).toISODate()! : DateTime.now().toISODate()!;
 
     console.log(`Found ${aggregatedData.length} 10-minute records for station ${stationId}`);
 
     // Format response data (reverse to get chronological order)
     const formattedData = aggregatedData.reverse().map((record) => ({
-      timestamp: record.timestamp.toISO(),
+      timestamp: record.timestamp,
       avgSpeed: record.avgSpeed,
       minSpeed: record.minSpeed,
       maxSpeed: record.maxSpeed,
@@ -187,10 +164,10 @@ export default class WindAggregatedController {
 
     try {
       if (interval === '10min') {
-        const latestData = await WindData10Min.query()
-          .where('stationId', station_id)
-          .orderBy('timestamp', 'desc')
-          .first();
+        const latestData = await prisma.windData10Min.findFirst({
+          where: { stationId: station_id },
+          orderBy: { timestamp: 'desc' },
+        });
 
         if (!latestData) {
           return response.notFound({
@@ -200,7 +177,7 @@ export default class WindAggregatedController {
 
         return {
           stationId: station_id,
-          timestamp: latestData.timestamp.toISO(),
+          timestamp: latestData.timestamp,
           avgSpeed: latestData.avgSpeed,
           minSpeed: latestData.minSpeed,
           maxSpeed: latestData.maxSpeed,
@@ -209,10 +186,10 @@ export default class WindAggregatedController {
           interval: '10min',
         };
       } else {
-        const latestData = await WindData1Min.query()
-          .where('stationId', station_id)
-          .orderBy('timestamp', 'desc')
-          .first();
+        const latestData = await prisma.windData1Min.findFirst({
+          where: { stationId: station_id },
+          orderBy: { timestamp: 'desc' },
+        });
 
         if (!latestData) {
           return response.notFound({
@@ -222,7 +199,7 @@ export default class WindAggregatedController {
 
         return {
           stationId: station_id,
-          timestamp: latestData.timestamp.toISO(),
+          timestamp: latestData.timestamp,
           avgSpeed: latestData.avgSpeed,
           minSpeed: latestData.minSpeed,
           maxSpeed: latestData.maxSpeed,
@@ -276,41 +253,29 @@ export default class WindAggregatedController {
     }
 
     try {
-      let aggregatedData: any[];
+      if (date && !DateTime.fromISO(date).isValid) {
+        return response.badRequest({
+          error: 'Invalid date format. Use YYYY-MM-DD format.',
+        });
+      }
+
+      const responseDate = date ? DateTime.fromISO(date).toISODate()! : DateTime.now().toISODate()!;
+
       let responseData: any[];
-      let responseDate: string;
 
       if (interval === '10min') {
-        if (date) {
-          // Date-specific query: get data for the specified date
-          const queryDate = DateTime.fromISO(date);
-          if (!queryDate.isValid) {
-            return response.badRequest({
-              error: 'Invalid date format. Use YYYY-MM-DD format.',
-            });
-          }
-
-          aggregatedData = await WindData10Min.query()
-            .where('stationId', station_id)
-            .where('timestamp', '>=', queryDate.startOf('day').toJSDate())
-            .where('timestamp', '<=', queryDate.endOf('day').toJSDate())
-            .orderBy('timestamp', 'desc')
-            .limit(recordLimit);
-
-          responseDate = queryDate.toISODate()!;
-        } else {
-          // Latest data query: get most recent records regardless of date
-          aggregatedData = await WindData10Min.query()
-            .where('stationId', station_id)
-            .orderBy('timestamp', 'desc')
-            .limit(recordLimit);
-
-          responseDate = DateTime.now().toISODate()!;
-        }
+        const aggregatedData = await prisma.windData10Min.findMany({
+          where: {
+            stationId: station_id,
+            ...(date ? { timestamp: this.dateRange(date) } : {}),
+          },
+          orderBy: { timestamp: 'desc' },
+          take: recordLimit,
+        });
 
         // Format response data with unit conversion (reverse to get chronological order)
         responseData = aggregatedData.reverse().map((record) => ({
-          timestamp: record.timestamp.toISO(),
+          timestamp: record.timestamp,
           avgSpeed: this.convertSpeed(record.avgSpeed, unit),
           minSpeed: this.convertSpeed(record.minSpeed, unit),
           maxSpeed: this.convertSpeed(record.maxSpeed, unit),
@@ -318,39 +283,18 @@ export default class WindAggregatedController {
           tendency: record.tendency,
         }));
       } else {
-        if (date) {
-          // Date-specific query: get data for the specified date
-          const queryDate = DateTime.fromISO(date);
-          if (!queryDate.isValid) {
-            return response.badRequest({
-              error: 'Invalid date format. Use YYYY-MM-DD format.',
-            });
-          }
-
-          const startOfDay = queryDate.startOf('day');
-          const endOfDay = queryDate.endOf('day');
-
-          aggregatedData = await WindData1Min.query()
-            .where('stationId', station_id)
-            .where('timestamp', '>=', startOfDay.toJSDate())
-            .where('timestamp', '<=', endOfDay.toJSDate())
-            .orderBy('timestamp', 'desc')
-            .limit(recordLimit);
-
-          responseDate = queryDate.toISODate()!;
-        } else {
-          // Latest data query: get most recent records regardless of date
-          aggregatedData = await WindData1Min.query()
-            .where('stationId', station_id)
-            .orderBy('timestamp', 'desc')
-            .limit(recordLimit);
-
-          responseDate = DateTime.now().toISODate()!;
-        }
+        const aggregatedData = await prisma.windData1Min.findMany({
+          where: {
+            stationId: station_id,
+            ...(date ? { timestamp: this.dateRange(date) } : {}),
+          },
+          orderBy: { timestamp: 'desc' },
+          take: recordLimit,
+        });
 
         // Format response data with unit conversion (reverse to get chronological order)
         responseData = aggregatedData.reverse().map((record) => ({
-          timestamp: record.timestamp.toISO(),
+          timestamp: record.timestamp,
           avgSpeed: this.convertSpeed(record.avgSpeed, unit),
           minSpeed: this.convertSpeed(record.minSpeed, unit),
           maxSpeed: this.convertSpeed(record.maxSpeed, unit),

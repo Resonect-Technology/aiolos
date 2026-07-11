@@ -1,6 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http';
 
-import SystemConfig from '#app/models/system_config';
+import { prisma } from '#services/prisma';
 
 export default class SystemConfigsController {
   /**
@@ -10,7 +10,7 @@ export default class SystemConfigsController {
     const key = params.key;
 
     try {
-      const config = await SystemConfig.query().where('key', key).first();
+      const config = await prisma.systemConfig.findUnique({ where: { key } });
 
       if (!config) {
         return {
@@ -35,7 +35,7 @@ export default class SystemConfigsController {
    */
   async index({ response }: HttpContext) {
     try {
-      const configs = await SystemConfig.all();
+      const configs = await prisma.systemConfig.findMany();
 
       // Transform to a key-value object
       const configObject = configs.reduce(
@@ -78,18 +78,12 @@ export default class SystemConfigsController {
       // Convert value to string if it's not already
       const stringValue = String(value);
 
-      // Find existing config or create new one
-      const existingConfig = await SystemConfig.query().where('key', key).first();
-
-      if (existingConfig) {
-        existingConfig.value = stringValue;
-        await existingConfig.save();
-      } else {
-        await SystemConfig.create({
-          key,
-          value: stringValue,
-        });
-      }
+      // Create or update the configuration
+      await prisma.systemConfig.upsert({
+        where: { key },
+        update: { value: stringValue },
+        create: { key, value: stringValue },
+      });
 
       // Log in development mode
       if (process.env.NODE_ENV === 'development') {

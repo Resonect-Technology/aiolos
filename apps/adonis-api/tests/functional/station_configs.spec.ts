@@ -1,19 +1,18 @@
 import { test } from '@japa/runner';
 
-import StationConfig from '#app/models/station_config';
-import WeatherStation from '#app/models/weather_station';
+import { prisma } from '#services/prisma';
 
 test.group('Station Configs Controller', (group) => {
   group.each.setup(async () => {
     // Clean up any existing test data
-    await StationConfig.query().delete();
-    await WeatherStation.query().delete();
+    await prisma.stationConfig.deleteMany();
+    await prisma.weatherStation.deleteMany();
   });
 
   group.each.teardown(async () => {
     // Clean up after each test
-    await StationConfig.query().delete();
-    await WeatherStation.query().delete();
+    await prisma.stationConfig.deleteMany();
+    await prisma.weatherStation.deleteMany();
   });
 
   /**
@@ -89,12 +88,14 @@ test.group('Station Configs Controller', (group) => {
     const stationId = 'test-station-002';
 
     // Create weather station first
-    await WeatherStation.create({
-      stationId: stationId,
-      name: 'Test Station 2',
-      location: 'Test Environment',
-      description: 'Test station for config test',
-      isActive: true,
+    await prisma.weatherStation.create({
+      data: {
+        stationId: stationId,
+        name: 'Test Station 2',
+        location: 'Test Environment',
+        description: 'Test station for config test',
+        isActive: true,
+      },
     });
 
     // Create a test configuration
@@ -114,7 +115,7 @@ test.group('Station Configs Controller', (group) => {
       remoteOta: true,
     };
 
-    await StationConfig.create(testConfig);
+    await prisma.stationConfig.create({ data: testConfig });
 
     const response = await client.get(`/api/stations/${stationId}/config`);
 
@@ -160,13 +161,13 @@ test.group('Station Configs Controller', (group) => {
     assert.equal(typeof body.otaMinute, 'number');
     assert.equal(typeof body.otaDuration, 'number');
     // Note: SQLite stores boolean as number (1/0), so we check the actual value
-    assert.equal(typeof body.remoteOta, 'number');
+    assert.equal(typeof body.remoteOta, 'boolean');
 
     // Validate specific values
     assert.equal(body.stationId, stationId);
     assert.equal(body.tempInterval, 300);
     assert.equal(body.windSendInterval, 60);
-    assert.equal(body.remoteOta, 1); // SQLite stores true as 1
+    assert.equal(body.remoteOta, true);
 
     // Validate that no unexpected 'message' field is present when config exists
     assert.notProperty(body, 'message', 'Message field should not be present when config exists');
@@ -187,12 +188,14 @@ test.group('Station Configs Controller', (group) => {
     process.env.ADMIN_API_KEY = apiKey;
 
     // Create weather station first
-    await WeatherStation.create({
-      stationId: stationId,
-      name: 'Test Station 3',
-      location: 'Test Environment',
-      description: 'Test station for config store test',
-      isActive: true,
+    await prisma.weatherStation.create({
+      data: {
+        stationId: stationId,
+        name: 'Test Station 3',
+        location: 'Test Environment',
+        description: 'Test station for config store test',
+        isActive: true,
+      },
     });
 
     const configData = {
@@ -301,29 +304,33 @@ test.group('Station Configs Controller', (group) => {
     const stationId = 'test-station-006';
 
     // Create weather station first
-    await WeatherStation.create({
-      stationId: stationId,
-      name: 'Test Station 6',
-      location: 'Test Environment',
-      description: 'Test station for OTA confirmation test',
-      isActive: true,
+    await prisma.weatherStation.create({
+      data: {
+        stationId: stationId,
+        name: 'Test Station 6',
+        location: 'Test Environment',
+        description: 'Test station for OTA confirmation test',
+        isActive: true,
+      },
     });
 
     // Create a test configuration first
-    await StationConfig.create({
-      stationId: stationId,
-      tempInterval: 300,
-      windSendInterval: 60,
-      windSampleInterval: 10,
-      diagInterval: 3600,
-      timeInterval: 86400,
-      restartInterval: 604800,
-      sleepStartHour: 22,
-      sleepEndHour: 6,
-      otaHour: 3,
-      otaMinute: 30,
-      otaDuration: 1800,
-      remoteOta: true,
+    await prisma.stationConfig.create({
+      data: {
+        stationId: stationId,
+        tempInterval: 300,
+        windSendInterval: 60,
+        windSampleInterval: 10,
+        diagInterval: 3600,
+        timeInterval: 86400,
+        restartInterval: 604800,
+        sleepStartHour: 22,
+        sleepEndHour: 6,
+        otaHour: 3,
+        otaMinute: 30,
+        otaDuration: 1800,
+        remoteOta: true,
+      },
     });
 
     const response = await client.post(`/api/stations/${stationId}/ota-confirm`);
@@ -381,29 +388,33 @@ test.group('Station Configs Controller', (group) => {
     const stationId = 'test-station-008';
 
     // Create weather station first
-    await WeatherStation.create({
-      stationId: stationId,
-      name: 'Test Station 8',
-      location: 'Test Environment',
-      description: 'Test station for OTA reset test',
-      isActive: true,
+    await prisma.weatherStation.create({
+      data: {
+        stationId: stationId,
+        name: 'Test Station 8',
+        location: 'Test Environment',
+        description: 'Test station for OTA reset test',
+        isActive: true,
+      },
     });
 
     // Create a test configuration with remoteOta = true
-    await StationConfig.create({
-      stationId: stationId,
-      tempInterval: 300,
-      windSendInterval: 60,
-      windSampleInterval: 10,
-      diagInterval: 3600,
-      timeInterval: 86400,
-      restartInterval: 604800,
-      sleepStartHour: 22,
-      sleepEndHour: 6,
-      otaHour: 3,
-      otaMinute: 30,
-      otaDuration: 1800,
-      remoteOta: true,
+    await prisma.stationConfig.create({
+      data: {
+        stationId: stationId,
+        tempInterval: 300,
+        windSendInterval: 60,
+        windSampleInterval: 10,
+        diagInterval: 3600,
+        timeInterval: 86400,
+        restartInterval: 604800,
+        sleepStartHour: 22,
+        sleepEndHour: 6,
+        otaHour: 3,
+        otaMinute: 30,
+        otaDuration: 1800,
+        remoteOta: true,
+      },
     });
 
     // Call OTA confirmation

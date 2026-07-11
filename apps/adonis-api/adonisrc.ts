@@ -4,6 +4,17 @@ import { defineConfig } from '@adonisjs/core/app';
 export default defineConfig({
   /*
   |--------------------------------------------------------------------------
+  | Meta Files
+  |--------------------------------------------------------------------------
+  |
+  | Prisma schema + migrations are copied into build/ so the production
+  | entrypoint can run `prisma migrate deploy` from the build output.
+  |
+  */
+  metaFiles: [{ pattern: 'prisma/**', reloadServer: false }],
+
+  /*
+  |--------------------------------------------------------------------------
   | Hooks
   |--------------------------------------------------------------------------
   |
@@ -23,7 +34,7 @@ export default defineConfig({
   | will be scanned automatically from the "./commands" directory.
   |
   */
-  commands: [() => import('@adonisjs/core/commands'), () => import('@adonisjs/lucid/commands')],
+  commands: [() => import('@adonisjs/core/commands')],
 
   /*
   |--------------------------------------------------------------------------
@@ -42,7 +53,7 @@ export default defineConfig({
       environment: ['repl', 'test'],
     },
     () => import('@adonisjs/cors/cors_provider'),
-    () => import('@adonisjs/lucid/database_provider'),
+    () => import('#providers/prisma_provider'),
     () => import('@adonisjs/transmit/transmit_provider'),
   ],
 

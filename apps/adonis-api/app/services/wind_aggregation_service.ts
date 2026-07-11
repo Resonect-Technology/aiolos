@@ -1,9 +1,10 @@
 import transmit from '@adonisjs/transmit/services/main';
 import { DateTime } from 'luxon';
 
-import WindData1Min from '#models/wind_data_1_min';
-import WindData10Min from '#models/wind_data_10_min';
-import type { WindTendency } from '#models/wind_data_10_min';
+import type { WindTendency } from '#app/types';
+import { prisma } from '#services/prisma';
+
+import type { WindData1MinModel } from '../../generated/prisma/models.js';
 
 /**
  * Data structure for tracking wind data in a minute interval
@@ -25,6 +26,9 @@ interface WindBucket {
  * Handles real-time aggregation of wind data into 1-minute intervals.
  * Maintains in-memory buckets for current minute data and saves to database
  * at minute boundaries.
+ *
+ * Wind timestamps are UTC ISO-8601 strings end to end (stored as text,
+ * compared lexicographically) — always pass `.toUTC().toISO()` values.
  */
 export class WindAggregationService {
   private buckets: Map<string, WindBucket> = new Map();
@@ -111,20 +115,22 @@ export class WindAggregationService {
       const dominantDirection = this.calculateDominantDirection(bucket.directionFrequency);
 
       // Save to database
-      const windData = await WindData1Min.create({
-        stationId: bucket.stationId,
-        timestamp: bucket.intervalStart,
-        avgSpeed: Math.round(avgSpeed * 100) / 100, // Round to 2 decimal places
-        minSpeed: bucket.minSpeed,
-        maxSpeed: bucket.maxSpeed,
-        dominantDirection,
-        sampleCount: bucket.sampleCount,
+      const windData = await prisma.windData1Min.create({
+        data: {
+          stationId: bucket.stationId,
+          timestamp: bucket.intervalStart.toUTC().toISO()!,
+          avgSpeed: Math.round(avgSpeed * 100) / 100, // Round to 2 decimal places
+          minSpeed: bucket.minSpeed,
+          maxSpeed: bucket.maxSpeed,
+          dominantDirection,
+          sampleCount: bucket.sampleCount,
+        },
       });
 
       // Broadcast to SSE subscribers
       await transmit.broadcast(`wind/aggregated/1min/${bucket.stationId}`, {
         stationId: bucket.stationId,
-        timestamp: bucket.intervalStart.toISO(),
+        timestamp: windData.timestamp,
         avgSpeed: windData.avgSpeed,
         minSpeed: windData.minSpeed,
         maxSpeed: windData.maxSpeed,
@@ -193,13 +199,16 @@ export class WindAggregationService {
     const intervalStart = currentIntervalStart.minus({ minutes: 10 });
 
     try {
-      // Get all stations that have 1-minute data for the interval (excluding null timestamps)
-      const stations = await WindData1Min.query()
-        .select('stationId')
-        .whereNotNull('timestamp') // Exclude corrupted records
-        .where('timestamp', '>=', intervalStart.toUTC().toISO()!)
-        .where('timestamp', '<', intervalStart.plus({ minutes: 10 }).toUTC().toISO()!)
-        .groupBy('stationId');
+      // Get all stations that have 1-minute data for the interval
+      const stations = await prisma.windData1Min.groupBy({
+        by: ['stationId'],
+        where: {
+          timestamp: {
+            gte: intervalStart.toUTC().toISO()!,
+            lt: intervalStart.plus({ minutes: 10 }).toUTC().toISO()!,
+          },
+        },
+      });
 
       for (const station of stations) {
         await this.aggregate10MinuteData(station.stationId, intervalStart);
@@ -255,19 +264,21 @@ export class WindAggregationService {
     for (const interval of intervals) {
       try {
         // Check if we already have data for this interval
-        const existingData = await WindData10Min.query()
-          .where('timestamp', interval.toUTC().toISO()!)
-          .first();
+        const existingData = await prisma.windData10Min.findFirst({
+          where: { timestamp: interval.toUTC().toISO()! },
+        });
 
         if (!existingData) {
           // Check if we have 1-minute data for this interval
-          const oneMinuteCount = await WindData1Min.query()
-            .whereNotNull('timestamp')
-            .where('timestamp', '>=', interval.toUTC().toISO()!)
-            .where('timestamp', '<', interval.plus({ minutes: 10 }).toUTC().toISO()!)
-            .count('* as total');
+          const total = await prisma.windData1Min.count({
+            where: {
+              timestamp: {
+                gte: interval.toUTC().toISO()!,
+                lt: interval.plus({ minutes: 10 }).toUTC().toISO()!,
+              },
+            },
+          });
 
-          const total = oneMinuteCount[0].$extras.total;
           if (total > 0) {
             await this.processIntervalAggregation(interval);
           }
@@ -283,13 +294,16 @@ export class WindAggregationService {
    */
   async processIntervalAggregation(intervalStart: DateTime): Promise<void> {
     try {
-      // Get all stations that have 1-minute data for the interval (excluding null timestamps)
-      const stations = await WindData1Min.query()
-        .select('stationId')
-        .whereNotNull('timestamp')
-        .where('timestamp', '>=', intervalStart.toUTC().toISO()!)
-        .where('timestamp', '<', intervalStart.plus({ minutes: 10 }).toUTC().toISO()!)
-        .groupBy('stationId');
+      // Get all stations that have 1-minute data for the interval
+      const stations = await prisma.windData1Min.groupBy({
+        by: ['stationId'],
+        where: {
+          timestamp: {
+            gte: intervalStart.toUTC().toISO()!,
+            lt: intervalStart.plus({ minutes: 10 }).toUTC().toISO()!,
+          },
+        },
+      });
 
       for (const station of stations) {
         await this.aggregate10MinuteData(station.stationId, intervalStart);
@@ -305,13 +319,19 @@ export class WindAggregationService {
    */
   private async aggregate10MinuteData(stationId: string, intervalStart: DateTime): Promise<void> {
     try {
+      const intervalStartIso = intervalStart.toUTC().toISO()!;
+
       // Get 1-minute data for the 10-minute interval
-      const oneMinuteData = await WindData1Min.query()
-        .where('stationId', stationId)
-        .whereNotNull('timestamp') // Exclude records with null timestamps
-        .where('timestamp', '>=', intervalStart.toUTC().toISO()!)
-        .where('timestamp', '<', intervalStart.plus({ minutes: 10 }).toUTC().toISO()!)
-        .orderBy('timestamp', 'asc');
+      const oneMinuteData = await prisma.windData1Min.findMany({
+        where: {
+          stationId,
+          timestamp: {
+            gte: intervalStartIso,
+            lt: intervalStart.plus({ minutes: 10 }).toUTC().toISO()!,
+          },
+        },
+        orderBy: { timestamp: 'asc' },
+      });
 
       if (oneMinuteData.length === 0) {
         return; // No data to aggregate
@@ -329,42 +349,31 @@ export class WindAggregationService {
       // Calculate tendency by comparing with previous 10-minute record
       const tendency = await this.calculateTendency(stationId, intervalStart, avgSpeed);
 
-      let windData: WindData10Min;
-
-      // Check if record already exists
-      const existingRecord = await WindData10Min.query()
-        .where('stationId', stationId)
-        .where('timestamp', intervalStart.toUTC().toISO()!)
-        .first();
-
-      if (existingRecord) {
-        // Update existing record
-        windData = await existingRecord
-          .merge({
-            avgSpeed: Math.round(avgSpeed * 100) / 100,
-            minSpeed,
-            maxSpeed,
-            dominantDirection,
-            tendency,
-          })
-          .save();
-      } else {
-        // Create new record
-        windData = await WindData10Min.create({
-          stationId,
-          timestamp: intervalStart,
+      // Create or update the record for this interval
+      const windData = await prisma.windData10Min.upsert({
+        where: { stationId_timestamp: { stationId, timestamp: intervalStartIso } },
+        update: {
           avgSpeed: Math.round(avgSpeed * 100) / 100,
           minSpeed,
           maxSpeed,
           dominantDirection,
           tendency,
-        });
-      }
+        },
+        create: {
+          stationId,
+          timestamp: intervalStartIso,
+          avgSpeed: Math.round(avgSpeed * 100) / 100,
+          minSpeed,
+          maxSpeed,
+          dominantDirection,
+          tendency,
+        },
+      });
 
       // Broadcast to SSE subscribers
       await transmit.broadcast(`wind/aggregated/10min/${stationId}`, {
         stationId,
-        timestamp: intervalStart.toISO(),
+        timestamp: windData.timestamp,
         avgSpeed: windData.avgSpeed,
         minSpeed: windData.minSpeed,
         maxSpeed: windData.maxSpeed,
@@ -380,7 +389,7 @@ export class WindAggregationService {
   /**
    * Calculate dominant direction from 1-minute records
    */
-  private calculateDominantDirectionFromRecords(records: WindData1Min[]): number {
+  private calculateDominantDirectionFromRecords(records: WindData1MinModel[]): number {
     const directionFrequency: Record<number, number> = {};
 
     for (const record of records) {
@@ -402,11 +411,10 @@ export class WindAggregationService {
     const threshold = 0.5; // m/s
 
     // Get previous 10-minute record
-    const previousRecord = await WindData10Min.query()
-      .where('stationId', stationId)
-      .where('timestamp', '<', currentInterval.toUTC().toISO()!)
-      .orderBy('timestamp', 'desc')
-      .first();
+    const previousRecord = await prisma.windData10Min.findFirst({
+      where: { stationId, timestamp: { lt: currentInterval.toUTC().toISO()! } },
+      orderBy: { timestamp: 'desc' },
+    });
 
     if (!previousRecord) {
       return 'stable'; // First record
@@ -463,12 +471,10 @@ export class WindAggregationService {
   async recalculateTendencies(stationId?: string): Promise<void> {
     try {
       // Get all 10-minute records, optionally filtered by station
-      const query = WindData10Min.query().orderBy('timestamp', 'asc');
-      if (stationId) {
-        query.where('stationId', stationId);
-      }
-
-      const records = await query;
+      const records = await prisma.windData10Min.findMany({
+        where: stationId ? { stationId } : undefined,
+        orderBy: { timestamp: 'asc' },
+      });
 
       // Group by station for processing
       const recordsByStation = new Map<string, typeof records>();
@@ -503,9 +509,12 @@ export class WindAggregationService {
 
           // Update the record if tendency changed
           if (currentRecord.tendency !== newTendency) {
-            await currentRecord.merge({ tendency: newTendency }).save();
+            await prisma.windData10Min.update({
+              where: { id: currentRecord.id },
+              data: { tendency: newTendency },
+            });
             console.log(
-              `Updated tendency for ${station} at ${currentRecord.timestamp?.toISO()}: ${currentRecord.tendency} -> ${newTendency}`,
+              `Updated tendency for ${station} at ${currentRecord.timestamp}: ${currentRecord.tendency} -> ${newTendency}`,
             );
           }
         }

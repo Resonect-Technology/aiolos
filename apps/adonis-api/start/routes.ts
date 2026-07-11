@@ -99,18 +99,6 @@ router
       .as('wind.aggregation');
 
     /**
-     * General debug routes (for development)
-     */
-    router
-      .group(() => {
-        router
-          .post('/test-10min-query', [WindAggregationController, 'test10MinQuery'])
-          .as('test10MinQuery');
-      })
-      .prefix('/debug')
-      .as('debug');
-
-    /**
      * Wind debug routes (for development)
      */
     router

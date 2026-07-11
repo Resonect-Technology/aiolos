@@ -1,42 +1,45 @@
 import { test } from '@japa/runner';
 import { DateTime } from 'luxon';
 
-import WeatherStation from '#app/models/weather_station';
-import WindData1Min from '#app/models/wind_data_1_min';
+import { prisma } from '#services/prisma';
 
 test.group('Wind Aggregated Controller', (group) => {
   const testStationId = 'test-station-aggregated-api';
 
   group.each.setup(async () => {
     // Clean up any existing test data first
-    await WindData1Min.query().delete();
-    await WeatherStation.query().delete();
+    await prisma.windData1Min.deleteMany();
+    await prisma.weatherStation.deleteMany();
 
     // Create the test weather station
-    await WeatherStation.create({
-      stationId: testStationId,
-      name: 'Test Aggregated API Station',
-      location: 'Test Environment',
-      description: 'Test station for aggregated API',
-      isActive: true,
+    await prisma.weatherStation.create({
+      data: {
+        stationId: testStationId,
+        name: 'Test Aggregated API Station',
+        location: 'Test Environment',
+        description: 'Test station for aggregated API',
+        isActive: true,
+      },
     });
 
     // Create test aggregated data for the latest endpoint
     const now = DateTime.now().startOf('minute');
-    await WindData1Min.create({
-      stationId: testStationId,
-      timestamp: now.minus({ minutes: 1 }),
-      avgSpeed: 12.0,
-      minSpeed: 9.0,
-      maxSpeed: 15.0,
-      dominantDirection: 270,
-      sampleCount: 3,
+    await prisma.windData1Min.create({
+      data: {
+        stationId: testStationId,
+        timestamp: now.minus({ minutes: 1 }).toUTC().toISO()!,
+        avgSpeed: 12.0,
+        minSpeed: 9.0,
+        maxSpeed: 15.0,
+        dominantDirection: 270,
+        sampleCount: 3,
+      },
     });
   });
 
   group.each.teardown(async () => {
-    await WindData1Min.query().delete();
-    await WeatherStation.query().delete();
+    await prisma.windData1Min.deleteMany();
+    await prisma.weatherStation.deleteMany();
   });
 
   test('should return latest aggregated wind data', async ({ client, assert }) => {

@@ -1,8 +1,8 @@
 import type { HttpContext } from '@adonisjs/core/http';
 import transmit from '@adonisjs/transmit/services/main';
 
-import StationDiagnostic from '#app/models/station_diagnostic';
 import { stationDataCache } from '#app/services/station_data_cache';
+import { prisma } from '#services/prisma';
 
 export default class StationDiagnosticsController {
   /**
@@ -47,13 +47,15 @@ export default class StationDiagnosticsController {
       });
 
       // Save diagnostics to database
-      await StationDiagnostic.create({
-        stationId: stationId,
-        batteryVoltage: batteryVoltage,
-        solarVoltage: solarVoltage,
-        internalTemperature: data.internalTemperature || null,
-        signalQuality: signalQuality,
-        uptime: uptime,
+      await prisma.stationDiagnostic.create({
+        data: {
+          stationId: stationId,
+          batteryVoltage: batteryVoltage,
+          solarVoltage: solarVoltage,
+          internalTemperature: data.internalTemperature ?? null,
+          signalQuality: signalQuality,
+          uptime: uptime,
+        },
       });
 
       // Broadcast the diagnostics data via Transmit
@@ -79,10 +81,10 @@ export default class StationDiagnosticsController {
 
     try {
       // Get the latest diagnostics for the station
-      const latestDiagnostics = await StationDiagnostic.query()
-        .where('stationId', stationId)
-        .orderBy('createdAt', 'desc')
-        .first();
+      const latestDiagnostics = await prisma.stationDiagnostic.findFirst({
+        where: { stationId },
+        orderBy: { createdAt: 'desc' },
+      });
 
       if (!latestDiagnostics) {
         return {

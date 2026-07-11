@@ -1,6 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http';
 
-import StationConfig from '#app/models/station_config';
+import { prisma } from '#services/prisma';
 
 export default class StationConfigsController {
   /**
@@ -11,10 +11,10 @@ export default class StationConfigsController {
 
     try {
       // Get the latest config for the station
-      const config = await StationConfig.query()
-        .where('stationId', stationId)
-        .orderBy('id', 'desc')
-        .first();
+      const config = await prisma.stationConfig.findFirst({
+        where: { stationId },
+        orderBy: { id: 'desc' },
+      });
 
       if (!config) {
         return {
@@ -101,7 +101,7 @@ export default class StationConfigsController {
       configData.stationId = stationId;
 
       // Create new config record
-      await StationConfig.create(configData);
+      await prisma.stationConfig.create({ data: configData as any });
 
       // Log in development mode
       if (process.env.NODE_ENV === 'development') {
@@ -124,10 +124,10 @@ export default class StationConfigsController {
 
     try {
       // Get the latest config for the station
-      const config = await StationConfig.query()
-        .where('stationId', stationId)
-        .orderBy('id', 'desc')
-        .first();
+      const config = await prisma.stationConfig.findFirst({
+        where: { stationId },
+        orderBy: { id: 'desc' },
+      });
 
       if (!config) {
         return response.status(404).json({
@@ -137,23 +137,23 @@ export default class StationConfigsController {
 
       // Create a new config record with remoteOta set to false
       // We create a new record to maintain the audit trail
-      const configData = {
-        stationId: stationId,
-        tempInterval: config.tempInterval,
-        windSendInterval: config.windSendInterval,
-        windSampleInterval: config.windSampleInterval,
-        diagInterval: config.diagInterval,
-        timeInterval: config.timeInterval,
-        restartInterval: config.restartInterval,
-        sleepStartHour: config.sleepStartHour,
-        sleepEndHour: config.sleepEndHour,
-        otaHour: config.otaHour,
-        otaMinute: config.otaMinute,
-        otaDuration: config.otaDuration,
-        remoteOta: false, // Reset the OTA flag
-      };
-
-      await StationConfig.create(configData);
+      await prisma.stationConfig.create({
+        data: {
+          stationId: stationId,
+          tempInterval: config.tempInterval,
+          windSendInterval: config.windSendInterval,
+          windSampleInterval: config.windSampleInterval,
+          diagInterval: config.diagInterval,
+          timeInterval: config.timeInterval,
+          restartInterval: config.restartInterval,
+          sleepStartHour: config.sleepStartHour,
+          sleepEndHour: config.sleepEndHour,
+          otaHour: config.otaHour,
+          otaMinute: config.otaMinute,
+          otaDuration: config.otaDuration,
+          remoteOta: false, // Reset the OTA flag
+        },
+      });
 
       // Log in development mode
       if (process.env.NODE_ENV === 'development') {
