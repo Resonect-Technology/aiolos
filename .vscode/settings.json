@@ -1,13 +1,14 @@
 {
-  "yaml.schemas": {
-    "https://json.schemastore.org/yamllint.json": "file:///home/kuba/Projects/Resonect/Aiolos/apps/coap-proxy/openapi.yaml"
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "oxc.oxc-vscode",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.oxc": "explicit"
   },
-  "arduino.path": "/usr/share/arduino",
-  "arduino.enableUSBDetection": true,
-  "arduino.logLevel": "info",
-  "github-actions.workflows.pinned.workflows": [".github/workflows/deploy.yml"],
+  "github-actions.workflows.pinned.workflows": [
+    ".github/workflows/deploy.yml",
+    ".github/workflows/ci-pr.yaml"
+  ],
   "files.associations": {
-    "*.twig": "twig",
     "*.md": "markdown",
     "cmath": "cpp"
   }
