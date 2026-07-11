@@ -70,7 +70,7 @@ test.group('Wind 10-Minute Aggregation Debug', (group) => {
 
     // Process 10-minute aggregation
     console.log('Processing 10-minute aggregation for interval:', intervalStart.toISO())
-    await windAggregationService.process10MinuteAggregationForInterval(intervalStart)
+    await windAggregationService.processIntervalAggregation(intervalStart)
 
     // Check if 10-minute data was created
     const tenMinData = await WindData10Min.query()
@@ -85,7 +85,7 @@ test.group('Wind 10-Minute Aggregation Debug', (group) => {
     // Check that 10-minute data was created
     const tenMinRecord = await WindData10Min.query()
       .where('stationId', testStationId)
-      .where('timestamp', intervalStart.toJSDate())
+      .where('timestamp', intervalStart.toUTC().toISO()!)
       .first()
 
     console.log('Found 10-min record:', tenMinRecord ? 'YES' : 'NO')

@@ -1,9 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import StationConfig from '#app/models/station_config'
 
-// Define a type that supports indexing with strings
-type ConfigRecord = Record<string, any>
-
 export default class StationConfigsController {
   /**
    * Get the current configuration for a station

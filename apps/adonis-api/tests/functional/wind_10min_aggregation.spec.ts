@@ -35,7 +35,6 @@ test.group('Wind 10-Minute Aggregation', (group) => {
       .qs({ interval: '10min' })
 
     response.assertStatus(200)
-    const body = response.body()
     
     response.assertBodyContains({
       stationId: testStationId,
@@ -51,7 +50,6 @@ test.group('Wind 10-Minute Aggregation', (group) => {
 
     response.assertStatus(200)
     // The response should be formatted for 10min interval with default limit
-    const body = response.body()
     response.assertBodyContains({
       interval: '10min',
       data: [],
@@ -63,7 +61,6 @@ test.group('Wind 10-Minute Aggregation', (group) => {
       .qs({ interval: '10min', limit: '200' })
 
     response.assertStatus(400)
-    const body = response.body()
     response.assertBodyContains({
       error: 'Invalid limit. Must be between 1 and 144 for 10min interval.',
     })
@@ -74,7 +71,6 @@ test.group('Wind 10-Minute Aggregation', (group) => {
       .qs({ interval: '10min' })
 
     response.assertStatus(404)
-    const body = response.body()
     response.assertBodyContains({
       error: 'No 10-minute aggregated wind data found for this station',
     })
@@ -85,7 +81,6 @@ test.group('Wind 10-Minute Aggregation', (group) => {
       .qs({ interval: '10min', unit: 'kmh' })
 
     response.assertStatus(200)
-    const body = response.body()
     response.assertBodyContains({
       interval: '10min',
       unit: 'kmh',
@@ -124,12 +119,12 @@ test.group('Wind 10-Minute Aggregation', (group) => {
     }
 
     // Process 10-minute aggregation
-    await windAggregationService.process10MinuteAggregationForInterval(intervalStart)
+    await windAggregationService.processIntervalAggregation(intervalStart)
 
     // Check that 10-minute data was created
     const tenMinData = await WindData10Min.query()
       .where('stationId', testStationId)
-      .where('timestamp', intervalStart.toJSDate())
+      .where('timestamp', intervalStart.toUTC().toISO()!)
       .first()
 
     assert.isNotNull(tenMinData)
@@ -181,12 +176,12 @@ test.group('Wind 10-Minute Aggregation', (group) => {
     }
 
     // Process aggregation
-    await windAggregationService.process10MinuteAggregationForInterval(baseTime)
+    await windAggregationService.processIntervalAggregation(baseTime)
 
     // Check tendency calculation
     const newInterval = await WindData10Min.query()
       .where('stationId', testStationId)
-      .where('timestamp', baseTime.toJSDate())
+      .where('timestamp', baseTime.toUTC().toISO()!)
       .first()
 
     assert.isNotNull(newInterval)
@@ -227,12 +222,12 @@ test.group('Wind 10-Minute Aggregation', (group) => {
     }
 
     // Process aggregation
-    await windAggregationService.process10MinuteAggregationForInterval(baseTime)
+    await windAggregationService.processIntervalAggregation(baseTime)
 
     // Check tendency calculation
     const newInterval = await WindData10Min.query()
       .where('stationId', testStationId)
-      .where('timestamp', baseTime.toJSDate())
+      .where('timestamp', baseTime.toUTC().toISO()!)
       .first()
 
     assert.isNotNull(newInterval)
@@ -267,12 +262,12 @@ test.group('Wind 10-Minute Aggregation', (group) => {
     }
 
     // Process aggregation
-    await windAggregationService.process10MinuteAggregationForInterval(intervalStart)
+    await windAggregationService.processIntervalAggregation(intervalStart)
 
     // Check dominant direction calculation (270 appears 6 times, 275 appears 1 time)
     const tenMinData = await WindData10Min.query()
       .where('stationId', testStationId)
-      .where('timestamp', intervalStart.toJSDate())
+      .where('timestamp', intervalStart.toUTC().toISO()!)
       .first()
 
     assert.isNotNull(tenMinData)

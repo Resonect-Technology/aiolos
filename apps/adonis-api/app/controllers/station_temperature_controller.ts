@@ -126,11 +126,11 @@ export default class StationTemperatureController {
       .limit(limit)
 
     if (from) {
-      query.where('readingTimestamp', '>=', DateTime.fromISO(from))
+      query.where('readingTimestamp', '>=', DateTime.fromISO(from).toUTC().toSQL({ includeOffset: false })!)
     }
 
     if (to) {
-      query.where('readingTimestamp', '<=', DateTime.fromISO(to))
+      query.where('readingTimestamp', '<=', DateTime.fromISO(to).toUTC().toSQL({ includeOffset: false })!)
     }
 
     const readings = await query

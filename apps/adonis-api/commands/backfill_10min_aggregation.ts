@@ -35,7 +35,7 @@ export default class Backfill10MinAggregation extends BaseCommand {
             let processed = 0
             for (const interval of intervals) {
                 try {
-                    await windAggregationService.process10MinuteAggregationForInterval(interval)
+                    await windAggregationService.processIntervalAggregation(interval)
                     processed++
 
                     if (processed % 10 === 0) {
