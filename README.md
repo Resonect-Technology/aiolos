@@ -19,7 +19,7 @@ designed for reliability, extensibility, and developer-friendliness.
 - **Custom hardware**:
   [Aiolos meteostation](https://github.com/Resonect-Technology/Aiolos-HW)
 - **Remote administration**: Station config management via Bruno API client
-- **Modern backend**: AdonisJS REST API
+- **Modern backend**: AdonisJS 7 REST API with Prisma 7 on SQLite
 - **OpenAPI/Swagger docs**: Auto-generated for the API
 - **Monorepo**: Managed with [pnpm](https://pnpm.io/) and
   [Turborepo](https://turbo.build/)
@@ -37,11 +37,14 @@ designed for reliability, extensibility, and developer-friendliness.
 ```
 /
 ├── apps/
-│   ├── adonis-api/      # RESTful backend API (AdonisJS v6)
-│   ├── bruno-api/       # API client for managing station configuration
-│   └── react-frontend/  # User interface for live data (React, Vite)
-├── firmware/            # ESP32/SIM7000G code for weather stations
+│   ├── adonis-api/          # RESTful backend API (AdonisJS v7 + Prisma/SQLite)
+│   ├── bruno-api-control/   # Bruno API client collection for station config
+│   └── react-frontend/      # User interface for live data (React 19, Vite 8)
+├── packages/
+│   └── typescript-config/   # Shared tsconfig presets (@repo/typescript-config)
+├── firmware/            # ESP32/SIM7000G code for weather stations (PlatformIO)
 ├── hardware/            # 3D models and hardware specs
+├── infra/               # Terraform + Docker Compose production setup
 ├── package.json
 ├── pnpm-workspace.yaml
 ├── turbo.json
@@ -62,7 +65,7 @@ designed for reliability, extensibility, and developer-friendliness.
 - Auto-generated OpenAPI docs with
   [adonis-autoswagger](https://github.com/ad-on-is/adonis-autoswagger)
 
-### Bruno API Client ([docs](apps/bruno-api/README.md))
+### Bruno API Client (`apps/bruno-api-control`)
 
 - API client collection for managing station configuration and viewing
   diagnostics
@@ -90,13 +93,16 @@ designed for reliability, extensibility, and developer-friendliness.
 
 ## Quickstart
 
-From the repo root:
+Node 24 (`nvm use`) and pnpm 11 (`corepack enable`), then from the repo root:
 
 ```sh
 pnpm install
+pnpm dev          # API on :8080 + dashboard on :5173
+pnpm test         # backend Japa suite
+pnpm lint && pnpm check-types && pnpm format:check
 ```
 
-See each app's README for how to run, configure, and test the services.
+See each app's README (and CLAUDE.md for AI agents) for details.
 
 ---
 

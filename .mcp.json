@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest",
+        "--headless",
+        "--browser",
+        "chromium",
+        "--no-sandbox",
+        "--output-dir",
+        ".playwright-mcp"
+      ],
+      "env": {
+        "PLAYWRIGHT_CHROMIUM_SANDBOX": "0"
+      }
+    }
+  }
+}
