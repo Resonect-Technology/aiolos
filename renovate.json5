@@ -1,0 +1,109 @@
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+
+  extends: [
+    'config:recommended',
+    'group:monorepos',
+    'group:recommended',
+    ':separateMajorReleases',
+    'schedule:weekends',
+  ],
+
+  labels: ['dependencies'],
+  branchPrefix: 'renovate/',
+  prConcurrentLimit: 5,
+  branchConcurrentLimit: 10,
+
+  packageRules: [
+    // Group all non-major npm updates
+    {
+      matchManagers: ['npm'],
+      matchUpdateTypes: ['minor', 'patch'],
+      groupName: 'npm minor/patch updates',
+      automerge: true,
+      automergeType: 'pr',
+      platformAutomerge: true,
+    },
+    {
+      matchManagers: ['npm'],
+      matchUpdateTypes: ['major'],
+      automerge: false,
+    },
+
+    // GitHub Actions
+    {
+      matchManagers: ['github-actions'],
+      matchUpdateTypes: ['minor', 'patch'],
+      groupName: 'GitHub Actions minor/patch updates',
+      automerge: true,
+      automergeType: 'pr',
+      platformAutomerge: true,
+    },
+    {
+      matchManagers: ['github-actions'],
+      matchUpdateTypes: ['major'],
+      automerge: false,
+    },
+
+    // Terraform providers
+    {
+      matchManagers: ['terraform'],
+      matchUpdateTypes: ['minor', 'patch'],
+      groupName: 'Terraform provider minor/patch updates',
+      automerge: true,
+      automergeType: 'pr',
+      platformAutomerge: true,
+    },
+    {
+      matchManagers: ['terraform'],
+      matchUpdateTypes: ['major'],
+      automerge: false,
+    },
+
+    // Docker images
+    {
+      matchManagers: ['dockerfile', 'docker-compose'],
+      matchUpdateTypes: ['minor', 'patch'],
+      groupName: 'Docker image minor/patch updates',
+      automerge: true,
+      automergeType: 'pr',
+      platformAutomerge: true,
+    },
+    {
+      matchManagers: ['dockerfile', 'docker-compose'],
+      matchUpdateTypes: ['major'],
+      automerge: false,
+    },
+
+    // Tightly coupled ecosystems — separate PRs, no automerge
+    {
+      matchPackagePrefixes: ['@adonisjs/', '@japa/', '@poppinss/'],
+      groupName: 'AdonisJS ecosystem',
+      automerge: false,
+    },
+    {
+      matchPackagePrefixes: ['prisma', '@prisma/'],
+      groupName: 'Prisma',
+      automerge: false,
+    },
+    {
+      matchPackageNames: ['react', 'react-dom', '@types/react', '@types/react-dom'],
+      groupName: 'React ecosystem',
+    },
+    {
+      matchPackageNames: ['typescript', 'turbo'],
+      groupName: 'TypeScript + build tools',
+    },
+    {
+      matchPackageNames: ['oxlint', 'oxfmt'],
+      groupName: 'oxc toolchain',
+    },
+  ],
+
+  terraform: {
+    fileMatch: ['infra/prod/.*\\.tf$'],
+  },
+
+  // PlatformIO lib_deps are not Renovate-managed; leave firmware alone
+  ignorePaths: ['firmware/**', 'node_modules/**'],
+}

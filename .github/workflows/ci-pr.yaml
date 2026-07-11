@@ -1,0 +1,186 @@
+name: CI - Pull Request
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-pr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      pull-requests: read
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      firmware: ${{ steps.filter.outputs.firmware }}
+      ci: ${{ steps.filter.outputs.ci }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'apps/adonis-api/**'
+              - 'packages/**'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+            frontend:
+              - 'apps/react-frontend/**'
+              - 'packages/**'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+            firmware:
+              - 'firmware/**'
+              - 'platformio.ini'
+            ci:
+              - '.github/**'
+
+  validate-commits:
+    name: Validate Commit Messages
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node and PNPM
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Validate PR commits
+        run: pnpm exec commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }} --verbose
+
+  lint-and-typecheck:
+    name: Lint and Type Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node and PNPM
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Check Formatting
+        run: |
+          if ! pnpm format:check; then
+            echo "❌ Some files need formatting. Run 'pnpm format' to fix."
+            exit 1
+          fi
+
+      - name: Lint and Type Check
+        run: pnpm exec turbo run lint check-types
+
+  test-backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.ci == 'true'
+    env:
+      NODE_ENV: test
+      TZ: UTC
+      PORT: 3333
+      HOST: localhost
+      LOG_LEVEL: error
+      APP_KEY: ci-test-key-0123456789abcdef012345
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node and PNPM
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Run tests
+        run: pnpm exec turbo run test --filter=adonis-api
+
+  build-frontend:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    needs: detect-changes
+    if: needs.detect-changes.outputs.frontend == 'true' || needs.detect-changes.outputs.ci == 'true'
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node and PNPM
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Build
+        run: pnpm exec turbo run build --filter=react-frontend
+
+  build-firmware:
+    name: Firmware Build (PlatformIO)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: detect-changes
+    if: needs.detect-changes.outputs.firmware == 'true'
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.platformio
+            .pio
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: |
+            pio-${{ runner.os }}-
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Build firmware
+        run: |
+          cp firmware/secrets.ini.example firmware/secrets.ini
+          pio run -e aiolos-esp32dev
+
+  ci-summary:
+    name: CI Summary
+    needs:
+      [
+        detect-changes,
+        validate-commits,
+        lint-and-typecheck,
+        test-backend,
+        build-frontend,
+        build-firmware,
+      ]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Check Results
+        run: |
+          echo "=== PR CI Results ==="
+          echo "Commits:        ${{ needs.validate-commits.result }}"
+          echo "Lint/Typecheck: ${{ needs.lint-and-typecheck.result }}"
+          echo "Backend tests:  ${{ needs.test-backend.result }}"
+          echo "Frontend build: ${{ needs.build-frontend.result }}"
+          echo "Firmware build: ${{ needs.build-firmware.result }}"
+          echo ""
+
+          if [ "${{ needs.validate-commits.result }}" == "failure" ] || \
+             [ "${{ needs.lint-and-typecheck.result }}" == "failure" ] || \
+             [ "${{ needs.test-backend.result }}" == "failure" ] || \
+             [ "${{ needs.build-frontend.result }}" == "failure" ] || \
+             [ "${{ needs.build-firmware.result }}" == "failure" ]; then
+            echo "❌ CI failed"
+            exit 1
+          fi
+
+          echo "✅ All checks passed (skipped jobs are OK)"
