@@ -24,6 +24,7 @@ coverage/
 # AdonisJS (apps/adonis-api)
 apps/adonis-api/tmp/
 apps/adonis-api/generated/
+apps/adonis-api/.adonisjs/
 *.sqlite
 *.sqlite3
 
