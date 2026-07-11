@@ -1,16 +1,22 @@
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = ">= 5.0"
-    }
-  }
-  required_version = ">= 1.3.0"
+# =============================================================================
+# LEGACY STACK — the pre-modernization instance, SG, IAM and EIP.
+# Kept Terraform-managed during the blue/green cutover so the old box stays
+# untouched while the new one is provisioned. DELETE THIS FILE (plus
+# user_data.sh and the two variables below) after the cutover soak period;
+# `terraform apply` will then destroy the old stack cleanly.
+# =============================================================================
+
+variable "instance_type" {
+  description = "EC2 instance type"
+  type        = string
+  default     = "t4g.nano"
 }
 
-provider "aws" {
-  region = "eu-central-1"
+variable "key_name" {
+  description = "SSH key pair name for access. Set via TF_VAR_key_name in your .env file."
+  type        = string
 }
+
 
 # Use existing VPC and subnet resources
 data "aws_vpc" "existing" {
@@ -34,14 +40,6 @@ data "aws_subnet" "public" {
   # or use a specific subnet ID instead
 }
 
-data "aws_route_table" "public" {
-  vpc_id = data.aws_vpc.existing.id
-  filter {
-    name   = "association.subnet-id"
-    values = [data.aws_subnet.public.id]
-  }
-}
-
 data "aws_internet_gateway" "existing" {
   filter {
     name   = "attachment.vpc-id"
@@ -49,7 +47,6 @@ data "aws_internet_gateway" "existing" {
   }
 }
 
-data "aws_availability_zones" "available" {}
 
 resource "aws_security_group" "aiolos_api" {
   name        = "aiolos-api-sg"
@@ -98,28 +95,6 @@ resource "aws_security_group" "aiolos_api" {
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
-  }
-}
-
-resource "aws_ecr_repository" "aiolos" {
-  name = "aiolos-backend"
-  image_scanning_configuration {
-    scan_on_push = true
-  }
-  tags = {
-    Name    = "aiolos-backend"
-    Project = "aiolos"
-  }
-}
-
-resource "aws_ecr_repository" "aiolos_frontend" {
-  name = "aiolos-frontend"
-  image_scanning_configuration {
-    scan_on_push = true
-  }
-  tags = {
-    Name    = "aiolos-frontend"
-    Project = "aiolos"
   }
 }
 
@@ -184,97 +159,11 @@ resource "aws_eip" "aiolos_api" {
   }
 }
 
-resource "aws_ecr_lifecycle_policy" "aiolos_backend_policy" {
-  repository = aws_ecr_repository.aiolos.name
 
-  policy = jsonencode({
-    rules = [
-      {
-        rulePriority = 1,
-        description  = "Keep only the most recent buildcache tag",
-        selection = {
-          tagStatus     = "tagged",
-          tagPrefixList = ["buildcache"],
-          countType     = "imageCountMoreThan",
-          countNumber   = 1
-        },
-        action = {
-          type = "expire"
-        }
-      },
-      {
-        rulePriority = 2,
-        description  = "Keep only 3 most recent non-buildcache images",
-        selection = {
-          tagStatus     = "tagged",
-          tagPrefixList = ["latest", "sha"],
-          countType     = "imageCountMoreThan",
-          countNumber   = 3
-        },
-        action = {
-          type = "expire"
-        }
-      },
-      {
-        rulePriority = 3,
-        description  = "Keep only 3 most recent untagged images",
-        selection = {
-          tagStatus   = "untagged",
-          countType   = "imageCountMoreThan",
-          countNumber = 3
-        },
-        action = {
-          type = "expire"
-        }
-      }
-    ]
-  })
-}
 
-resource "aws_ecr_lifecycle_policy" "aiolos_frontend_policy" {
-  repository = aws_ecr_repository.aiolos_frontend.name
 
-  policy = jsonencode({
-    rules = [
-      {
-        rulePriority = 1,
-        description  = "Keep only the most recent buildcache tag",
-        selection = {
-          tagStatus     = "tagged",
-          tagPrefixList = ["buildcache"],
-          countType     = "imageCountMoreThan",
-          countNumber   = 1
-        },
-        action = {
-          type = "expire"
-        }
-      },
-      {
-        rulePriority = 2,
-        description  = "Keep only 3 most recent non-buildcache images",
-        selection = {
-          tagStatus     = "tagged",
-          tagPrefixList = ["latest", "sha"],
-          countType     = "imageCountMoreThan",
-          countNumber   = 3
-        },
-        action = {
-          type = "expire"
-        }
-      },
-      {
-        rulePriority = 3,
-        description  = "Keep only 3 most recent untagged images",
-        selection = {
-          tagStatus   = "untagged",
-          countType   = "imageCountMoreThan",
-          countNumber = 3
-        },
-        action = {
-          type = "expire"
-        }
-      }
-    ]
-  })
+output "legacy_instance_public_ip" {
+  description = "Public IP of the LEGACY aiolos_api instance (pre-cutover)"
+  value       = aws_instance.aiolos_api.public_ip
 }
 

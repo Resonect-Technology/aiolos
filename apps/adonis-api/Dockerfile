@@ -1,45 +1,53 @@
-FROM node:22-slim
+# Turborepo Docker build for the Aiolos API (AdonisJS 7 + Prisma on SQLite)
+# Build from the monorepo root:
+#   docker build -f apps/adonis-api/Dockerfile -t aiolos-backend .
+FROM node:24-alpine AS base
 
-# Set the working directory to the AdonisJS project root
+FROM base AS builder
+RUN apk add --no-cache --no-scripts libc6-compat
 WORKDIR /app
+RUN npm install -g turbo
 
-# Install system dependencies required to build native modules like better-sqlite3
-RUN apt-get update && \
-    apt-get install -y python3 make g++ sqlite3 libsqlite3-dev --no-install-recommends && \
-    rm -rf /var/lib/apt/lists/*
+COPY . .
 
-# Copy package files for dependency installation
-COPY apps/adonis-api/package.json ./package.json
+# Generate a partial monorepo with a pruned lockfile for the API
+RUN turbo prune adonis-api --docker
 
-# Install dependencies
-RUN npm install
+FROM base AS installer
+# python3/make/g++ are required to compile better-sqlite3
+RUN apk add --no-cache --no-scripts libc6-compat python3 make g++
+WORKDIR /app
+RUN npm install -g pnpm@11.1.2 turbo
 
-# Copy the entire AdonisJS project structure
-COPY apps/adonis-api/ ./
+# Install dependencies first (they change less often than sources)
+COPY --from=builder /app/out/json/ .
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
-# Build the AdonisJS application
-RUN node ace build --ignore-ts-errors
+# Copy sources and re-run install so pnpm can link workspace bins
+COPY --from=builder /app/out/full/ .
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
-# Set Node.js environment to production
+# better-sqlite3 needs its native build (skipped above by --ignore-scripts)
+RUN pnpm --recursive rebuild better-sqlite3
+
+# Build the app (prebuild runs `prisma generate`)
+RUN turbo build --filter=adonis-api
+
+# Production runner
+FROM installer AS production
+
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=8080
+# SQLite lives on a bind mount at /data (docker compose: ./data:/data)
+ENV DATABASE_URL=file:/data/db.sqlite3
 
-# Create the tmp directories (both at app root and in build output)
-RUN mkdir -p tmp build/tmp
-
-# Expose the application port
 EXPOSE 8080
 
-# Healthcheck to verify the server is running
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/healthcheck || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:8080/healthcheck || exit 1
 
-# Copy and setup entrypoint script
-COPY apps/adonis-api/entrypoint.sh ./entrypoint.sh
+WORKDIR /app/apps/adonis-api
 RUN chmod +x ./entrypoint.sh
 
-# Set the entrypoint
 ENTRYPOINT ["./entrypoint.sh"]
-
-CMD []

@@ -1,0 +1,21 @@
+# Local dev proxy: API + SSE to the backend, everything else to the SPA.
+:80 {
+	handle /api/* {
+		reverse_proxy backend:8080
+	}
+
+	handle /__transmit/* {
+		# SSE: stream without buffering
+		reverse_proxy backend:8080 {
+			flush_interval -1
+		}
+	}
+
+	handle /healthcheck {
+		reverse_proxy backend:8080
+	}
+
+	handle {
+		reverse_proxy frontend:80
+	}
+}

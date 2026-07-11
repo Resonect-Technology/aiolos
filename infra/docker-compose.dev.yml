@@ -1,36 +1,40 @@
+# Local full-stack test: backend + nginx frontend behind Caddy on :80
+# Usage: docker compose -f infra/docker-compose.dev.yml up --build
 services:
   backend:
     build:
-      context: ../apps/adonis-api
-    image: aiolos-backend:latest
+      context: ../
+      dockerfile: apps/adonis-api/Dockerfile
+    image: aiolos-backend:dev
     env_file:
       - ../apps/adonis-api/.env
+    environment:
+      - DATABASE_URL=file:/data/db.sqlite3
     restart: unless-stopped
+    volumes:
+      - backend-data:/data
     expose:
       - 8080
 
   frontend:
     build:
-      context: ../apps/react-frontend
-      target: build
-    image: aiolos-frontend:latest
-    command: ["sleep", "infinity"]
-    volumes:
-      - frontend-dist:/app/dist
+      context: ../
+      dockerfile: apps/react-frontend/Dockerfile
+    image: aiolos-frontend:dev
+    restart: unless-stopped
+    expose:
+      - 80
 
   caddy:
-    image: caddy:2
+    image: caddy:2-alpine
     restart: unless-stopped
     ports:
       - "80:80"
-      - "443:443"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - frontend-dist:/srv
+      - ./Caddyfile.dev:/etc/caddy/Caddyfile:ro
     depends_on:
       - backend
-    environment:
-      - AIOLOS_BACKEND_HOST=backend:8080
+      - frontend
 
 volumes:
-  frontend-dist:
+  backend-data:

@@ -1,0 +1,4 @@
+# Legacy-stack variables (used by legacy.tf until decommission).
+# Real values live in terraform.tfvars (gitignored).
+instance_type = "t4g.micro"
+key_name      = "resonect-prod-ec2-key"

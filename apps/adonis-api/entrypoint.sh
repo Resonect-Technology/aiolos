@@ -1,29 +1,21 @@
 #!/bin/sh
 set -e
 
-echo "=== Starting AdonisJS Application ==="
+echo "=== Starting Aiolos API ==="
 echo "Working directory: $(pwd)"
+echo "Database: ${DATABASE_URL:-'(default tmp/db.sqlite3)'}"
 
-# Ensure the tmp directory exists for SQLite
-echo "Creating tmp directory..."
-mkdir -p tmp
+echo "=== Prisma migrations ==="
+# Adopt a pre-Prisma (Lucid-era) database in place: mark the baseline 0_init
+# migration as applied so migrate deploy only runs newer migrations.
+if node build/bin/check_baseline.js | grep -q NEEDS_BASELINE; then
+  echo "Pre-Prisma database detected — baselining 0_init"
+  pnpm exec prisma migrate resolve --applied 0_init
+fi
+pnpm exec prisma migrate deploy
 
-# Also create tmp directory in build and symlink it to the main tmp
-echo "Creating build/tmp directory and symlinking..."
-mkdir -p build/tmp
-# Remove build/tmp if it exists and create symlink to the main tmp directory
-rm -rf build/tmp
-ln -sf /app/tmp build/tmp
+echo "=== Seeding (idempotent) ==="
+node build/bin/seed.js
 
-echo "Directory structure:"
-ls -la tmp/
-ls -la build/tmp
-
-echo "=== Running migrations ==="
-cd build && node ace.js migration:run --force
-
-echo "=== Running seeders ==="
-node ace.js db:seed
-
-echo "=== Starting Server ==="
-exec node bin/server.js
+echo "=== Starting server ==="
+exec node build/bin/server.js

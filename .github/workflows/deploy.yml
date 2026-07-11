@@ -1,168 +1,161 @@
-name: Build and Deploy Aiolos
+name: Deploy Aiolos
 
 on:
-  workflow_dispatch:
   push:
     branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-central-1
+  ECR_REGISTRY: 590183887485.dkr.ecr.eu-central-1.amazonaws.com
+  OIDC_ROLE: arn:aws:iam::590183887485:role/aiolos-prod-github-actions-oidc
+  DEPLOY_CONFIG_BUCKET: aiolos-prod-deploy-config
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
-  build-and-push-backend:
-    name: Build and Push Backend
-    runs-on: [resonect-server]
-    env:
-      ENVIRONMENT: production
+  build-backend:
+    name: Build & push backend image
+    runs-on: ubuntu-24.04-arm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v3
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.RESONECT_AWS_PROD_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.RESONECT_AWS_PROD_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.RESONECT_AWS_PROD_REGION }}
+          role-to-assume: ${{ env.OIDC_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to Amazon ECR
+      - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Set up QEMU for multi-platform builds
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: linux/arm64
-
-      - name: Build and push backend Docker image
-        uses: docker/build-push-action@v5
+      - name: Build and push
+        uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./apps/adonis-api/Dockerfile
-          push: true
+          file: apps/adonis-api/Dockerfile
           platforms: linux/arm64
+          push: true
           tags: |
-            ${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:latest
-            ${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:${{ github.sha }}
-          cache-from: type=registry,ref=${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:buildcache
-          cache-to: type=registry,ref=${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:buildcache,mode=max
+            ${{ env.ECR_REGISTRY }}/aiolos-backend:latest
+            ${{ env.ECR_REGISTRY }}/aiolos-backend:${{ github.sha }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,scope=backend,mode=max
 
-  build-and-push-frontend:
-    name: Build and Push Frontend
-    runs-on: [resonect-server]
-    env:
-      ENVIRONMENT: production
+  build-frontend:
+    name: Build & push frontend image
+    runs-on: ubuntu-24.04-arm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v3
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.RESONECT_AWS_PROD_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.RESONECT_AWS_PROD_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.RESONECT_AWS_PROD_REGION }}
+          role-to-assume: ${{ env.OIDC_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to Amazon ECR
+      - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Set up QEMU for multi-platform builds
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: linux/arm64
-
-      - name: Build and push frontend Docker image
-        uses: docker/build-push-action@v5
+      - name: Build and push
+        uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./apps/react-frontend/Dockerfile
-          push: true
+          file: apps/react-frontend/Dockerfile
           platforms: linux/arm64
+          push: true
           tags: |
-            ${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:latest
-            ${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:${{ github.sha }}
-          cache-from: type=registry,ref=${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:buildcache
-          cache-to: type=registry,ref=${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:buildcache,mode=max
+            ${{ env.ECR_REGISTRY }}/aiolos-frontend:latest
+            ${{ env.ECR_REGISTRY }}/aiolos-frontend:${{ github.sha }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,scope=frontend,mode=max
 
   deploy:
-    name: Deploy to Production
-    needs: [build-and-push-backend, build-and-push-frontend]
-    runs-on: [resonect-server]
-    env:
-      ENVIRONMENT: production
-      AWS_ACCESS_KEY_ID: ${{ secrets.RESONECT_AWS_PROD_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.RESONECT_AWS_PROD_SECRET_ACCESS_KEY }}
-      AWS_REGION: ${{ secrets.RESONECT_AWS_PROD_REGION }}
+    name: Deploy to production box
+    runs-on: ubuntu-24.04-arm
+    needs: [build-backend, build-frontend]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - name: Prepare EC2 instance
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          host: ${{ secrets.AIOLOS_PROD_EC2_HOST }}
-          username: ${{ secrets.AIOLOS_PROD_EC2_USER }}
-          key: ${{ secrets.RESONECT_AWS_PROD_SSH_KEY }}
-          script: |
-            # Create directory if it doesn't exist
-            mkdir -p ~/aiolos
+          role-to-assume: ${{ env.OIDC_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Copy configuration files to EC2
-        uses: appleboy/scp-action@v0.1.7
+      - name: Fetch instance id from SSM
+        uses: ./.github/actions/fetch-ssm-secrets
         with:
-          host: ${{ secrets.AIOLOS_PROD_EC2_HOST }}
-          username: ${{ secrets.AIOLOS_PROD_EC2_USER }}
-          key: ${{ secrets.RESONECT_AWS_PROD_SSH_KEY }}
-          source: ./infra/docker-compose.prod.yml,./infra/Caddyfile,./apps/adonis-api/.env
-          target: ~/aiolos
-          strip_components: 2
+          parameters: /aiolos/prod/infrastructure/ec2-instance-id
+          prefix: /aiolos/prod/
 
-      - name: Deploy with docker-compose over SSH
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Upload deploy configs to S3
+        run: |
+          aws s3 cp infra/prod/docker-compose.prod.yml "s3://$DEPLOY_CONFIG_BUCKET/configs/docker-compose.prod.yml"
+          aws s3 cp infra/prod/traefik.yml "s3://$DEPLOY_CONFIG_BUCKET/configs/traefik.yml"
+
+      - name: Deploy via SSM Run Command
+        uses: ./.github/actions/ssm-run-command
         with:
-          host: ${{ secrets.AIOLOS_PROD_EC2_HOST }}
-          username: ${{ secrets.AIOLOS_PROD_EC2_USER }}
-          key: ${{ secrets.RESONECT_AWS_PROD_SSH_KEY }}
-          envs: AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_REGION
-          script: |
-            export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
-            export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
-            export AWS_REGION=$AWS_REGION
+          instance-id: ${{ env.INFRASTRUCTURE_EC2_INSTANCE_ID }}
+          s3-bucket: ${{ env.DEPLOY_CONFIG_BUCKET }}
+          comment: "Aiolos production deploy ${{ github.sha }}"
+          timeout-seconds: "900"
+          commands: |
+            set -e
 
-            # Login to ECR
-            echo "Logging in to Amazon ECR..."
-            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin ${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com
-
-            cd ~/aiolos
-
-            # Get CPU architecture
-            ARCH=$(uname -m)
-            echo "Running on architecture: $ARCH"
-
-            # Pull and start services
-            echo "Pulling latest container images..."
-            docker compose -f docker-compose.prod.yml pull
-
-            echo "Starting services..."
-            docker compose -f docker-compose.prod.yml up -d --remove-orphans
-
-            # Wait for the backend container to become healthy
-            echo "Waiting for backend container to be healthy..."
-            # This loop will wait for the container to be in a 'healthy' state.
-            # It will timeout after 2 minutes (12 * 10 seconds).
-            for i in $(seq 1 12); do
-              STATUS=$(docker inspect --format '{{.State.Health.Status}}' aiolos-backend)
-              if [ "$STATUS" = "healthy" ]; then
-                echo "Backend is healthy!"
-                break
+            cleanup() {
+              if [ $? -ne 0 ]; then
+                echo "=== Deploy failed — diagnostics ==="
+                docker compose -f /opt/aiolos/docker-compose.prod.yml ps || true
+                docker logs --tail 50 aiolos-backend 2>&1 || true
               fi
-              echo "Backend status is '$STATUS'. Waiting..."
-              sleep 10
-            done
+            }
+            trap cleanup EXIT
 
-            # Final check on container status
-            echo "Final container status:"
+            mkdir -p /opt/aiolos/data /opt/aiolos/acme
+
+            echo "=== Sync configs from S3 ==="
+            aws s3 cp "s3://aiolos-prod-deploy-config/configs/docker-compose.prod.yml" /opt/aiolos/docker-compose.prod.yml
+            aws s3 cp "s3://aiolos-prod-deploy-config/configs/traefik.yml" /opt/aiolos/traefik.yml
+
+            echo "=== Render env files from SSM ==="
+            get_ssm() {
+              aws ssm get-parameter --name "$1" --with-decryption --query 'Parameter.Value' --output text --region eu-central-1
+            }
+            cat > /opt/aiolos/.env.prod <<ENVEOF
+            TZ=$(get_ssm /aiolos/prod/config/tz)
+            PORT=$(get_ssm /aiolos/prod/config/port)
+            HOST=$(get_ssm /aiolos/prod/config/host)
+            LOG_LEVEL=$(get_ssm /aiolos/prod/config/log-level)
+            NODE_ENV=$(get_ssm /aiolos/prod/config/node-env)
+            DATABASE_URL=$(get_ssm /aiolos/prod/config/database-url)
+            APP_KEY=$(get_ssm /aiolos/prod/backend/app-key)
+            ADMIN_API_KEY=$(get_ssm /aiolos/prod/backend/admin-api-key)
+            ENVEOF
+            cat > /opt/aiolos/.env.traefik <<ENVEOF
+            CF_DNS_API_TOKEN=$(get_ssm /aiolos/prod/traefik/cf-dns-api-token)
+            ENVEOF
+            chmod 600 /opt/aiolos/.env.prod /opt/aiolos/.env.traefik
+
+            echo "=== Pull and start ==="
+            aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 590183887485.dkr.ecr.eu-central-1.amazonaws.com
+            cd /opt/aiolos
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans --wait --wait-timeout 180
+
+            echo "=== Prune old images ==="
+            docker image prune -f
+
+            echo "=== Deploy complete ==="
             docker compose -f docker-compose.prod.yml ps
-
-            # Check backend logs to diagnose any issues
-            echo "Backend container logs:"
-            docker compose -f docker-compose.prod.yml logs backend --tail 50

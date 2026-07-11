@@ -1,0 +1,111 @@
+# Aiolos production stack: Traefik + AdonisJS API + nginx SPA.
+# Lives at /opt/aiolos on the box; deployed via SSM Run Command from CI.
+#
+# Routing contract (DO NOT BREAK):
+# - ESP32 stations POST plain HTTP to aiolos.resonect.cz:80 (/api paths).
+#   The API HTTP router must never redirect to HTTPS.
+# - Browsers get the SPA over HTTPS; their plain-HTTP hits are redirected
+#   (frontend router only — API priority wins so devices never match it).
+# - /__transmit (SSE) must not be compressed or buffered.
+services:
+  traefik:
+    image: traefik:v3.6
+    restart: unless-stopped
+    env_file:
+      - ./.env.traefik
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./acme:/acme
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    networks:
+      - aiolos-network
+
+  backend:
+    image: 590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:latest
+    container_name: aiolos-backend
+    restart: unless-stopped
+    depends_on:
+      - traefik
+    env_file:
+      - ./.env.prod
+    volumes:
+      # Live SQLite database — survives deploys and image swaps
+      - ./data:/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget --no-verbose --tries=1 --spider http://127.0.0.1:8080/healthcheck || exit 1",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    labels:
+      - "traefik.enable=true"
+      # HTTPS router (browsers)
+      - "traefik.http.routers.api.rule=Host(`aiolos.resonect.cz`) && (PathPrefix(`/api`) || PathPrefix(`/__transmit`) || Path(`/healthcheck`))"
+      - "traefik.http.routers.api.entrypoints=websecure"
+      - "traefik.http.routers.api.tls=true"
+      - "traefik.http.routers.api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.api.priority=20"
+      - "traefik.http.routers.api.service=api"
+      # Plain-HTTP router (ESP32 stations — MUST NOT redirect)
+      - "traefik.http.routers.api-http.rule=Host(`aiolos.resonect.cz`) && (PathPrefix(`/api`) || PathPrefix(`/__transmit`) || Path(`/healthcheck`))"
+      - "traefik.http.routers.api-http.entrypoints=web"
+      - "traefik.http.routers.api-http.priority=20"
+      - "traefik.http.routers.api-http.service=api"
+      # SSE: exclude event-stream from compression, flush promptly
+      - "traefik.http.middlewares.compress-sse.compress.excludedcontenttypes=text/event-stream"
+      - "traefik.http.routers.api.middlewares=compress-sse"
+      - "traefik.http.routers.api-http.middlewares=compress-sse"
+      - "traefik.http.services.api.loadbalancer.server.port=8080"
+      - "traefik.http.services.api.loadbalancer.responseforwarding.flushinterval=100ms"
+    networks:
+      - aiolos-network
+
+  frontend:
+    image: 590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:latest
+    container_name: aiolos-frontend
+    restart: unless-stopped
+    depends_on:
+      - traefik
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+    labels:
+      - "traefik.enable=true"
+      # HTTPS router (SPA)
+      - "traefik.http.routers.frontend.rule=Host(`aiolos.resonect.cz`)"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls=true"
+      - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.frontend.priority=1"
+      - "traefik.http.routers.frontend.service=frontend"
+      # Browser hygiene: redirect non-API plain HTTP to HTTPS
+      # (API routers match at priority 20, so devices never hit this)
+      - "traefik.http.middlewares.to-https.redirectscheme.scheme=https"
+      - "traefik.http.routers.frontend-http.rule=Host(`aiolos.resonect.cz`)"
+      - "traefik.http.routers.frontend-http.entrypoints=web"
+      - "traefik.http.routers.frontend-http.priority=1"
+      - "traefik.http.routers.frontend-http.middlewares=to-https"
+      - "traefik.http.routers.frontend-http.service=frontend"
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
+    networks:
+      - aiolos-network
+
+networks:
+  aiolos-network:
+    name: aiolos-network
