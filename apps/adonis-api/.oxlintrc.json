@@ -1,0 +1,31 @@
+{
+  "$schema": "../../node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn"],
+  "categories": {
+    "correctness": "warn"
+  },
+  "rules": {
+    "curly": "warn",
+    "eqeqeq": "warn",
+    "no-array-constructor": "warn",
+    "no-caller": "warn",
+    "no-eval": "warn",
+    "no-new-wrappers": "warn",
+    "no-proto": "warn",
+    "no-self-compare": "warn",
+    "typescript/no-shadow": "warn",
+    "unicorn/prefer-node-protocol": "warn",
+    "unicorn/no-await-expression-member": "warn",
+    "unicorn/prefer-number-properties": "warn"
+  },
+  "ignorePatterns": [
+    "*.min.*",
+    "*.d.ts",
+    "dist/**",
+    "coverage/**",
+    "build/**",
+    "tmp/**",
+    "generated/**",
+    ".adonisjs/**"
+  ]
+}

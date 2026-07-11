@@ -1,20 +1,21 @@
-import { useState, useEffect, useCallback } from "react";
-import { Wind, Clock, Loader2 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
-  TableRow
-} from "@/components/ui/table";
-import { useWind10MinData, useWind10MinSSE } from "../../../hooks/useWind10MinData";
-import { convertWindSpeed, WIND_UNIT_LABELS } from "../../../lib/wind-utils";
-import { TendencyIndicator } from "../../atoms/indicators/tendency-indicator";
-import type { WindAggregated10Min } from "../../../types/wind-aggregated";
+  TableRow,
+} from '@/components/ui/table';
+import { Wind, Clock, Loader2 } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+
+import { useWind10MinData, useWind10MinSSE } from '../../../hooks/useWind10MinData';
+import { convertWindSpeed, WIND_UNIT_LABELS } from '../../../lib/wind-utils';
+import type { WindAggregated10Min } from '../../../types/wind-aggregated';
+import { TendencyIndicator } from '../../atoms/indicators/tendency-indicator';
 
 interface WindData10MinTableProps {
   stationId: string;
@@ -26,25 +27,25 @@ export function WindData10MinTable({ stationId, selectedUnit }: WindData10MinTab
 
   const { data, loading, error } = useWind10MinData({
     stationId,
-    limit: 6
+    limit: 6,
   });
 
   // Update table data when new data is fetched
   useEffect(() => {
     // Sort data to show latest first
-    const sortedData = [...data].sort((a, b) =>
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    const sortedData = [...data].sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
     );
     setTableData(sortedData);
   }, [data]);
 
   // Real-time updates for new aggregated data
   const handleNewAggregate = useCallback((newData: WindAggregated10Min) => {
-    setTableData(prev => {
+    setTableData((prev) => {
       // Remove any existing entry for the same timestamp and add the new one
-      const filtered = prev.filter(item => item.timestamp !== newData.timestamp);
-      const updated = [...filtered, newData].sort((a, b) =>
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime() // Sort descending (latest first)
+      const filtered = prev.filter((item) => item.timestamp !== newData.timestamp);
+      const updated = [...filtered, newData].sort(
+        (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(), // Sort descending (latest first)
       );
       // Keep only the last 6 records (most recent)
       return updated.slice(0, 6);
@@ -60,12 +61,29 @@ export function WindData10MinTable({ stationId, selectedUnit }: WindData10MinTab
     return intervalEnd.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
-      hour12: false
+      hour12: false,
     });
   };
 
   const formatDirection = (degrees: number) => {
-    const cardinalDirections = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    const cardinalDirections = [
+      'N',
+      'NNE',
+      'NE',
+      'ENE',
+      'E',
+      'ESE',
+      'SE',
+      'SSE',
+      'S',
+      'SSW',
+      'SW',
+      'WSW',
+      'W',
+      'WNW',
+      'NW',
+      'NNW',
+    ];
     const index = Math.round(degrees / 22.5) % 16;
     return `${degrees}° ${cardinalDirections[index]}`;
   };
@@ -77,18 +95,18 @@ export function WindData10MinTable({ stationId, selectedUnit }: WindData10MinTab
 
   const formatSpeed = (speed: number) => {
     const converted = convertSpeed(speed);
-    return selectedUnit === "beaufort" ? Math.round(converted) : converted.toFixed(1);
+    return selectedUnit === 'beaufort' ? Math.round(converted) : converted.toFixed(1);
   };
 
   const getUnitLabel = () => {
-    return WIND_UNIT_LABELS[selectedUnit] || "m/s";
+    return WIND_UNIT_LABELS[selectedUnit] || 'm/s';
   };
 
   return (
     <Card className="min-w-0">
       <CardHeader>
         <div className="flex items-center gap-2">
-          <Clock className="h-5 w-5 text-primary" />
+          <Clock className="text-primary h-5 w-5" />
           <CardTitle>10-Min Wind Intervals</CardTitle>
         </div>
       </CardHeader>
@@ -105,10 +123,12 @@ export function WindData10MinTable({ stationId, selectedUnit }: WindData10MinTab
             <span className="ml-2">Loading 10-minute wind data...</span>
           </div>
         ) : tableData.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <Wind className="h-12 w-12 mx-auto mb-4 opacity-50" />
+          <div className="text-muted-foreground py-8 text-center">
+            <Wind className="mx-auto mb-4 h-12 w-12 opacity-50" />
             <p>No 10-minute wind data available</p>
-            <p className="text-sm mt-2">Data will appear after some time when 1-minute data is aggregated.</p>
+            <p className="mt-2 text-sm">
+              Data will appear after some time when 1-minute data is aggregated.
+            </p>
           </div>
         ) : (
           <div className="space-y-4">

@@ -1,4 +1,4 @@
-import path from 'node:path'
+import path from 'node:path';
 
 export default {
   path: path.resolve(process.cwd()),
@@ -21,4 +21,4 @@ export default {
   defaultSecurityScheme: undefined,
   persistAuthorization: true,
   showFullPath: false,
-}
+};

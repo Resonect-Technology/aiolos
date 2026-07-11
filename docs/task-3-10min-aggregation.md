@@ -2,7 +2,10 @@
 
 ## Problem Statement
 
-As a wind lover, I want to see 10-minute wind data, so that I can better see what the wind is doing. After implementing 1-minute wind data aggregation, users need 10-minute aggregated data for broader wind pattern analysis and trend identification.
+As a wind lover, I want to see 10-minute wind data, so that I can better see
+what the wind is doing. After implementing 1-minute wind data aggregation, users
+need 10-minute aggregated data for broader wind pattern analysis and trend
+identification.
 
 **Prerequisites**:
 
@@ -11,11 +14,16 @@ As a wind lover, I want to see 10-minute wind data, so that I can better see wha
 
 ## Proposed Solution
 
-Implement 10-minute wind data aggregation by processing existing 1-minute data into 10-minute intervals. Add wind tendency analysis to show if wind is increasing or decreasing compared to previous intervals.
+Implement 10-minute wind data aggregation by processing existing 1-minute data
+into 10-minute intervals. Add wind tendency analysis to show if wind is
+increasing or decreasing compared to previous intervals.
 
-**Important**: Read #file:be-database.instructions.md for detailed information about the database technologies, patterns, and constraints used in this project.
+**Important**: Read #file:be-database.instructions.md for detailed information
+about the database technologies, patterns, and constraints used in this project.
 
-**Simple & Hierarchical Approach**: Create 10-minute aggregates from existing 1-minute data. This is efficient and ensures data consistency. Add tendency indicators to help wind enthusiasts understand wind patterns and trends.
+**Simple & Hierarchical Approach**: Create 10-minute aggregates from existing
+1-minute data. This is efficient and ensures data consistency. Add tendency
+indicators to help wind enthusiasts understand wind patterns and trends.
 
 ## Acceptance Criteria
 
@@ -27,22 +35,26 @@ Implement 10-minute wind data aggregation by processing existing 1-minute data i
   - timestamp (start of 10-minute interval)
   - avg_speed, min_speed, max_speed (decimal fields)
   - dominant_direction (most frequent direction during interval - "četnost")
-  - tendency (enum: 'increasing', 'decreasing', 'stable') - compares current avg with previous interval
+  - tendency (enum: 'increasing', 'decreasing', 'stable') - compares current avg
+    with previous interval
   - created_at, updated_at
 - [ ] Add unique constraint on (station_id, timestamp) to prevent duplicates
 - [ ] Add basic indexes on station_id and timestamp
-- [ ] Update `data_retention_policies` with 10-minute retention (default: 1 day, removed after hourly data created)
+- [ ] Update `data_retention_policies` with 10-minute retention (default: 1 day,
+      removed after hourly data created)
 
 ### Aggregation Service Enhancement
 
 - [ ] Create simple aggregation process that runs every 10 minutes
-- [ ] Aggregate from existing `wind_data_1min` table (10 consecutive 1-minute records)
+- [ ] Aggregate from existing `wind_data_1min` table (10 consecutive 1-minute
+      records)
 - [ ] Calculate statistics:
   - avg_speed: weighted average of 1-minute averages
   - min_speed: minimum of 1-minute minimums
   - max_speed: maximum of 1-minute maximums
   - dominant_direction: most frequent direction from 1-minute data ("četnost")
-- [ ] Calculate tendency by comparing current 10-min average with previous 10-min average:
+- [ ] Calculate tendency by comparing current 10-min average with previous
+      10-min average:
   - 'increasing': current avg > previous avg (with threshold, e.g., +0.5 m/s)
   - 'decreasing': current avg < previous avg (with threshold, e.g., -0.5 m/s)
   - 'stable': within threshold range
@@ -79,7 +91,8 @@ Implement 10-minute wind data aggregation by processing existing 1-minute data i
 
 ### Data Retention Enhancement
 
-- [ ] Daily cleanup service removes 10-minute data at end of day after hourly data is created successfully
+- [ ] Daily cleanup service removes 10-minute data at end of day after hourly
+      data is created successfully
 - [ ] Simple automated cleanup with basic logging
 - [ ] Configurable retention period (default: 1 day)
 - [ ] Manual cleanup trigger for testing
@@ -113,13 +126,13 @@ const currentAvg = newRecord.avg_speed;
 const previousAvg = previousRecord?.avg_speed;
 
 if (!previousAvg) {
-  tendency = "stable"; // First record
+  tendency = 'stable'; // First record
 } else if (currentAvg > previousAvg + threshold) {
-  tendency = "increasing";
+  tendency = 'increasing';
 } else if (currentAvg < previousAvg - threshold) {
-  tendency = "decreasing";
+  tendency = 'decreasing';
 } else {
-  tendency = "stable";
+  tendency = 'stable';
 }
 ```
 
@@ -146,7 +159,8 @@ if (!previousAvg) {
 - **Depends on 1-minute data**: Requires Task 2 to be working properly
 - **API Compatibility**: No changes to existing firmware endpoints
 - **Tendency Accuracy**: Simple threshold-based approach, can be refined later
-- **Data Consistency**: 10-minute data should be mathematically consistent with 1-minute data
+- **Data Consistency**: 10-minute data should be mathematically consistent with
+  1-minute data
 
 ## Testing Approach
 

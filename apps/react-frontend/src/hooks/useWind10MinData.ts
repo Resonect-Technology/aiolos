@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
-import { Transmit } from "@adonisjs/transmit-client";
-import type { WindAggregatedResponse, WindAggregated10Min } from "../types/wind-aggregated";
+import { Transmit } from '@adonisjs/transmit-client';
+import { useState, useEffect, useCallback } from 'react';
+
+import type { WindAggregatedResponse, WindAggregated10Min } from '../types/wind-aggregated';
 
 interface UseWind10MinDataProps {
   stationId: string;
@@ -18,7 +19,7 @@ interface UseWind10MinDataReturn {
 export function useWind10MinData({
   stationId,
   date,
-  limit = 6
+  limit = 6,
 }: UseWind10MinDataProps): UseWind10MinDataReturn {
   const [data, setData] = useState<WindAggregated10Min[]>([]);
   const [loading, setLoading] = useState(false);
@@ -30,9 +31,9 @@ export function useWind10MinData({
 
     try {
       const queryParams = new URLSearchParams({
-        interval: "10min",
+        interval: '10min',
         limit: limit.toString(),
-        ...(date && { date })
+        ...(date && { date }),
       });
 
       // Always use the base endpoint - data comes in m/s and conversion happens in frontend
@@ -47,7 +48,7 @@ export function useWind10MinData({
       const result: WindAggregatedResponse = await response.json();
       setData(result.data as WindAggregated10Min[]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch 10-minute wind data");
+      setError(err instanceof Error ? err.message : 'Failed to fetch 10-minute wind data');
       setData([]);
     } finally {
       setLoading(false);
@@ -97,7 +98,7 @@ export function useWind10MinSSE({ stationId, onNewAggregate }: UseWind10MinSSEPr
           }
         });
       })
-      .catch(err => {
+      .catch((err) => {
         setError(`Failed to connect to 10-minute data stream: ${err.message}`);
         setConnected(false);
       });

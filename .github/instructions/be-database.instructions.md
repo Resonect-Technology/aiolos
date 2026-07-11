@@ -1,5 +1,5 @@
 ---
-applyTo: "apps/adonis-api/database/**,apps/adonis-api/app/models/**,apps/adonis-api/config/database.*"
+applyTo: 'apps/adonis-api/database/**,apps/adonis-api/app/models/**,apps/adonis-api/config/database.*'
 ---
 
 # Aiolos Backend Database Instructions
@@ -16,14 +16,18 @@ applyTo: "apps/adonis-api/database/**,apps/adonis-api/app/models/**,apps/adonis-
 
 All database operations should follow AdonisJS v6 patterns as documented here:
 
-- **Main DB Documentation**: https://docs.adonisjs.com/guides/database/introduction
+- **Main DB Documentation**:
+  https://docs.adonisjs.com/guides/database/introduction
 - **Lucid ORM Guide**: https://docs.adonisjs.com/guides/models/introduction
 - **Migrations**: https://docs.adonisjs.com/guides/database/migrations
 - **Seeders**: https://docs.adonisjs.com/guides/database/seeders
 
 ## Database Schema Overview
 
-The database schema is actively evolving and will be updated soon. Current tables include sensor readings, station diagnostics, station configurations, and system configurations. For the most up-to-date table structure, refer to the migration files in `apps/adonis-api/database/migrations/`.
+The database schema is actively evolving and will be updated soon. Current
+tables include sensor readings, station diagnostics, station configurations, and
+system configurations. For the most up-to-date table structure, refer to the
+migration files in `apps/adonis-api/database/migrations/`.
 
 ### Key Schema Patterns
 
@@ -46,7 +50,8 @@ node ace make:migration create_table_name
 - **Always use timestamps**: Include `created_at` and `updated_at`
 - **Foreign key constraints**: Properly reference related tables
 - **Indexes**: Add indexes for frequently queried columns
-- **Data types**: Use SQLite-compatible data types, ensure cross-platform compatibility
+- **Data types**: Use SQLite-compatible data types, ensure cross-platform
+  compatibility
 
 ### Migration Safety
 
@@ -66,11 +71,13 @@ node ace make:migration create_table_name
 
 ### Naming Conventions
 
-- **Table names**: Snake_case, plural (e.g., `sensor_readings`, `station_configs`)
+- **Table names**: Snake_case, plural (e.g., `sensor_readings`,
+  `station_configs`)
 - **Column names**: Snake_case (e.g., `station_id`, `created_at`)
 - **Model names**: PascalCase, singular (e.g., `SensorReading`, `StationConfig`)
 - **Foreign keys**: `{table_singular}_id` format
-- **JSON API fields**: camelCase in API, snake_case in database (Lucid ORM handles mapping)
+- **JSON API fields**: camelCase in API, snake_case in database (Lucid ORM
+  handles mapping)
 
 ## Query Patterns
 
@@ -110,7 +117,8 @@ node ace make:migration create_table_name
 - **File location**: `/app/tmp/db.sqlite3` (in production Docker container)
 - **Driver**: `better-sqlite3` for synchronous operations and ARM64 support
 - **Persistence**: Database file stored on Docker volume for data persistence
-- **Performance**: Optimized for ARM64 (Raspberry Pi/EC2) and x86_64 architectures
+- **Performance**: Optimized for ARM64 (Raspberry Pi/EC2) and x86_64
+  architectures
 
 ### Container Path Resolution
 
@@ -169,22 +177,28 @@ node ace db:seed
 ### Critical Database Constraints
 
 - **Firmware endpoints**: Existing API endpoints rely on current schema
-- **Backward compatibility**: Schema changes must not break firmware (firmware cannot be easily updated)
+- **Backward compatibility**: Schema changes must not break firmware (firmware
+  cannot be easily updated)
 - **API tests**: Database changes must pass existing firmware endpoint tests
-- **camelCase API contract**: Maintain camelCase field names in API responses (database uses snake_case)
+- **camelCase API contract**: Maintain camelCase field names in API responses
+  (database uses snake_case)
 
 ### Schema Evolution Strategy
 
-1. **Additive changes**: Add new columns/tables without breaking existing firmware endpoints
+1. **Additive changes**: Add new columns/tables without breaking existing
+   firmware endpoints
 2. **Migration scripts**: Provide data migration for schema changes
-3. **Firmware compatibility**: Never change existing API field names or data types
-4. **Protected endpoints**: Wind, temperature, diagnostics, config, and OTA endpoints are firmware-critical
+3. **Firmware compatibility**: Never change existing API field names or data
+   types
+4. **Protected endpoints**: Wind, temperature, diagnostics, config, and OTA
+   endpoints are firmware-critical
 
 ### Firmware-Critical Tests
 
 - **File**: `tests/functional/firmware_endpoints.spec.ts`
 - **Purpose**: Validates exact JSON contract with deployed firmware
-- **Never modify**: These tests protect deployed weather stations from API changes
+- **Never modify**: These tests protect deployed weather stations from API
+  changes
 - **Always run**: Before any database or API changes
 
 ## Common Database Operations

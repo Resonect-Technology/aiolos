@@ -54,24 +54,27 @@ export function getTimestampClasses(timestamp: string): string {
   const veryStale = isStale(timestamp, 15);
 
   if (veryStale) {
-    return "text-red-500 dark:text-red-400";
+    return 'text-red-500 dark:text-red-400';
   } else if (stale) {
-    return "text-orange-500 dark:text-orange-400";
+    return 'text-orange-500 dark:text-orange-400';
   } else {
-    return "text-slate-500 dark:text-slate-400";
+    return 'text-slate-500 dark:text-slate-400';
   }
 }
 
 /**
  * Format sleep schedule for display (e.g., "Sleep: 22:00 - 06:00")
  */
-export function formatSleepSchedule(sleepStartHour: number | null, sleepEndHour: number | null): string {
+export function formatSleepSchedule(
+  sleepStartHour: number | null,
+  sleepEndHour: number | null,
+): string {
   if (sleepStartHour === null || sleepEndHour === null) {
-    return "No sleep schedule configured";
+    return 'No sleep schedule configured';
   }
 
   if (sleepStartHour === sleepEndHour) {
-    return "No sleep schedule configured";
+    return 'No sleep schedule configured';
   }
 
   const formatHour = (hour: number) => String(hour).padStart(2, '0') + ':00';
@@ -81,7 +84,10 @@ export function formatSleepSchedule(sleepStartHour: number | null, sleepEndHour:
 /**
  * Calculate next sleep or wake time based on current time and sleep config
  */
-export function calculateNextSleepWakeTime(sleepStartHour: number | null, sleepEndHour: number | null): {
+export function calculateNextSleepWakeTime(
+  sleepStartHour: number | null,
+  sleepEndHour: number | null,
+): {
   nextEventType: 'sleep' | 'wake' | null;
   nextEventTime: Date | null;
   timeUntilNext: string;
@@ -90,7 +96,7 @@ export function calculateNextSleepWakeTime(sleepStartHour: number | null, sleepE
     return {
       nextEventType: null,
       nextEventTime: null,
-      timeUntilNext: "No sleep schedule"
+      timeUntilNext: 'No sleep schedule',
     };
   }
 
@@ -116,7 +122,7 @@ export function calculateNextSleepWakeTime(sleepStartHour: number | null, sleepE
     nextEventType = 'wake';
     nextEventTime = new Date(now);
     nextEventTime.setHours(sleepEndHour, 0, 0, 0);
-    
+
     // If wake time is earlier today and we're in a cross-midnight sleep period
     if (sleepStartHour > sleepEndHour && currentHour >= sleepStartHour) {
       // Wake time is tomorrow
@@ -130,7 +136,7 @@ export function calculateNextSleepWakeTime(sleepStartHour: number | null, sleepE
     nextEventType = 'sleep';
     nextEventTime = new Date(now);
     nextEventTime.setHours(sleepStartHour, 0, 0, 0);
-    
+
     // If sleep time has passed today, it's tomorrow
     if (currentHour > sleepStartHour || (currentHour === sleepStartHour && currentMinutes > 0)) {
       nextEventTime.setDate(nextEventTime.getDate() + 1);
@@ -142,7 +148,7 @@ export function calculateNextSleepWakeTime(sleepStartHour: number | null, sleepE
   return {
     nextEventType,
     nextEventTime,
-    timeUntilNext
+    timeUntilNext,
   };
 }
 
@@ -152,9 +158,9 @@ export function calculateNextSleepWakeTime(sleepStartHour: number | null, sleepE
 export function formatTimeUntil(futureTime: Date): string {
   const now = new Date();
   const diffMs = futureTime.getTime() - now.getTime();
-  
+
   if (diffMs <= 0) {
-    return "Now";
+    return 'Now';
   }
 
   const diffSeconds = Math.floor(diffMs / 1000);

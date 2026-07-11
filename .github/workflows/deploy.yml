@@ -3,7 +3,7 @@ name: Build and Deploy Aiolos
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   build-and-push-backend:
@@ -127,24 +127,24 @@ jobs:
             export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
             export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
             export AWS_REGION=$AWS_REGION
-            
+
             # Login to ECR
             echo "Logging in to Amazon ECR..."
             aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin ${{ secrets.RESONECT_AWS_PROD_ID }}.dkr.ecr.eu-central-1.amazonaws.com
-            
+
             cd ~/aiolos
-            
+
             # Get CPU architecture
             ARCH=$(uname -m)
             echo "Running on architecture: $ARCH"
-            
+
             # Pull and start services
             echo "Pulling latest container images..."
             docker compose -f docker-compose.prod.yml pull
-            
+
             echo "Starting services..."
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
-            
+
             # Wait for the backend container to become healthy
             echo "Waiting for backend container to be healthy..."
             # This loop will wait for the container to be in a 'healthy' state.
@@ -162,8 +162,7 @@ jobs:
             # Final check on container status
             echo "Final container status:"
             docker compose -f docker-compose.prod.yml ps
-            
+
             # Check backend logs to diagnose any issues
             echo "Backend container logs:"
             docker compose -f docker-compose.prod.yml logs backend --tail 50
-

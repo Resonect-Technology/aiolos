@@ -1,8 +1,9 @@
-import TemperatureReading from '#models/temperature_reading'
-import type { HttpContext } from '@adonisjs/core/http'
-import { stationDataCache } from '#app/services/station_data_cache'
-import transmit from '@adonisjs/transmit/services/main'
-import { DateTime } from 'luxon'
+import type { HttpContext } from '@adonisjs/core/http';
+import transmit from '@adonisjs/transmit/services/main';
+import { DateTime } from 'luxon';
+
+import { stationDataCache } from '#app/services/station_data_cache';
+import TemperatureReading from '#models/temperature_reading';
 
 export default class StationTemperatureController {
   /**
@@ -11,7 +12,7 @@ export default class StationTemperatureController {
    */
   private isValidTemperature(temperature: number): boolean {
     // Filter out obvious sensor errors and unrealistic values
-    return temperature > -40 && temperature < 60 && temperature !== -127
+    return temperature > -40 && temperature < 60 && temperature !== -127;
   }
 
   /**
@@ -23,46 +24,46 @@ export default class StationTemperatureController {
    */
   async store({ request, response, params }: HttpContext) {
     // Capture arrival timestamp immediately for accuracy
-    const arrivalTimestamp = new Date().toISOString()
+    const arrivalTimestamp = new Date().toISOString();
 
-    const temperature = request.input('temperature')
+    const temperature = request.input('temperature');
 
     if (temperature === undefined) {
-      return response.badRequest({ error: 'Temperature value is required' })
+      return response.badRequest({ error: 'Temperature value is required' });
     }
 
     // Use station-provided timestamp if available, otherwise use server arrival time
-    const temperatureTimestamp = request.input('timestamp') || arrivalTimestamp
+    const temperatureTimestamp = request.input('timestamp') || arrivalTimestamp;
 
     // Silently filter invalid temperature readings
     if (!this.isValidTemperature(temperature)) {
       console.warn(
-        `Filtered invalid temperature reading: ${temperature}°C from station ${params.station_id}`
-      )
+        `Filtered invalid temperature reading: ${temperature}°C from station ${params.station_id}`,
+      );
       // Return success but don't update cache/broadcast/store
       return response.created({
         message: 'Reading received',
-        filtered: true
-      })
+        filtered: true,
+      });
     }
 
     // Cache the temperature data
     stationDataCache.setTemperatureData(params.station_id, {
       temperature,
       timestamp: temperatureTimestamp,
-    })
+    });
 
     // Broadcast to SSE subscribers with timestamp
     await transmit.broadcast(`temperature/live/${params.station_id}`, {
       temperature,
       timestamp: temperatureTimestamp,
-    })
+    });
 
     const reading = await TemperatureReading.create({
       stationId: params.station_id,
       temperature,
       readingTimestamp: DateTime.fromISO(temperatureTimestamp),
-    })
+    });
 
     // Return the same structure as the old SensorReading for API compatibility
     return response.created({
@@ -74,7 +75,7 @@ export default class StationTemperatureController {
       windDirection: null,
       createdAt: reading.createdAt,
       updatedAt: reading.updatedAt,
-    })
+    });
   }
 
   /**
@@ -88,9 +89,9 @@ export default class StationTemperatureController {
     const reading = await TemperatureReading.query()
       .where('stationId', params.station_id)
       .orderBy('readingTimestamp', 'desc')
-      .first()
+      .first();
 
-    if (!reading) return response.notFound({ message: 'No temperature readings found' })
+    if (!reading) return response.notFound({ message: 'No temperature readings found' });
 
     // Return the same structure as the old SensorReading for API compatibility
     return {
@@ -103,7 +104,7 @@ export default class StationTemperatureController {
       createdAt: reading.createdAt,
       updatedAt: reading.updatedAt,
       lastUpdated: reading.readingTimestamp.toISO(),
-    }
+    };
   }
 
   /**
@@ -116,27 +117,35 @@ export default class StationTemperatureController {
    * @responseBody 200 - <TemperatureReading[]> - List of temperature readings
    */
   async index({ request, params }: HttpContext) {
-    const limit = request.input('limit', 100)
-    const from = request.input('from')
-    const to = request.input('to')
+    const limit = request.input('limit', 100);
+    const from = request.input('from');
+    const to = request.input('to');
 
     const query = TemperatureReading.query()
       .where('stationId', params.station_id)
       .orderBy('readingTimestamp', 'desc')
-      .limit(limit)
+      .limit(limit);
 
     if (from) {
-      query.where('readingTimestamp', '>=', DateTime.fromISO(from).toUTC().toSQL({ includeOffset: false })!)
+      query.where(
+        'readingTimestamp',
+        '>=',
+        DateTime.fromISO(from).toUTC().toSQL({ includeOffset: false })!,
+      );
     }
 
     if (to) {
-      query.where('readingTimestamp', '<=', DateTime.fromISO(to).toUTC().toSQL({ includeOffset: false })!)
+      query.where(
+        'readingTimestamp',
+        '<=',
+        DateTime.fromISO(to).toUTC().toSQL({ includeOffset: false })!,
+      );
     }
 
-    const readings = await query
+    const readings = await query;
 
     // Return the same structure as the old SensorReading for API compatibility
-    return readings.map(reading => ({
+    return readings.map((reading) => ({
       id: reading.id,
       sensorId: reading.stationId,
       type: 'temperature',
@@ -145,6 +154,6 @@ export default class StationTemperatureController {
       windDirection: null,
       createdAt: reading.createdAt,
       updatedAt: reading.updatedAt,
-    }))
+    }));
   }
 }

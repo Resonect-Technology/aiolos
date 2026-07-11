@@ -1,48 +1,48 @@
-import { DateTime } from 'luxon'
-import { BaseModel, column } from '@adonisjs/lucid/orm'
+import { BaseModel, column } from '@adonisjs/lucid/orm';
+import { DateTime } from 'luxon';
 
 export default class DataRetentionPolicy extends BaseModel {
   /**
    * @summary Unique ID
    */
   @column({ isPrimary: true })
-  declare id: number
+  declare id: number;
 
   /**
    * @summary Data type (e.g., 'temperature', 'wind', 'diagnostics')
    */
   @column()
-  declare dataType: string
+  declare dataType: string;
 
   /**
    * @summary Retention period in days
    */
   @column()
-  declare retentionDays: number
+  declare retentionDays: number;
 
   /**
    * @summary Whether the policy is active
    */
   @column()
-  declare isActive: boolean
+  declare isActive: boolean;
 
   /**
    * @summary Policy description
    */
   @column()
-  declare description: string | null
+  declare description: string | null;
 
   /**
    * @summary Creation timestamp
    * @format(date-time)
    */
   @column.dateTime({ autoCreate: true })
-  declare createdAt: DateTime
+  declare createdAt: DateTime;
 
   /**
    * @summary Update timestamp
    * @format(date-time)
    */
   @column.dateTime({ autoCreate: true, autoUpdate: true })
-  declare updatedAt: DateTime
+  declare updatedAt: DateTime;
 }

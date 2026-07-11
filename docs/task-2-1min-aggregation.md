@@ -2,17 +2,27 @@
 
 ## Problem Statement
 
-Wind enthusiasts need to see 1-minute aggregated wind data to better understand wind patterns and trends. Currently, the system only provides individual raw readings, making it difficult to analyze wind behavior over time intervals.
+Wind enthusiasts need to see 1-minute aggregated wind data to better understand
+wind patterns and trends. Currently, the system only provides individual raw
+readings, making it difficult to analyze wind behavior over time intervals.
 
-**Prerequisites**: Task 1 (Database Architecture Redesign) must be completed first.
+**Prerequisites**: Task 1 (Database Architecture Redesign) must be completed
+first.
 
 ## Proposed Solution
 
-Implement a real-time 1-minute wind data aggregation system that processes incoming raw wind data into 1-minute intervals, stores the aggregated data, and provides both API access and real-time frontend visualization.
+Implement a real-time 1-minute wind data aggregation system that processes
+incoming raw wind data into 1-minute intervals, stores the aggregated data, and
+provides both API access and real-time frontend visualization.
 
-**Important**: Read #file:be-database.instructions.md for detailed information about the database technologies, patterns, and constraints used in this project (SQLite, Lucid ORM, AdonisJS v6 patterns, etc.).
+**Important**: Read #file:be-database.instructions.md for detailed information
+about the database technologies, patterns, and constraints used in this project
+(SQLite, Lucid ORM, AdonisJS v6 patterns, etc.).
 
-**Simplified Approach**: Instead of storing individual wind readings, we'll aggregate incoming data directly into 1-minute records. This keeps the database simple while still providing detailed wind analysis. Live streaming continues unchanged for real-time dashboard updates.
+**Simplified Approach**: Instead of storing individual wind readings, we'll
+aggregate incoming data directly into 1-minute records. This keeps the database
+simple while still providing detailed wind analysis. Live streaming continues
+unchanged for real-time dashboard updates.
 
 ## Acceptance Criteria
 
@@ -31,12 +41,15 @@ Implement a real-time 1-minute wind data aggregation system that processes incom
 
 ### Real-Time Aggregation Service
 
-- [ ] Create simple `WindAggregationService` that processes incoming wind data in real-time
+- [ ] Create simple `WindAggregationService` that processes incoming wind data
+      in real-time
 - [ ] Maintain in-memory buckets for current minute intervals per station
 - [ ] Calculate dominant direction as most frequently occurring direction
-- [ ] At minute boundary (XX:XX:59 → XX:XX+1:00), save completed aggregate to database
+- [ ] At minute boundary (XX:XX:59 → XX:XX+1:00), save completed aggregate to
+      database
 - [ ] Clear memory bucket after saving
-- [ ] Handle system restart gracefully (lose current partial minute, start fresh)
+- [ ] Handle system restart gracefully (lose current partial minute, start
+      fresh)
 
 ### API Endpoints
 
@@ -83,10 +96,12 @@ Implement a real-time 1-minute wind data aggregation system that processes incom
 
 ## Component Impact
 
-- [x] Backend (AdonisJS) - New aggregation service, API endpoints, database table
+- [x] Backend (AdonisJS) - New aggregation service, API endpoints, database
+      table
 - [x] Frontend (React/Vite) - New table component, real-time integration
 - [ ] Firmware (ESP32) - No changes (uses existing endpoints)
-- [ ] Infrastructure (Docker/Terraform) - Possible memory adjustments for aggregation
+- [ ] Infrastructure (Docker/Terraform) - Possible memory adjustments for
+      aggregation
 
 ## Technical Implementation Details
 
@@ -125,10 +140,12 @@ Implement a real-time 1-minute wind data aggregation system that processes incom
 
 ## Constraints
 
-- **Simple & Effective**: Focus on straightforward aggregation without over-engineering
+- **Simple & Effective**: Focus on straightforward aggregation without
+  over-engineering
 - **API Compatibility**: No changes to existing firmware endpoints
 - **Memory Efficient**: Only store current minute buckets in memory
-- **Real-time**: Live streaming continues unchanged, aggregates update in real-time
+- **Real-time**: Live streaming continues unchanged, aggregates update in
+  real-time
 - **No Raw Storage**: Only store aggregated data, not individual readings
 
 ## Testing Approach
@@ -218,7 +235,8 @@ This implementation should support easy addition of:
 
 - **Prerequisite**: Task 1 (Database Architecture Redesign) must be completed
 - New table: `weather_stations` from Task 1 (for foreign key relationship)
-- **Note**: We're NOT using `wind_readings` table - direct aggregation approach instead
+- **Note**: We're NOT using `wind_readings` table - direct aggregation approach
+  instead
 
 ## Notes
 

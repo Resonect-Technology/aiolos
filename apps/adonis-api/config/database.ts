@@ -1,5 +1,5 @@
-import app from '@adonisjs/core/services/app'
-import { defineConfig } from '@adonisjs/lucid'
+import app from '@adonisjs/core/services/app';
+import { defineConfig } from '@adonisjs/lucid';
 
 const dbConfig = defineConfig({
   connection: 'sqlite',
@@ -16,6 +16,6 @@ const dbConfig = defineConfig({
       },
     },
   },
-})
+});
 
-export default dbConfig
+export default dbConfig;

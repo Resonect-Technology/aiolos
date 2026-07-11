@@ -2,20 +2,30 @@
 
 ## Problem Statement
 
-The current Aiolos database lacks proper architecture for a weather monitoring system. It has mixed data types in single tables, no station registry, missing relationships, and poor indexing for time-series data. This creates performance issues and makes it difficult to implement features like data aggregation and retention policies.
+The current Aiolos database lacks proper architecture for a weather monitoring
+system. It has mixed data types in single tables, no station registry, missing
+relationships, and poor indexing for time-series data. This creates performance
+issues and makes it difficult to implement features like data aggregation and
+retention policies.
 
 ## Proposed Solution
 
-Redesign the database with a proper normalized structure that separates concerns, establishes clear relationships, and optimizes for time-series weather data workloads.
+Redesign the database with a proper normalized structure that separates
+concerns, establishes clear relationships, and optimizes for time-series weather
+data workloads.
 
-**Important**: Read #file:be-database.instructions.md for detailed information about the database technologies, patterns, and constraints used in this project (SQLite, Lucid ORM, AdonisJS v6 patterns, ARM64 support, etc.).
+**Important**: Read #file:be-database.instructions.md for detailed information
+about the database technologies, patterns, and constraints used in this project
+(SQLite, Lucid ORM, AdonisJS v6 patterns, ARM64 support, etc.).
 
 ## Acceptance Criteria
 
 ### Core Infrastructure
 
-- [ ] Create `weather_stations` table as central station registry with basic metadata (station_id, name, location)
-- [ ] Create separate `temperature_readings` table for temperature data (station_id, temperature, timestamp)
+- [ ] Create `weather_stations` table as central station registry with basic
+      metadata (station_id, name, location)
+- [ ] Create separate `temperature_readings` table for temperature data
+      (station_id, temperature, timestamp)
 - [ ] Add foreign key relationships between tables
 - [ ] Add basic indexes on commonly queried fields (station_id, timestamp)
 - [ ] Add simple data validation constraints (non-negative temperatures)
@@ -44,7 +54,8 @@ Redesign the database with a proper normalized structure that separates concerns
 
 - [ ] Ensure ALL existing API endpoints continue working unchanged
 - [ ] Update models to use new table structure while maintaining same interfaces
-- [ ] Verify firmware endpoints (`/stations/:id/wind`, `/stations/:id/temperature`) work identically
+- [ ] Verify firmware endpoints (`/stations/:id/wind`,
+      `/stations/:id/temperature`) work identically
 - [ ] Run existing API tests to confirm no breaking changes
 
 ### Performance Optimization
@@ -65,9 +76,11 @@ Redesign the database with a proper normalized structure that separates concerns
 
 ## Constraints
 
-- **API Compatibility**: CRITICAL - All existing endpoints must work identically (firmware is deployed)
+- **API Compatibility**: CRITICAL - All existing endpoints must work identically
+  (firmware is deployed)
 - **Fresh Start**: No existing data preservation required - clean database setup
-- **Simple & Effective**: Focus on clean, maintainable database structure over complex optimization
+- **Simple & Effective**: Focus on clean, maintainable database structure over
+  complex optimization
 - **Easy Deployment**: Single deployment process with new schema
 
 ## Testing Approach

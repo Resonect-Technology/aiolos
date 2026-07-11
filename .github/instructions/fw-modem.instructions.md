@@ -1,14 +1,23 @@
 ---
-applyTo: "**/firmware/**"
+applyTo: '**/firmware/**'
 ---
 
 # LilyGO T-SIM7000G Modem Usage Guide
 
-This document serves as a reference guide for using the LilyGO T-SIM7000G cellular modem in the Aiolos Weather Station project. It is based on our optimized implementation and aligns with LilyGO's official examples, consolidating best practices for robust modem initialization, reliable network connection, power management, and error handling that allows the system to continue operating even when cellular connectivity is unavailable.
+This document serves as a reference guide for using the LilyGO T-SIM7000G
+cellular modem in the Aiolos Weather Station project. It is based on our
+optimized implementation and aligns with LilyGO's official examples,
+consolidating best practices for robust modem initialization, reliable network
+connection, power management, and error handling that allows the system to
+continue operating even when cellular connectivity is unavailable.
 
 ## Note on Communication Protocol
 
-All communication with the backend is now performed using HTTP POST requests (not CoAP, UDP, or MQTT). The modem is used to establish a cellular data connection, after which the firmware sends JSON payloads to the AdonisJS REST API backend over HTTP. Any previous references to CoAP or UDP-based protocols are obsolete.
+All communication with the backend is now performed using HTTP POST requests
+(not CoAP, UDP, or MQTT). The modem is used to establish a cellular data
+connection, after which the firmware sends JSON payloads to the AdonisJS REST
+API backend over HTTP. Any previous references to CoAP or UDP-based protocols
+are obsolete.
 
 ## Table of Contents
 
@@ -52,7 +61,8 @@ Standard baud rate is 115200, but other rates are also supported.
 
 ### Power On Sequence
 
-The correct power-on sequence for the SIM7000G is critical for reliable operation:
+The correct power-on sequence for the SIM7000G is critical for reliable
+operation:
 
 ````cpp
 // Power on the modem with proper timing according to SIM7000G datasheet
@@ -701,7 +711,8 @@ If battery drains too quickly:
 
 ## Handling Watchdog Timer
 
-The ESP32's watchdog timer needs special consideration when working with the modem:
+The ESP32's watchdog timer needs special consideration when working with the
+modem:
 
 ```cpp
 // Setup watchdog timer
@@ -729,7 +740,8 @@ setupWatchdog();
 
 ## Graceful Degradation
 
-The system should continue operating even when cellular connectivity is unavailable:
+The system should continue operating even when cellular connectivity is
+unavailable:
 
 ```cpp
 // In initialization code
@@ -768,7 +780,8 @@ void loop() {
 
 ## ModemManager Integration
 
-A complete `ModemManager` class provides a clean interface for all modem operations:
+A complete `ModemManager` class provides a clean interface for all modem
+operations:
 
 ```cpp
 class ModemManager {

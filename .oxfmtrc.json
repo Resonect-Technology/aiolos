@@ -1,0 +1,77 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "singleQuote": true,
+  "sortImports": {
+    "newlinesBetween": true,
+    "internalPattern": ["@/*", "#*"],
+    "customGroups": [
+      {
+        "groupName": "monorepo",
+        "elementNamePattern": ["@repo/*"]
+      }
+    ],
+    "groups": [
+      "builtin",
+      "external",
+      "monorepo",
+      ["internal", "subpath"],
+      ["parent", "sibling", "index"],
+      "style",
+      "unknown"
+    ]
+  },
+  "sortTailwindcss": {
+    "functions": ["cn", "clsx", "cva"]
+  },
+  "sortPackageJson": false,
+  "overrides": [
+    {
+      "files": ["*.md"],
+      "options": {
+        "printWidth": 80,
+        "proseWrap": "always"
+      }
+    },
+    {
+      "files": ["*.yml", "*.yaml"],
+      "options": {
+        "singleQuote": false
+      }
+    }
+  ],
+  "ignorePatterns": [
+    "firmware",
+    "hardware",
+    "node_modules",
+    ".pnpm-store",
+    "dist",
+    "build",
+    ".turbo",
+    "out",
+    "coverage",
+    ".pio",
+    ".terraform",
+    "*.min.js",
+    "*.min.css",
+    "pnpm-lock.yaml",
+    "*.log",
+    "*.log.*",
+    ".env",
+    ".env.*",
+    "*.pdf",
+    "*.jpg",
+    "*.jpeg",
+    "*.png",
+    "*.gif",
+    "*.svg",
+    "*.woff",
+    "*.woff2",
+    "*.ttf",
+    "*.3mf",
+    "**/.adonisjs",
+    "apps/adonis-api/generated",
+    ".claude/progress",
+    ".DS_Store",
+    "*.tsbuildinfo"
+  ]
+}

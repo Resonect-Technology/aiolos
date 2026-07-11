@@ -1,13 +1,12 @@
-import { type Icon } from "@tabler/icons-react";
-import { type LucideIcon } from "lucide-react";
-
 import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar";
+} from '@/components/ui/sidebar';
+import { type Icon } from '@tabler/icons-react';
+import { type LucideIcon } from 'lucide-react';
 
 export function NavMain({
   items,
@@ -29,7 +28,7 @@ export function NavMain({
           <SidebarMenuItem className="flex items-center gap-2"></SidebarMenuItem>
         </SidebarMenu>
         <SidebarMenu>
-          {items.map(item => (
+          {items.map((item) => (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton
                 tooltip={item.title}

@@ -34,8 +34,8 @@ export const getSystemConfig = async (key: string): Promise<SystemConfig> => {
 
     return await response.json();
   } catch (error) {
-    console.error("Error fetching system config:", error);
-    return { key, value: null, message: "Failed to fetch configuration" };
+    console.error('Error fetching system config:', error);
+    return { key, value: null, message: 'Failed to fetch configuration' };
   }
 };
 
@@ -53,7 +53,7 @@ export const getAllSystemConfigs = async (): Promise<SystemConfigs> => {
 
     return await response.json();
   } catch (error) {
-    console.error("Error fetching system configs:", error);
+    console.error('Error fetching system configs:', error);
     return {};
   }
 };
@@ -70,5 +70,5 @@ export const parseBooleanConfig = (value: string | null): boolean => {
   const lowerValue = value.toLowerCase();
 
   // Check various truthy string representations
-  return lowerValue === "true" || lowerValue === "1" || lowerValue === "yes" || lowerValue === "on";
+  return lowerValue === 'true' || lowerValue === '1' || lowerValue === 'yes' || lowerValue === 'on';
 };

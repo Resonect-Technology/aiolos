@@ -1,70 +1,71 @@
-import { DateTime } from 'luxon'
-import { BaseModel, column, hasMany } from '@adonisjs/lucid/orm'
-import type { HasMany } from '@adonisjs/lucid/types/relations'
-import TemperatureReading from './temperature_reading.js'
-import StationConfig from './station_config.js'
-import StationDiagnostic from './station_diagnostic.js'
+import { BaseModel, column, hasMany } from '@adonisjs/lucid/orm';
+import type { HasMany } from '@adonisjs/lucid/types/relations';
+import { DateTime } from 'luxon';
+
+import StationConfig from './station_config.js';
+import StationDiagnostic from './station_diagnostic.js';
+import TemperatureReading from './temperature_reading.js';
 
 export default class WeatherStation extends BaseModel {
   /**
    * @summary Unique ID
    */
   @column({ isPrimary: true })
-  declare id: number
+  declare id: number;
 
   /**
    * @summary Station ID (external identifier)
    */
   @column()
-  declare stationId: string
+  declare stationId: string;
 
   /**
    * @summary Station name
    */
   @column()
-  declare name: string
+  declare name: string;
 
   /**
    * @summary Station location
    */
   @column()
-  declare location: string | null
+  declare location: string | null;
 
   /**
    * @summary Station description
    */
   @column()
-  declare description: string | null
+  declare description: string | null;
 
   /**
    * @summary Whether the station is active
    */
   @column()
-  declare isActive: boolean
+  declare isActive: boolean;
 
   /**
    * @summary Creation timestamp
    * @format(date-time)
    */
   @column.dateTime({ autoCreate: true })
-  declare createdAt: DateTime
+  declare createdAt: DateTime;
 
   /**
    * @summary Update timestamp
    * @format(date-time)
    */
   @column.dateTime({ autoCreate: true, autoUpdate: true })
-  declare updatedAt: DateTime
+  declare updatedAt: DateTime;
 
   /**
    * Relationships
    */
   @hasMany(() => TemperatureReading, { foreignKey: 'stationId' })
-  declare temperatureReadings: HasMany<typeof TemperatureReading>
+  declare temperatureReadings: HasMany<typeof TemperatureReading>;
 
   @hasMany(() => StationConfig, { foreignKey: 'stationId' })
-  declare configs: HasMany<typeof StationConfig>
+  declare configs: HasMany<typeof StationConfig>;
 
   @hasMany(() => StationDiagnostic, { foreignKey: 'stationId' })
-  declare diagnostics: HasMany<typeof StationDiagnostic>
+  declare diagnostics: HasMany<typeof StationDiagnostic>;
 }

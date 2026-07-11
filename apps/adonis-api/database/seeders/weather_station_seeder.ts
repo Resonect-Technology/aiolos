@@ -1,6 +1,7 @@
-import { BaseSeeder } from '@adonisjs/lucid/seeders'
-import WeatherStation from '#models/weather_station'
-import DataRetentionPolicy from '#models/data_retention_policy'
+import { BaseSeeder } from '@adonisjs/lucid/seeders';
+
+import DataRetentionPolicy from '#models/data_retention_policy';
+import WeatherStation from '#models/weather_station';
 
 export default class extends BaseSeeder {
   async run() {
@@ -27,14 +28,11 @@ export default class extends BaseSeeder {
         description: 'Default system configuration station',
         isActive: true,
       },
-    ]
+    ];
 
     // Use firstOrCreate to avoid duplicate key errors
     for (const station of stations) {
-      await WeatherStation.firstOrCreate(
-        { stationId: station.stationId },
-        station
-      )
+      await WeatherStation.firstOrCreate({ stationId: station.stationId }, station);
     }
 
     // Create default data retention policies
@@ -63,14 +61,11 @@ export default class extends BaseSeeder {
         isActive: true,
         description: 'Diagnostics data retention for 6 months',
       },
-    ]
+    ];
 
     // Use firstOrCreate to avoid duplicate key errors
     for (const policy of policies) {
-      await DataRetentionPolicy.firstOrCreate(
-        { dataType: policy.dataType },
-        policy
-      )
+      await DataRetentionPolicy.firstOrCreate({ dataType: policy.dataType }, policy);
     }
   }
 }

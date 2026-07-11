@@ -1,4 +1,4 @@
-import { BaseSchema } from '@adonisjs/lucid/schema'
+import { BaseSchema } from '@adonisjs/lucid/schema';
 
 export default class extends BaseSchema {
   async up() {
@@ -11,15 +11,13 @@ export default class extends BaseSchema {
         description: '10-minute wind data retention - removed after hourly data created',
         created_at: new Date(),
         updated_at: new Date(),
-      })
-    })
+      });
+    });
   }
 
   async down() {
     this.defer(async (db) => {
-      await db.from('data_retention_policies')
-        .where('data_type', 'wind_10min')
-        .delete()
-    })
+      await db.from('data_retention_policies').where('data_type', 'wind_10min').delete();
+    });
   }
 }

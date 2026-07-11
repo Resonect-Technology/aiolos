@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
-import { Transmit } from "@adonisjs/transmit-client";
-import type { WindAggregatedResponse, WindAggregated1Min } from "../types/wind-aggregated";
+import { Transmit } from '@adonisjs/transmit-client';
+import { useState, useEffect, useCallback } from 'react';
+
+import type { WindAggregatedResponse, WindAggregated1Min } from '../types/wind-aggregated';
 
 interface UseWindAggregatedDataProps {
   stationId: string;
@@ -19,8 +20,8 @@ interface UseWindAggregatedDataReturn {
 export function useWindAggregatedData({
   stationId,
   date,
-  interval = "1min",
-  limit = 10
+  interval = '1min',
+  limit = 10,
 }: UseWindAggregatedDataProps): UseWindAggregatedDataReturn {
   const [data, setData] = useState<WindAggregated1Min[]>([]);
   const [loading, setLoading] = useState(false);
@@ -34,7 +35,7 @@ export function useWindAggregatedData({
       const queryParams = new URLSearchParams({
         interval,
         limit: limit.toString(),
-        ...(date && { date })
+        ...(date && { date }),
       });
 
       // Always use the base endpoint - data comes in m/s and conversion happens in frontend
@@ -49,7 +50,7 @@ export function useWindAggregatedData({
       const result: WindAggregatedResponse = await response.json();
       setData(result.data as WindAggregated1Min[]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch aggregated wind data");
+      setError(err instanceof Error ? err.message : 'Failed to fetch aggregated wind data');
       setData([]);
     } finally {
       setLoading(false);
@@ -99,7 +100,7 @@ export function useWindAggregatedSSE({ stationId, onNewAggregate }: UseWindAggre
           }
         });
       })
-      .catch(err => {
+      .catch((err) => {
         setError(`Failed to connect to aggregated data stream: ${err.message}`);
         setConnected(false);
       });

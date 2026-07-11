@@ -1,7 +1,7 @@
-import { Card, CardContent } from "@/components/ui/card";
-import { ConnectionStatus } from "@/components/molecules/status/connection-status";
-import { TemperatureDisplay } from "@/components/atoms/displays/temperature-display";
-import { UnitSelector } from "@/components/atoms/controls/unit-selector";
+import { UnitSelector } from '@/components/atoms/controls/unit-selector';
+import { TemperatureDisplay } from '@/components/atoms/displays/temperature-display';
+import { ConnectionStatus } from '@/components/molecules/status/connection-status';
+import { Card, CardContent } from '@/components/ui/card';
 
 interface SectionCardsProps {
   stationId: string;
@@ -10,29 +10,24 @@ interface SectionCardsProps {
   onUnitChange: (unit: string) => void;
 }
 
-export function SectionCards({
-  stationId,
-  error,
-  selectedUnit,
-  onUnitChange,
-}: SectionCardsProps) {
+export function SectionCards({ stationId, error, selectedUnit, onUnitChange }: SectionCardsProps) {
   return (
-    <div className="grid auto-rows-min gap-4 md:grid-cols-3 px-4 lg:px-6">
+    <div className="grid auto-rows-min gap-4 px-4 md:grid-cols-3 lg:px-6">
       {/* Connection Status */}
-      <Card >
-        <CardContent >
+      <Card>
+        <CardContent>
           <ConnectionStatus error={error} stationId={stationId} />
         </CardContent>
       </Card>
 
-      <Card >
-        <CardContent >
+      <Card>
+        <CardContent>
           <TemperatureDisplay stationId={stationId} />
         </CardContent>
       </Card>
 
-      <Card >
-        <CardContent >
+      <Card>
+        <CardContent>
           <UnitSelector selectedUnit={selectedUnit} onUnitChange={onUnitChange} />
         </CardContent>
       </Card>

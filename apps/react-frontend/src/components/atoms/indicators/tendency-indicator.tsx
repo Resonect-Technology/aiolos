@@ -1,5 +1,5 @@
-import { ArrowUp, ArrowDown, ArrowRight } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from '@/lib/utils';
+import { ArrowUp, ArrowDown, ArrowRight } from 'lucide-react';
 
 interface TendencyIndicatorProps {
   tendency: 'increasing' | 'decreasing' | 'stable';
@@ -47,11 +47,9 @@ export function TendencyIndicator({ tendency, className }: TendencyIndicatorProp
   };
 
   return (
-    <div className={cn("flex items-center gap-1", className)}>
+    <div className={cn('flex items-center gap-1', className)}>
       {getIcon()}
-      <span className={cn("text-sm font-medium", getColor())}>
-        {getLabel()}
-      </span>
+      <span className={cn('text-sm font-medium', getColor())}>{getLabel()}</span>
     </div>
   );
 }

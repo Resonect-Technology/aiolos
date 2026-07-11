@@ -1,6 +1,6 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { LandingPage, Dashboard } from "@/components/pages";
-import { ThemeProvider } from "@/components/providers";
+import { LandingPage, Dashboard } from '@/components/pages';
+import { ThemeProvider } from '@/components/providers';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
 function App() {
   return (

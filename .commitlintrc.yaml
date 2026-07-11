@@ -1,0 +1,73 @@
+# Commitlint configuration for Aiolos monorepo
+#
+# Enforces Conventional Commits format:
+# - type(scope?): subject
+# - type: feat, fix, chore, docs, test, refactor, perf, cicd, build, style, revert
+# - scope: optional, e.g., frontend, backend, firmware, infra
+#
+# Examples:
+# - feat(frontend): add dark mode toggle
+# - fix: resolve aggregation timezone bug
+# - chore(deps): update dependencies
+
+extends:
+  - "@commitlint/config-conventional"
+
+rules:
+  # Type enforcement
+  type-enum:
+    - 2 # Error level
+    - always
+    - - feat # New feature
+      - fix # Bug fix
+      - chore # Maintenance tasks
+      - docs # Documentation changes
+      - test # Test additions or changes
+      - refactor # Code refactoring
+      - perf # Performance improvements
+      - cicd # CI/CD changes
+      - build # Build system changes
+      - style # Code style changes (formatting, etc.)
+      - revert # Revert previous commit
+
+  # Subject line rules
+  subject-case:
+    - 2
+    - never
+    - - upper-case # Don't allow all-caps subjects
+  subject-empty:
+    - 2
+    - never # Subject is required
+  subject-full-stop:
+    - 2
+    - never
+    - "." # No trailing period
+
+  # Body and footer rules
+  body-leading-blank:
+    - 1 # Warning
+    - always # Blank line before body
+  footer-leading-blank:
+    - 1 # Warning
+    - always # Blank line before footer
+
+  # Length rules
+  header-max-length:
+    - 2
+    - always
+    - 100 # Max 100 chars for header
+  body-max-line-length:
+    - 1 # Warning
+    - always
+    - 100 # Body lines > 100
+
+  # Scope validation - optional but recommended
+  scope-case:
+    - 2
+    - always
+    - kebab-case # Enforce kebab-case for scopes
+  scope-empty:
+    - 0 # Scope is optional
+
+# Help message shown on validation failure
+helpUrl: https://www.conventionalcommits.org/en/v1.0.0/

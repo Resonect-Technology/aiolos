@@ -1,11 +1,13 @@
 ---
-description: "Transform initial ideas into well-scoped, actionable tasks for GitHub Copilot"
-mode: "ask"
+description:
+  'Transform initial ideas into well-scoped, actionable tasks for GitHub Copilot'
+mode: 'ask'
 ---
 
 # Task Definition Prompt
 
-Help me transform my initial idea into a well-scoped, actionable task that GitHub Copilot can execute effectively.
+Help me transform my initial idea into a well-scoped, actionable task that
+GitHub Copilot can execute effectively.
 
 ## My Idea
 
@@ -20,7 +22,8 @@ First, let's understand the core problem:
 - What problem are you trying to solve?
 - What triggered this idea?
 - What's the desired outcome or user experience?
-- Which part of the system should this affect? (firmware/backend/frontend/infrastructure)
+- Which part of the system should this affect?
+  (firmware/backend/frontend/infrastructure)
 
 ### Step 2: Scope Definition
 
@@ -33,16 +36,19 @@ Based on the component(s) affected, let's define the scope:
 - Any specific unit conversions needed (m/s, km/h, knots)?
 - Mobile responsiveness requirements?
 - Should we use existing shadcn/ui components?
-- Will this display multiple items/records? Consider pagination or sensible limits (e.g., "last 10 items")
+- Will this display multiple items/records? Consider pagination or sensible
+  limits (e.g., "last 10 items")
 
 **For Backend Ideas:**
 
 - Will this require new API endpoints?
 - Are there database schema changes needed?
-- Does this affect existing firmware endpoints? (CRITICAL - firmware is deployed)
+- Does this affect existing firmware endpoints? (CRITICAL - firmware is
+  deployed)
 - Should this broadcast real-time data via SSE?
 - Any authentication/validation requirements?
-- Will this return multiple records? Consider adding `limit` parameter with sensible defaults (e.g., 10-50 records)
+- Will this return multiple records? Consider adding `limit` parameter with
+  sensible defaults (e.g., 10-50 records)
 
 **For Firmware Ideas:**
 
@@ -69,7 +75,8 @@ Let's define "done":
 - What edge cases should we handle?
 - How should errors be handled?
 - What testing approach should we use?
-- If displaying multiple items, what's the reasonable limit for user experience and performance?
+- If displaying multiple items, what's the reasonable limit for user experience
+  and performance?
 
 ### Step 4: Constraint Identification
 
@@ -103,7 +110,8 @@ Let's determine if this is suitable for Copilot:
 
 **Classification:**
 
-- ✅ **Good for Copilot**: Clear scope, existing patterns, well-defined requirements
+- ✅ **Good for Copilot**: Clear scope, existing patterns, well-defined
+  requirements
 - ⚠️ **Needs Breakdown**: Split into smaller, more focused tasks
 - ❌ **Human-Led**: Complex architectural decisions, ambiguous requirements
 
@@ -118,7 +126,8 @@ If the task is too complex:
 
 ## Final Task Definition
 
-Based on our discussion, please provide the final task definition using the appropriate template:
+Based on our discussion, please provide the final task definition using the
+appropriate template:
 
 ### Feature Request Template
 

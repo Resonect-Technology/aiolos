@@ -1,19 +1,20 @@
-import { test } from '@japa/runner'
-import StationConfig from '#app/models/station_config'
-import WeatherStation from '#app/models/weather_station'
+import { test } from '@japa/runner';
+
+import StationConfig from '#app/models/station_config';
+import WeatherStation from '#app/models/weather_station';
 
 test.group('Station Configs Controller', (group) => {
   group.each.setup(async () => {
     // Clean up any existing test data
-    await StationConfig.query().delete()
-    await WeatherStation.query().delete()
-  })
+    await StationConfig.query().delete();
+    await WeatherStation.query().delete();
+  });
 
   group.each.teardown(async () => {
     // Clean up after each test
-    await StationConfig.query().delete()
-    await WeatherStation.query().delete()
-  })
+    await StationConfig.query().delete();
+    await WeatherStation.query().delete();
+  });
 
   /**
    * Test: GET /api/stations/:station_id/config - Configuration not found
@@ -24,11 +25,11 @@ test.group('Station Configs Controller', (group) => {
     client,
     assert,
   }) => {
-    const stationId = 'test-station-001'
+    const stationId = 'test-station-001';
 
-    const response = await client.get(`/api/stations/${stationId}/config`)
+    const response = await client.get(`/api/stations/${stationId}/config`);
 
-    response.assertStatus(200)
+    response.assertStatus(200);
 
     // Validate exact JSON structure that firmware expects
     const expectedStructure = {
@@ -46,16 +47,16 @@ test.group('Station Configs Controller', (group) => {
       otaDuration: null,
       remoteOta: false,
       message: 'No configuration found for this station. Default values will be used.',
-    }
+    };
 
-    response.assertBody(expectedStructure)
+    response.assertBody(expectedStructure);
 
     // Validate data types for critical fields
-    const body = response.body()
-    assert.equal(typeof body.stationId, 'string')
-    assert.equal(typeof body.remoteOta, 'boolean')
-    assert.equal(typeof body.message, 'string')
-    assert.equal(body.remoteOta, false)
+    const body = response.body();
+    assert.equal(typeof body.stationId, 'string');
+    assert.equal(typeof body.remoteOta, 'boolean');
+    assert.equal(typeof body.message, 'string');
+    assert.equal(body.remoteOta, false);
 
     // Validate that all interval fields are null when no config exists
     const intervalFields = [
@@ -70,12 +71,12 @@ test.group('Station Configs Controller', (group) => {
       'otaHour',
       'otaMinute',
       'otaDuration',
-    ]
+    ];
 
     intervalFields.forEach((field) => {
-      assert.isNull(body[field], `${field} should be null when no config exists`)
-    })
-  })
+      assert.isNull(body[field], `${field} should be null when no config exists`);
+    });
+  });
 
   /**
    * Test: GET /api/stations/:station_id/config - Configuration exists
@@ -85,7 +86,7 @@ test.group('Station Configs Controller', (group) => {
     client,
     assert,
   }) => {
-    const stationId = 'test-station-002'
+    const stationId = 'test-station-002';
 
     // Create weather station first
     await WeatherStation.create({
@@ -94,7 +95,7 @@ test.group('Station Configs Controller', (group) => {
       location: 'Test Environment',
       description: 'Test station for config test',
       isActive: true,
-    })
+    });
 
     // Create a test configuration
     const testConfig = {
@@ -111,15 +112,15 @@ test.group('Station Configs Controller', (group) => {
       otaMinute: 30,
       otaDuration: 1800,
       remoteOta: true,
-    }
+    };
 
-    await StationConfig.create(testConfig)
+    await StationConfig.create(testConfig);
 
-    const response = await client.get(`/api/stations/${stationId}/config`)
+    const response = await client.get(`/api/stations/${stationId}/config`);
 
-    response.assertStatus(200)
+    response.assertStatus(200);
 
-    const body = response.body()
+    const body = response.body();
 
     // Validate that all expected fields are present (model serializes to camelCase)
     const expectedFields = [
@@ -139,37 +140,37 @@ test.group('Station Configs Controller', (group) => {
       'remoteOta',
       'createdAt',
       'updatedAt',
-    ]
+    ];
 
     expectedFields.forEach((field) => {
-      assert.property(body, field, `Response should contain ${field} field`)
-    })
+      assert.property(body, field, `Response should contain ${field} field`);
+    });
 
     // Validate data types for firmware-critical fields (camelCase from model)
-    assert.equal(typeof body.stationId, 'string')
-    assert.equal(typeof body.tempInterval, 'number')
-    assert.equal(typeof body.windSendInterval, 'number')
-    assert.equal(typeof body.windSampleInterval, 'number')
-    assert.equal(typeof body.diagInterval, 'number')
-    assert.equal(typeof body.timeInterval, 'number')
-    assert.equal(typeof body.restartInterval, 'number')
-    assert.equal(typeof body.sleepStartHour, 'number')
-    assert.equal(typeof body.sleepEndHour, 'number')
-    assert.equal(typeof body.otaHour, 'number')
-    assert.equal(typeof body.otaMinute, 'number')
-    assert.equal(typeof body.otaDuration, 'number')
+    assert.equal(typeof body.stationId, 'string');
+    assert.equal(typeof body.tempInterval, 'number');
+    assert.equal(typeof body.windSendInterval, 'number');
+    assert.equal(typeof body.windSampleInterval, 'number');
+    assert.equal(typeof body.diagInterval, 'number');
+    assert.equal(typeof body.timeInterval, 'number');
+    assert.equal(typeof body.restartInterval, 'number');
+    assert.equal(typeof body.sleepStartHour, 'number');
+    assert.equal(typeof body.sleepEndHour, 'number');
+    assert.equal(typeof body.otaHour, 'number');
+    assert.equal(typeof body.otaMinute, 'number');
+    assert.equal(typeof body.otaDuration, 'number');
     // Note: SQLite stores boolean as number (1/0), so we check the actual value
-    assert.equal(typeof body.remoteOta, 'number')
+    assert.equal(typeof body.remoteOta, 'number');
 
     // Validate specific values
-    assert.equal(body.stationId, stationId)
-    assert.equal(body.tempInterval, 300)
-    assert.equal(body.windSendInterval, 60)
-    assert.equal(body.remoteOta, 1) // SQLite stores true as 1
+    assert.equal(body.stationId, stationId);
+    assert.equal(body.tempInterval, 300);
+    assert.equal(body.windSendInterval, 60);
+    assert.equal(body.remoteOta, 1); // SQLite stores true as 1
 
     // Validate that no unexpected 'message' field is present when config exists
-    assert.notProperty(body, 'message', 'Message field should not be present when config exists')
-  })
+    assert.notProperty(body, 'message', 'Message field should not be present when config exists');
+  });
 
   /**
    * Test: POST /api/stations/:station_id/config - Store configuration (Success)
@@ -179,11 +180,11 @@ test.group('Station Configs Controller', (group) => {
     client,
     assert,
   }) => {
-    const stationId = 'test-station-003'
-    const apiKey = process.env.ADMIN_API_KEY || 'test-api-key'
+    const stationId = 'test-station-003';
+    const apiKey = process.env.ADMIN_API_KEY || 'test-api-key';
 
     // Set the API key for this test
-    process.env.ADMIN_API_KEY = apiKey
+    process.env.ADMIN_API_KEY = apiKey;
 
     // Create weather station first
     await WeatherStation.create({
@@ -192,7 +193,7 @@ test.group('Station Configs Controller', (group) => {
       location: 'Test Environment',
       description: 'Test station for config store test',
       isActive: true,
-    })
+    });
 
     const configData = {
       tempInterval: 600,
@@ -200,28 +201,28 @@ test.group('Station Configs Controller', (group) => {
       windSampleInterval: 5,
       diagInterval: 1800,
       remoteOta: true,
-    }
+    };
 
     const response = await client
       .post(`/api/stations/${stationId}/config`)
       .header('X-API-Key', apiKey)
-      .json(configData)
+      .json(configData);
 
-    response.assertStatus(200)
+    response.assertStatus(200);
 
     // Validate exact success response structure
     const expectedResponse = {
       ok: true,
       message: 'Configuration updated successfully',
-    }
+    };
 
-    response.assertBody(expectedResponse)
+    response.assertBody(expectedResponse);
 
-    const body = response.body()
-    assert.equal(typeof body.ok, 'boolean')
-    assert.equal(typeof body.message, 'string')
-    assert.equal(body.ok, true)
-  })
+    const body = response.body();
+    assert.equal(typeof body.ok, 'boolean');
+    assert.equal(typeof body.message, 'string');
+    assert.equal(body.ok, true);
+  });
 
   /**
    * Test: POST /api/stations/:station_id/config - Unauthorized (Missing API Key)
@@ -231,28 +232,28 @@ test.group('Station Configs Controller', (group) => {
     client,
     assert,
   }) => {
-    const stationId = 'test-station-004'
+    const stationId = 'test-station-004';
 
     const configData = {
       tempInterval: 600,
       windSendInterval: 30,
-    }
+    };
 
-    const response = await client.post(`/api/stations/${stationId}/config`).json(configData)
+    const response = await client.post(`/api/stations/${stationId}/config`).json(configData);
 
-    response.assertStatus(401)
+    response.assertStatus(401);
 
     // Validate exact error response structure
     const expectedResponse = {
       error: 'Unauthorized. Valid API key is required.',
-    }
+    };
 
-    response.assertBody(expectedResponse)
+    response.assertBody(expectedResponse);
 
-    const body = response.body()
-    assert.equal(typeof body.error, 'string')
-    assert.notProperty(body, 'ok', 'Success field should not be present in error response')
-  })
+    const body = response.body();
+    assert.equal(typeof body.error, 'string');
+    assert.notProperty(body, 'ok', 'Success field should not be present in error response');
+  });
 
   /**
    * Test: POST /api/stations/:station_id/config - Invalid data type
@@ -262,32 +263,32 @@ test.group('Station Configs Controller', (group) => {
     client,
     assert,
   }) => {
-    const stationId = 'test-station-005'
-    const apiKey = process.env.ADMIN_API_KEY || 'test-api-key'
+    const stationId = 'test-station-005';
+    const apiKey = process.env.ADMIN_API_KEY || 'test-api-key';
 
     // Set the API key for this test
-    process.env.ADMIN_API_KEY = apiKey
+    process.env.ADMIN_API_KEY = apiKey;
 
     const configData = {
       tempInterval: 'invalid-number', // Invalid data type
       windSendInterval: 30,
-    }
+    };
 
     const response = await client
       .post(`/api/stations/${stationId}/config`)
       .header('X-API-Key', apiKey)
-      .json(configData)
+      .json(configData);
 
-    response.assertStatus(400)
+    response.assertStatus(400);
 
-    const body = response.body()
+    const body = response.body();
 
     // Validate error response structure
-    assert.property(body, 'error')
-    assert.equal(typeof body.error, 'string')
-    assert.include(body.error, 'Invalid value for tempInterval')
-    assert.notProperty(body, 'ok', 'Success field should not be present in error response')
-  })
+    assert.property(body, 'error');
+    assert.equal(typeof body.error, 'string');
+    assert.include(body.error, 'Invalid value for tempInterval');
+    assert.notProperty(body, 'ok', 'Success field should not be present in error response');
+  });
 
   /**
    * Test: POST /api/stations/:station_id/ota-confirm - OTA confirmation success
@@ -297,7 +298,7 @@ test.group('Station Configs Controller', (group) => {
     client,
     assert,
   }) => {
-    const stationId = 'test-station-006'
+    const stationId = 'test-station-006';
 
     // Create weather station first
     await WeatherStation.create({
@@ -306,7 +307,7 @@ test.group('Station Configs Controller', (group) => {
       location: 'Test Environment',
       description: 'Test station for OTA confirmation test',
       isActive: true,
-    })
+    });
 
     // Create a test configuration first
     await StationConfig.create({
@@ -323,25 +324,25 @@ test.group('Station Configs Controller', (group) => {
       otaMinute: 30,
       otaDuration: 1800,
       remoteOta: true,
-    })
+    });
 
-    const response = await client.post(`/api/stations/${stationId}/ota-confirm`)
+    const response = await client.post(`/api/stations/${stationId}/ota-confirm`);
 
-    response.assertStatus(200)
+    response.assertStatus(200);
 
     // Validate exact success response structure
     const expectedResponse = {
       ok: true,
       message: 'OTA confirmation received',
-    }
+    };
 
-    response.assertBody(expectedResponse)
+    response.assertBody(expectedResponse);
 
-    const body = response.body()
-    assert.equal(typeof body.ok, 'boolean')
-    assert.equal(typeof body.message, 'string')
-    assert.equal(body.ok, true)
-  })
+    const body = response.body();
+    assert.equal(typeof body.ok, 'boolean');
+    assert.equal(typeof body.message, 'string');
+    assert.equal(body.ok, true);
+  });
 
   /**
    * Test: POST /api/stations/:station_id/ota-confirm - No configuration found
@@ -351,23 +352,23 @@ test.group('Station Configs Controller', (group) => {
     client,
     assert,
   }) => {
-    const stationId = 'test-station-007'
+    const stationId = 'test-station-007';
 
-    const response = await client.post(`/api/stations/${stationId}/ota-confirm`)
+    const response = await client.post(`/api/stations/${stationId}/ota-confirm`);
 
-    response.assertStatus(404)
+    response.assertStatus(404);
 
     // Validate exact error response structure
     const expectedResponse = {
       error: 'No configuration found for this station',
-    }
+    };
 
-    response.assertBody(expectedResponse)
+    response.assertBody(expectedResponse);
 
-    const body = response.body()
-    assert.equal(typeof body.error, 'string')
-    assert.notProperty(body, 'ok', 'Success field should not be present in error response')
-  })
+    const body = response.body();
+    assert.equal(typeof body.error, 'string');
+    assert.notProperty(body, 'ok', 'Success field should not be present in error response');
+  });
 
   /**
    * Test: Validate that OTA confirmation actually resets remote_ota flag
@@ -377,7 +378,7 @@ test.group('Station Configs Controller', (group) => {
     client,
     assert,
   }) => {
-    const stationId = 'test-station-008'
+    const stationId = 'test-station-008';
 
     // Create weather station first
     await WeatherStation.create({
@@ -386,7 +387,7 @@ test.group('Station Configs Controller', (group) => {
       location: 'Test Environment',
       description: 'Test station for OTA reset test',
       isActive: true,
-    })
+    });
 
     // Create a test configuration with remoteOta = true
     await StationConfig.create({
@@ -403,25 +404,25 @@ test.group('Station Configs Controller', (group) => {
       otaMinute: 30,
       otaDuration: 1800,
       remoteOta: true,
-    })
+    });
 
     // Call OTA confirmation
-    const confirmResponse = await client.post(`/api/stations/${stationId}/ota-confirm`)
-    confirmResponse.assertStatus(200)
+    const confirmResponse = await client.post(`/api/stations/${stationId}/ota-confirm`);
+    confirmResponse.assertStatus(200);
 
     // Fetch the updated config
-    const configResponse = await client.get(`/api/stations/${stationId}/config`)
-    configResponse.assertStatus(200)
+    const configResponse = await client.get(`/api/stations/${stationId}/config`);
+    configResponse.assertStatus(200);
 
-    const body = configResponse.body()
+    const body = configResponse.body();
 
     // Validate that remoteOta is now false (SQLite stores false as 0)
-    assert.equal(body.remoteOta, 0, 'remoteOta should be 0 (false) after OTA confirmation')
+    assert.equal(body.remoteOta, 0, 'remoteOta should be 0 (false) after OTA confirmation');
 
     // Validate that all other fields remain unchanged
-    assert.equal(body.stationId, stationId)
-    assert.equal(body.tempInterval, 300)
-    assert.equal(body.windSendInterval, 60)
-    assert.equal(body.windSampleInterval, 10)
-  })
-})
+    assert.equal(body.stationId, stationId);
+    assert.equal(body.tempInterval, 300);
+    assert.equal(body.windSendInterval, 60);
+    assert.equal(body.windSampleInterval, 10);
+  });
+});

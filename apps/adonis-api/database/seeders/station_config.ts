@@ -1,5 +1,6 @@
-import { BaseSeeder } from '@adonisjs/lucid/seeders'
-import StationConfig from '#app/models/station_config'
+import { BaseSeeder } from '@adonisjs/lucid/seeders';
+
+import StationConfig from '#app/models/station_config';
 
 export default class extends BaseSeeder {
   async run() {
@@ -35,15 +36,12 @@ export default class extends BaseSeeder {
         otaDuration: 30, // 30 minutes
         remoteOta: false,
       },
-    ]
+    ];
 
     // Create station configurations using firstOrCreate to avoid duplicates
     for (const config of stationConfigs) {
-      await StationConfig.firstOrCreate(
-        { stationId: config.stationId },
-        config
-      )
-      console.log(`Created/updated station config for ${config.stationId}`)
+      await StationConfig.firstOrCreate({ stationId: config.stationId }, config);
+      console.log(`Created/updated station config for ${config.stationId}`);
     }
   }
 }

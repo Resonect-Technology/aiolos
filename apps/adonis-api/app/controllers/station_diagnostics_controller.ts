@@ -1,7 +1,8 @@
-import type { HttpContext } from '@adonisjs/core/http'
-import transmit from '@adonisjs/transmit/services/main'
-import StationDiagnostic from '#app/models/station_diagnostic'
-import { stationDataCache } from '#app/services/station_data_cache'
+import type { HttpContext } from '@adonisjs/core/http';
+import transmit from '@adonisjs/transmit/services/main';
+
+import StationDiagnostic from '#app/models/station_diagnostic';
+import { stationDataCache } from '#app/services/station_data_cache';
 
 export default class StationDiagnosticsController {
   /**
@@ -9,14 +10,14 @@ export default class StationDiagnosticsController {
    */
   async store({ params, request, response }: HttpContext) {
     // Capture arrival timestamp immediately for accuracy
-    const arrivalTimestamp = new Date().toISOString()
+    const arrivalTimestamp = new Date().toISOString();
 
-    const stationId = params.station_id
-    const data = request.body()
+    const stationId = params.station_id;
+    const data = request.body();
 
     try {
       // Validate required fields
-      const { batteryVoltage, solarVoltage, signalQuality, uptime } = data
+      const { batteryVoltage, solarVoltage, signalQuality, uptime } = data;
       if (
         typeof batteryVoltage !== 'number' ||
         typeof solarVoltage !== 'number' ||
@@ -26,14 +27,14 @@ export default class StationDiagnosticsController {
         return response.badRequest({
           error:
             'Invalid diagnostics data. Required fields: batteryVoltage, solarVoltage, signalQuality, uptime',
-        })
+        });
       }
 
       // Prepare diagnostics data with timestamp
       const diagnosticsData = {
         ...data,
         timestamp: data.timestamp || arrivalTimestamp,
-      }
+      };
 
       // Cache the diagnostics data
       stationDataCache.setDiagnosticsData(stationId, {
@@ -43,7 +44,7 @@ export default class StationDiagnosticsController {
         uptime,
         internalTemperature: data.internalTemperature,
         timestamp: diagnosticsData.timestamp,
-      })
+      });
 
       // Save diagnostics to database
       await StationDiagnostic.create({
@@ -53,20 +54,20 @@ export default class StationDiagnosticsController {
         internalTemperature: data.internalTemperature || null,
         signalQuality: signalQuality,
         uptime: uptime,
-      })
+      });
 
       // Broadcast the diagnostics data via Transmit
-      await transmit.broadcast(`station/diagnostics/${stationId}`, diagnosticsData)
+      await transmit.broadcast(`station/diagnostics/${stationId}`, diagnosticsData);
 
       // Log diagnostics in development
       if (process.env.NODE_ENV === 'development') {
-        console.log(`Diagnostics for station ${stationId}:`, diagnosticsData)
+        console.log(`Diagnostics for station ${stationId}:`, diagnosticsData);
       }
 
-      return { ok: true }
+      return { ok: true };
     } catch (error) {
-      console.error('Error processing diagnostics data:', error)
-      return response.status(500).json({ error: 'Failed to process diagnostics data' })
+      console.error('Error processing diagnostics data:', error);
+      return response.status(500).json({ error: 'Failed to process diagnostics data' });
     }
   }
 
@@ -74,26 +75,26 @@ export default class StationDiagnosticsController {
    * Get the latest diagnostics for a station
    */
   async show({ params }: HttpContext) {
-    const stationId = params.station_id
+    const stationId = params.station_id;
 
     try {
       // Get the latest diagnostics for the station
       const latestDiagnostics = await StationDiagnostic.query()
         .where('stationId', stationId)
         .orderBy('createdAt', 'desc')
-        .first()
+        .first();
 
       if (!latestDiagnostics) {
         return {
           stationId: stationId,
           message: 'No diagnostics found for this station',
-        }
+        };
       }
 
-      return latestDiagnostics
+      return latestDiagnostics;
     } catch (error) {
-      console.error('Error fetching diagnostics data:', error)
-      return { error: 'Failed to fetch diagnostics data' }
+      console.error('Error fetching diagnostics data:', error);
+      return { error: 'Failed to fetch diagnostics data' };
     }
   }
 }

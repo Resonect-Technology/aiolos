@@ -1,19 +1,20 @@
-import type { HttpContext } from '@adonisjs/core/http'
-import StationConfig from '#app/models/station_config'
+import type { HttpContext } from '@adonisjs/core/http';
+
+import StationConfig from '#app/models/station_config';
 
 export default class StationConfigsController {
   /**
    * Get the current configuration for a station
    */
   async show({ params, response }: HttpContext) {
-    const stationId = params.station_id
+    const stationId = params.station_id;
 
     try {
       // Get the latest config for the station
       const config = await StationConfig.query()
         .where('stationId', stationId)
         .orderBy('id', 'desc')
-        .first()
+        .first();
 
       if (!config) {
         return {
@@ -31,13 +32,13 @@ export default class StationConfigsController {
           otaDuration: null,
           remoteOta: false,
           message: 'No configuration found for this station. Default values will be used.',
-        }
+        };
       }
 
-      return config
+      return config;
     } catch (error) {
-      console.error(`Error fetching configuration for station ${stationId}:`, error)
-      return response.status(500).json({ error: 'Failed to fetch station configuration' })
+      console.error(`Error fetching configuration for station ${stationId}:`, error);
+      return response.status(500).json({ error: 'Failed to fetch station configuration' });
     }
   }
 
@@ -46,20 +47,20 @@ export default class StationConfigsController {
    * This endpoint requires API key authentication
    */
   async store({ params, request, response }: HttpContext) {
-    const stationId = params.station_id
-    const data = request.body()
+    const stationId = params.station_id;
+    const data = request.body();
 
     // Check for API key authentication
-    const apiKey = request.header('X-API-Key')
-    const expectedApiKey = process.env.ADMIN_API_KEY
+    const apiKey = request.header('X-API-Key');
+    const expectedApiKey = process.env.ADMIN_API_KEY;
 
     if (!apiKey || apiKey !== expectedApiKey) {
-      return response.status(401).json({ error: 'Unauthorized. Valid API key is required.' })
+      return response.status(401).json({ error: 'Unauthorized. Valid API key is required.' });
     }
 
     try {
       // Validate data types if values are provided
-      const configData: Record<string, any> = {}
+      const configData: Record<string, any> = {};
 
       // Define all valid camelCase field names
       const validFields = [
@@ -75,42 +76,42 @@ export default class StationConfigsController {
         'otaMinute',
         'otaDuration',
         'remoteOta',
-      ]
+      ];
 
       // Process numeric fields
       for (const field of validFields) {
         if (data[field] !== undefined) {
           // Skip the boolean field (handle separately)
-          if (field === 'remoteOta') continue
+          if (field === 'remoteOta') continue;
 
-          const value = Number(data[field])
+          const value = Number(data[field]);
           if (isNaN(value)) {
-            return response.badRequest({ error: `Invalid value for ${field}. Must be a number.` })
+            return response.badRequest({ error: `Invalid value for ${field}. Must be a number.` });
           }
-          configData[field] = value
+          configData[field] = value;
         }
       }
 
       // Handle remoteOta flag (boolean)
       if (data.remoteOta !== undefined) {
-        configData.remoteOta = Boolean(data.remoteOta)
+        configData.remoteOta = Boolean(data.remoteOta);
       }
 
       // Add stationId to the data
-      configData.stationId = stationId
+      configData.stationId = stationId;
 
       // Create new config record
-      await StationConfig.create(configData)
+      await StationConfig.create(configData);
 
       // Log in development mode
       if (process.env.NODE_ENV === 'development') {
-        console.log(`Configuration updated for station ${stationId}:`, configData)
+        console.log(`Configuration updated for station ${stationId}:`, configData);
       }
 
-      return { ok: true, message: 'Configuration updated successfully' }
+      return { ok: true, message: 'Configuration updated successfully' };
     } catch (error) {
-      console.error(`Error updating configuration for station ${stationId}:`, error)
-      return response.status(500).json({ error: 'Failed to update station configuration' })
+      console.error(`Error updating configuration for station ${stationId}:`, error);
+      return response.status(500).json({ error: 'Failed to update station configuration' });
     }
   }
 
@@ -119,19 +120,19 @@ export default class StationConfigsController {
    * This endpoint resets the remote_ota flag to false
    */
   async confirmOta({ params, response }: HttpContext) {
-    const stationId = params.station_id
+    const stationId = params.station_id;
 
     try {
       // Get the latest config for the station
       const config = await StationConfig.query()
         .where('stationId', stationId)
         .orderBy('id', 'desc')
-        .first()
+        .first();
 
       if (!config) {
         return response.status(404).json({
           error: 'No configuration found for this station',
-        })
+        });
       }
 
       // Create a new config record with remoteOta set to false
@@ -150,21 +151,21 @@ export default class StationConfigsController {
         otaMinute: config.otaMinute,
         otaDuration: config.otaDuration,
         remoteOta: false, // Reset the OTA flag
-      }
+      };
 
-      await StationConfig.create(configData)
+      await StationConfig.create(configData);
 
       // Log in development mode
       if (process.env.NODE_ENV === 'development') {
         console.log(
-          `OTA confirmation received for station ${stationId}. Remote OTA flag reset to false.`
-        )
+          `OTA confirmation received for station ${stationId}. Remote OTA flag reset to false.`,
+        );
       }
 
-      return { ok: true, message: 'OTA confirmation received' }
+      return { ok: true, message: 'OTA confirmation received' };
     } catch (error) {
-      console.error(`Error confirming OTA for station ${stationId}:`, error)
-      return response.status(500).json({ error: 'Failed to confirm OTA' })
+      console.error(`Error confirming OTA for station ${stationId}:`, error);
+      return response.status(500).json({ error: 'Failed to confirm OTA' });
     }
   }
 }
