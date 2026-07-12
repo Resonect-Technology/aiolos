@@ -203,6 +203,7 @@ void DiagnosticsManager::configureSolarAdc()
     {
         // Configure ADC
         analogSetWidth(12);                               // Set ADC resolution to 12 bits
+        analogRead(ADC_SOLAR_PIN);                        // Core 3.x: pin must be read once before per-pin attenuation applies
         analogSetPinAttenuation(ADC_SOLAR_PIN, ADC_11db); // Set attenuation for higher voltage range
 
         adcConfigured = true;

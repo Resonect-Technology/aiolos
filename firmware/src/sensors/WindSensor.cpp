@@ -40,6 +40,7 @@ bool WindSensor::init(uint8_t anemometerPin, uint8_t windVanePin)
 
     // ESP32 specific - configure ADC for better readings, exactly as in the old code
     analogReadResolution(12);                        // Set ADC resolution to 12 bits (0-4095)
+    analogRead(_windVanePin);                        // Core 3.x: pin must be read once before per-pin attenuation applies
     analogSetPinAttenuation(_windVanePin, ADC_11db); // For 3.3V input range
 
     // Configure anemometer pin with pull-up and interrupt

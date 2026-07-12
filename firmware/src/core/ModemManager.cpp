@@ -593,7 +593,11 @@ bool ModemManager::getNetworkTime(int *year, int *month, int *day,
 int ModemManager::getSignalQuality()
 {
     int quality = _modem.getSignalQuality();
-    Logger.debug(LOG_TAG_MODEM, "Signal quality: %d dBm", quality);
+    if (quality == 99)
+    {
+        quality = 0; // CSQ 99 = "not known or not detectable" - report as no signal
+    }
+    Logger.debug(LOG_TAG_MODEM, "Signal quality: CSQ %d", quality);
     return quality;
 }
 

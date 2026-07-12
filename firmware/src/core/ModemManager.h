@@ -161,7 +161,7 @@ public:
     /**
      * @brief Get the signal quality
      *
-     * @return int Signal quality in dBm
+     * @return int Signal quality as CSQ (0-31; 99 "unknown" is mapped to 0)
      */
     int getSignalQuality();
 

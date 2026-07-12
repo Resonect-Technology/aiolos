@@ -421,8 +421,15 @@ void loop()
             else
             {
                 // Skip connection attempts during recovery, but don't block
-                Logger.debug(LOG_TAG_SYSTEM, "EMERGENCY: In recovery mode, skipping connection attempts");
-                return; // Skip this loop iteration without blocking
+                static unsigned long lastRecoveryLog = 0;
+                if (currentMillis - lastRecoveryLog >= 30000)
+                {
+                    lastRecoveryLog = currentMillis;
+                    Logger.debug(LOG_TAG_SYSTEM, "EMERGENCY: In recovery mode, skipping connection attempts (%.1f min left)",
+                                 (EMERGENCY_RECOVERY_DURATION - (currentMillis - emergencyRecoveryStartTime)) / 60000.0);
+                }
+                delay(100); // This return bypasses the loop-end delay - don't busy-spin
+                return;     // Skip this loop iteration without blocking
             }
         }
     }
@@ -443,8 +450,11 @@ void loop()
         }
     }
 
-    // Track connection failures
-    if (!connectionSuccess && connectionFailureCount < MAX_CONNECTION_FAILURES)
+    // Track connection failures. Debounced to one per 30s: the loop passes here every
+    // ~100ms while the modem sits in its own backoff, and those passes are not new
+    // failures - without the debounce a single outage escalated to emergency mode in ~20s.
+    if (!connectionSuccess && connectionFailureCount < MAX_CONNECTION_FAILURES &&
+        (lastConnectionFailureTime == 0 || currentMillis - lastConnectionFailureTime >= 30000))
     {
         connectionFailureCount++;
         lastConnectionFailureTime = currentMillis;
@@ -1134,7 +1144,7 @@ void testModemConnectivity()
 
     // Get signal quality
     int signalQuality = modemManager.getSignalQuality();
-    Logger.info(LOG_TAG_SYSTEM, "Signal quality: %d dBm", signalQuality);
+    Logger.info(LOG_TAG_SYSTEM, "Signal quality: CSQ %d", signalQuality);
 
     // Get network parameters
     String networkParams = modemManager.getNetworkParams();

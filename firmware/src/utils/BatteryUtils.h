@@ -27,6 +27,7 @@ public:
     {
         // Configure ADC
         analogSetWidth(12);                                 // Set ADC resolution to 12 bits
+        analogRead(ADC_BATTERY_PIN);                        // Core 3.x: pin must be read once before per-pin attenuation applies
         analogSetPinAttenuation(ADC_BATTERY_PIN, ADC_11db); // Set attenuation for 0-3.3V range
 
         Logger.info("BATTERY", "Battery ADC configured for calibrated readings.");

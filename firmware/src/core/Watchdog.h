@@ -14,6 +14,15 @@
 
 #include "../config/Config.h"
 
+// TWDT init state, tracked so init vs reconfigure is called in the right order
+// (probing with the wrong one makes IDF print scary task_wdt error logs).
+// Starts true: the Arduino core initializes the TWDT during startup.
+inline bool &watchdogInitialized()
+{
+    static bool initialized = true;
+    return initialized;
+}
+
 /**
  * @brief Apply a task-watchdog timeout, initializing the TWDT if needed
  */
@@ -24,9 +33,13 @@ inline void watchdogConfigure(uint32_t timeoutS, bool panic)
         .idle_core_mask = 0,
         .trigger_panic = panic,
     };
-    if (esp_task_wdt_reconfigure(&config) != ESP_OK)
+    if (watchdogInitialized())
     {
-        esp_task_wdt_init(&config);
+        esp_task_wdt_reconfigure(&config);
+    }
+    else if (esp_task_wdt_init(&config) == ESP_OK)
+    {
+        watchdogInitialized() = true;
     }
 }
 
@@ -36,7 +49,10 @@ inline void watchdogConfigure(uint32_t timeoutS, bool panic)
 inline void watchdogEnable()
 {
     watchdogConfigure(WDT_TIMEOUT_S, true);
-    esp_task_wdt_add(NULL); // No-op error if already subscribed
+    if (esp_task_wdt_status(NULL) != ESP_OK)
+    {
+        esp_task_wdt_add(NULL);
+    }
 }
 
 /**
@@ -53,6 +69,14 @@ inline void watchdogExtend()
  */
 inline void watchdogDisable()
 {
-    esp_task_wdt_delete(NULL); // Unsubscribe first; deinit fails while tasks are subscribed
+    if (!watchdogInitialized())
+    {
+        return;
+    }
+    if (esp_task_wdt_status(NULL) == ESP_OK)
+    {
+        esp_task_wdt_delete(NULL); // Unsubscribe first; deinit fails while tasks are subscribed
+    }
     esp_task_wdt_deinit();
+    watchdogInitialized() = false;
 }
