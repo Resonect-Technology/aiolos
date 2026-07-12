@@ -142,10 +142,11 @@ export function WindData10MinTable({ stationId, selectedUnit }: WindData10MinTab
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[100px]">Time</TableHead>
+                    <TableHead className="w-[100px]">Time (end)</TableHead>
                     <TableHead>Avg Speed</TableHead>
                     <TableHead>Min Speed</TableHead>
                     <TableHead>Max Speed</TableHead>
+                    <TableHead>Gust</TableHead>
                     <TableHead>Direction</TableHead>
                     <TableHead>Tendency</TableHead>
                   </TableRow>
@@ -169,6 +170,13 @@ export function WindData10MinTable({ stationId, selectedUnit }: WindData10MinTab
                       <TableCell>
                         <span className="text-red-600">
                           {formatSpeed(row.maxSpeed)} {getUnitLabel()}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-medium text-orange-600">
+                          {row.gustSpeed !== null
+                            ? `${formatSpeed(row.gustSpeed)} ${getUnitLabel()}`
+                            : '–'}
                         </span>
                       </TableCell>
                       <TableCell>

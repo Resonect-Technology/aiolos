@@ -7,19 +7,15 @@ import { useMemo } from 'react';
 // default import resolves to the module object under Vite/Rolldown.
 import { GaugeComponent } from 'react-gauge-component';
 
-import { formatLastUpdated } from '../../../lib/time-utils';
+import { useNow } from '../../../hooks/use-now';
+import { formatLastUpdated, staleThresholdMs } from '../../../lib/time-utils';
 import {
   convertWindSpeed,
   WIND_UNIT_LABELS,
   getGaugeMinValue,
   getGaugeMaxValue,
 } from '../../../lib/wind-utils';
-
-interface WindData {
-  windSpeed: number;
-  windDirection: number;
-  timestamp: string;
-}
+import type { WindData } from '../../../types/wind';
 
 interface WindSpeedDisplayProps {
   windData: WindData | null;
@@ -43,6 +39,16 @@ interface GaugeTick {
 }
 
 export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayProps) {
+  // Ticks so the "ago" badge and staleness check stay honest when the
+  // stream stops delivering messages
+  const now = useNow();
+
+  // Stale when older than 3x the station's reported send interval
+  // (fallback 15 min — tolerates the 10-minute slow mode)
+  const stale =
+    windData !== null &&
+    now - new Date(windData.timestamp).getTime() > staleThresholdMs(windData.intervalMs);
+
   // Get the unit label for display
   const currentUnitLabel = useMemo((): string => {
     return WIND_UNIT_LABELS[selectedUnit] || 'm/s';
@@ -253,11 +259,16 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription className="text-sm">
-          For good Vasiliki day the wind speed should be between 8 and 15 m/s
+          For a good Vasiliki day the wind speed should be between{' '}
+          {formatDisplayValue(convertWindSpeed(8, selectedUnit)).replace(
+            ` ${currentUnitLabel}`,
+            '',
+          )}{' '}
+          and {formatDisplayValue(convertWindSpeed(15, selectedUnit))}
         </AlertDescription>
       </Alert>
 
-      <div className="flex justify-center px-2">
+      <div className={`flex justify-center px-2 ${stale ? 'opacity-50' : ''}`}>
         <div className="w-full max-w-xs lg:max-w-md xl:max-w-lg">
           <GaugeComponent
             id="wind-speed-gauge"
@@ -299,14 +310,25 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
         </div>
       </div>
 
-      <div className="text-center">
+      <div className={`text-center ${stale ? 'opacity-50' : ''}`}>
         <div className="text-primary text-5xl font-bold">{formatDisplayValue(convertedValue)}</div>
+        {windData?.gustSpeed !== undefined && (
+          <div className="text-muted-foreground mt-1 text-lg">
+            Gusts {formatDisplayValue(convertWindSpeed(windData.gustSpeed, selectedUnit))}
+            {windData.minSpeed !== undefined &&
+              ` · Lulls ${formatDisplayValue(convertWindSpeed(windData.minSpeed, selectedUnit))}`}
+          </div>
+        )}
       </div>
 
       {windData?.timestamp && (
         <div className="px-2 text-center">
-          <Badge variant="outline" className="text-xs">
+          <Badge
+            variant="outline"
+            className={`text-xs ${stale ? 'border-orange-500 text-orange-500 dark:text-orange-400' : ''}`}
+          >
             Last updated: {formatLastUpdated(windData.timestamp)}
+            {stale && ' (stale)'}
           </Badge>
         </div>
       )}

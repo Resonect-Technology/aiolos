@@ -1,6 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Transmit } from '@adonisjs/transmit-client';
+import { transmit } from '@/lib/transmit';
 import { Thermometer } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 
@@ -20,7 +20,6 @@ export function TemperatureDisplay({ stationId }: TemperatureDisplayProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const transmitInstanceRef = useRef<Transmit | null>(null);
   const subscriptionRef = useRef<any | null>(null);
 
   useEffect(() => {
@@ -28,15 +27,6 @@ export function TemperatureDisplay({ stationId }: TemperatureDisplayProps) {
     setError(null);
     setLoading(true);
 
-    // Initialize Transmit instance if it doesn't exist
-    if (!transmitInstanceRef.current) {
-      console.log('Creating new Transmit instance for temperature');
-      transmitInstanceRef.current = new Transmit({
-        baseUrl: window.location.origin,
-      });
-    }
-
-    const transmit = transmitInstanceRef.current;
     const channelName = `temperature/live/${stationId}`;
 
     const newSubscription = transmit.subscription(channelName);

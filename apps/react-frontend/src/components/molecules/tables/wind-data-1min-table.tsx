@@ -55,7 +55,9 @@ export function WindData1MinTable({ stationId, selectedUnit }: WindData1MinTable
   useWindAggregatedSSE({ stationId, onNewAggregate: handleNewAggregate });
 
   const formatTime = (timestamp: string) => {
-    return new Date(timestamp).toLocaleTimeString('en-US', {
+    // Show the END of the 1-minute interval (matches the 10-minute table)
+    const intervalEnd = new Date(new Date(timestamp).getTime() + 60 * 1000);
+    return intervalEnd.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
@@ -152,10 +154,11 @@ export function WindData1MinTable({ stationId, selectedUnit }: WindData1MinTable
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[100px]">Time</TableHead>
+                    <TableHead className="w-[100px]">Time (end)</TableHead>
                     <TableHead>Avg Speed</TableHead>
                     <TableHead>Min Speed</TableHead>
                     <TableHead>Max Speed</TableHead>
+                    <TableHead>Gust</TableHead>
                     <TableHead>Direction</TableHead>
                     <TableHead className="text-right">Samples</TableHead>
                   </TableRow>
@@ -182,6 +185,13 @@ export function WindData1MinTable({ stationId, selectedUnit }: WindData1MinTable
                       <TableCell>
                         <span className="text-red-600">
                           {formatSpeed(row.maxSpeed)} {getUnitLabel()}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-medium text-orange-600">
+                          {row.gustSpeed !== null
+                            ? `${formatSpeed(row.gustSpeed)} ${getUnitLabel()}`
+                            : '–'}
                         </span>
                       </TableCell>
                       <TableCell>

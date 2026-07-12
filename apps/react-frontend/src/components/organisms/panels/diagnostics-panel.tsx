@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Transmit } from '@adonisjs/transmit-client';
+import { transmit } from '@/lib/transmit';
 import { Activity, Battery, Sun, Wifi, Clock, AlertTriangle } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 
@@ -36,7 +36,6 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const transmitInstanceRef = useRef<Transmit | null>(null);
   const subscriptionRef = useRef<any | null>(null);
 
   useEffect(() => {
@@ -44,15 +43,6 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
     setError(null);
     setLoading(true);
 
-    // Initialize Transmit instance if it doesn't exist
-    if (!transmitInstanceRef.current) {
-      console.log('Creating new Transmit instance for diagnostics');
-      transmitInstanceRef.current = new Transmit({
-        baseUrl: window.location.origin,
-      });
-    }
-
-    const transmit = transmitInstanceRef.current;
     const channelName = `station/diagnostics/${stationId}`;
 
     const newSubscription = transmit.subscription(channelName);
@@ -241,7 +231,7 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
                         : 'N/A'}
                     </span>
                   </div>
-                  {diagnosticsData.batteryVoltage && (
+                  {diagnosticsData.batteryVoltage != null && (
                     <Progress
                       value={Math.min(
                         100,
@@ -341,7 +331,7 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
                         : 'N/A'}
                     </Badge>
                   </div>
-                  {diagnosticsData.signalQuality && (
+                  {diagnosticsData.signalQuality != null && (
                     <Progress
                       value={Math.min(100, (diagnosticsData.signalQuality / 31) * 100)}
                       className="h-2"

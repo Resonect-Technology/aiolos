@@ -1,6 +1,6 @@
-import { Transmit } from '@adonisjs/transmit-client';
 import { useState, useEffect, useCallback } from 'react';
 
+import { transmit } from '../lib/transmit';
 import type { WindAggregatedResponse, WindAggregated10Min } from '../types/wind-aggregated';
 
 interface UseWind10MinDataProps {
@@ -72,10 +72,6 @@ export function useWind10MinSSE({ stationId, onNewAggregate }: UseWind10MinSSEPr
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const transmit = new Transmit({
-      baseUrl: window.location.origin,
-    });
-
     const channelName = `wind/aggregated/10min/${stationId}`;
     const subscription = transmit.subscription(channelName);
 
@@ -92,6 +88,7 @@ export function useWind10MinSSE({ stationId, onNewAggregate }: UseWind10MinSSEPr
               avgSpeed: data.avgSpeed,
               minSpeed: data.minSpeed,
               maxSpeed: data.maxSpeed,
+              gustSpeed: data.gustSpeed ?? null,
               dominantDirection: data.dominantDirection,
               tendency: data.tendency,
             });

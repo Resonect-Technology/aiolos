@@ -1,6 +1,14 @@
 import { Badge } from '@/components/ui/badge';
-import { formatSleepSchedule, calculateNextSleepWakeTime } from '@/lib/time-utils';
-import { Eye, Moon, AlertTriangle } from 'lucide-react';
+import { useNow } from '@/hooks/use-now';
+import {
+  calculateNextSleepWakeTime,
+  formatSleepSchedule,
+  getStationHour,
+  isInSleepWindow,
+  staleThresholdMs,
+} from '@/lib/time-utils';
+import type { WindData } from '@/types/wind';
+import { Eye, Moon, AlertTriangle, WifiOff } from 'lucide-react';
 import { memo, useState, useEffect } from 'react';
 
 interface StationConfig {
@@ -17,27 +25,23 @@ interface StationConfig {
   otaMinute: number | null;
   otaDuration: number | null;
   remoteOta: boolean;
+  utcOffsetMinutes?: number | null;
   message?: string;
 }
 
 interface FloatingStatusIndicatorProps {
   stationId: string;
+  lastWindData: WindData | null;
 }
+
+type StationMode = 'live' | 'sleeping' | 'offline' | 'unknown';
 
 export const FloatingStatusIndicator = memo(function FloatingStatusIndicator({
   stationId,
+  lastWindData,
 }: FloatingStatusIndicatorProps) {
   const [stationConfig, setStationConfig] = useState<StationConfig | null>(null);
-  const [stationMode, setStationMode] = useState<'live' | 'sleeping' | 'unknown'>('unknown');
-  const [nextSleepWakeInfo, setNextSleepWakeInfo] = useState<{
-    nextEventType: 'sleep' | 'wake' | null;
-    nextEventTime: Date | null;
-    timeUntilNext: string;
-  }>({
-    nextEventType: null,
-    nextEventTime: null,
-    timeUntilNext: 'No sleep schedule',
-  });
+  const now = useNow(30_000);
 
   // Fetch station config
   useEffect(() => {
@@ -61,55 +65,38 @@ export const FloatingStatusIndicator = memo(function FloatingStatusIndicator({
     fetchStationConfig();
   }, [stationId]);
 
-  // Determine station mode based on current time and config
-  useEffect(() => {
-    const updateStationMode = () => {
-      if (
-        !stationConfig ||
-        stationConfig.sleepStartHour === null ||
-        stationConfig.sleepEndHour === null
-      ) {
-        setStationMode('live'); // Default to live if no sleep config
-        setNextSleepWakeInfo({
-          nextEventType: null,
-          nextEventTime: null,
-          timeUntilNext: 'No sleep schedule',
-        });
-        return;
+  // Data freshness decides Live; the sleep schedule (on the STATION's clock)
+  // only distinguishes Sleeping from Offline when data is missing
+  const utcOffsetMinutes = stationConfig?.utcOffsetMinutes ?? null;
+  const getStationMode = (): StationMode => {
+    const dataFresh =
+      lastWindData !== null &&
+      now - new Date(lastWindData.timestamp).getTime() <= staleThresholdMs(lastWindData.intervalMs);
+
+    if (dataFresh) {
+      return 'live';
+    }
+
+    if (
+      stationConfig &&
+      stationConfig.sleepStartHour !== null &&
+      stationConfig.sleepEndHour !== null
+    ) {
+      const stationHour = getStationHour(utcOffsetMinutes);
+      if (isInSleepWindow(stationHour, stationConfig.sleepStartHour, stationConfig.sleepEndHour)) {
+        return 'sleeping';
       }
+    }
 
-      const now = new Date();
-      const currentHour = now.getHours();
-      const sleepStart = stationConfig.sleepStartHour;
-      const sleepEnd = stationConfig.sleepEndHour;
+    return stationConfig ? 'offline' : 'unknown';
+  };
 
-      let isSleeping = false;
-
-      if (sleepStart === sleepEnd) {
-        // No sleep period configured
-        isSleeping = false;
-      } else if (sleepStart < sleepEnd) {
-        // Sleep period within same day (e.g., 2 AM to 6 AM)
-        isSleeping = currentHour >= sleepStart && currentHour < sleepEnd;
-      } else {
-        // Sleep period spans midnight (e.g., 22 PM to 6 AM)
-        isSleeping = currentHour >= sleepStart || currentHour < sleepEnd;
-      }
-
-      setStationMode(isSleeping ? 'sleeping' : 'live');
-
-      // Calculate next sleep/wake time
-      const nextInfo = calculateNextSleepWakeTime(sleepStart, sleepEnd);
-      setNextSleepWakeInfo(nextInfo);
-    };
-
-    updateStationMode();
-
-    // Update every 30 seconds to keep status accurate
-    const interval = setInterval(updateStationMode, 30000);
-
-    return () => clearInterval(interval);
-  }, [stationConfig]);
+  const stationMode = getStationMode();
+  const nextSleepWakeInfo = calculateNextSleepWakeTime(
+    stationConfig?.sleepStartHour ?? null,
+    stationConfig?.sleepEndHour ?? null,
+    utcOffsetMinutes,
+  );
 
   const getModeDisplay = () => {
     switch (stationMode) {
@@ -124,6 +111,12 @@ export const FloatingStatusIndicator = memo(function FloatingStatusIndicator({
           label: 'Sleeping',
           icon: <Moon className="h-3 w-3" />,
           className: 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600',
+        };
+      case 'offline':
+        return {
+          label: 'Offline',
+          icon: <WifiOff className="h-3 w-3" />,
+          className: 'bg-amber-600 hover:bg-amber-700 text-white border-amber-600',
         };
       default:
         return {

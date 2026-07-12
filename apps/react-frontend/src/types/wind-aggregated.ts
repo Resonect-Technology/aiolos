@@ -6,6 +6,7 @@ export interface WindAggregated1Min {
   avgSpeed: number;
   minSpeed: number;
   maxSpeed: number;
+  gustSpeed: number | null;
   dominantDirection: number;
   sampleCount: number;
 }
@@ -15,6 +16,7 @@ export interface WindAggregated10Min {
   avgSpeed: number;
   minSpeed: number;
   maxSpeed: number;
+  gustSpeed: number | null;
   dominantDirection: number;
   tendency: 'increasing' | 'decreasing' | 'stable';
 }

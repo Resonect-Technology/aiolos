@@ -7,9 +7,13 @@ import '../../wind-direction-compass.css'; // Uses the CSS provided by the user
 
 interface WindDirectionCompassProps {
   windDirection: number | null | undefined;
+  stale?: boolean;
 }
 
-export const WindDirectionCompass: React.FC<WindDirectionCompassProps> = ({ windDirection }) => {
+export const WindDirectionCompass: React.FC<WindDirectionCompassProps> = ({
+  windDirection,
+  stale = false,
+}) => {
   const [compassCircleTransformStyle, setCompassCircleTransformStyle] =
     useState('translate(-50%, -50%)');
 
@@ -38,11 +42,11 @@ export const WindDirectionCompass: React.FC<WindDirectionCompassProps> = ({ wind
         </AlertDescription>
       </Alert>
 
-      <div className="flex justify-center">
+      <div className={`flex justify-center ${stale ? 'opacity-50' : ''}`}>
         <ChevronsDown className="text-primary h-16 w-16" />
       </div>
 
-      <div className="flex justify-center px-2">
+      <div className={`flex justify-center px-2 ${stale ? 'opacity-50' : ''}`}>
         <div className="w-full max-w-xs sm:max-w-sm md:max-w-md lg:max-w-3/4 xl:max-w-3/4">
           <div
             className="compass"
@@ -58,7 +62,7 @@ export const WindDirectionCompass: React.FC<WindDirectionCompassProps> = ({ wind
         </div>
       </div>
 
-      <div className="text-primary text-center text-5xl font-bold">
+      <div className={`text-primary text-center text-5xl font-bold ${stale ? 'opacity-50' : ''}`}>
         {windDirection !== null && windDirection !== undefined
           ? `${Math.round(windDirection)}°`
           : '---'}

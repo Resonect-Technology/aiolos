@@ -8,14 +8,11 @@ import { WindDataTable } from '@/components/molecules/tables/wind-data-table';
 import { AppSidebar } from '@/components/organisms/navigation/app-sidebar';
 import { SiteHeader } from '@/components/organisms/navigation/site-header';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
-import { Transmit } from '@adonisjs/transmit-client';
+import { transmit } from '@/lib/transmit';
+import type { WindData } from '@/types/wind';
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-interface WindData {
-  windSpeed: number;
-  windDirection: number;
-  timestamp: string;
-}
+const UNIT_STORAGE_KEY = 'aiolos:wind-unit';
 
 export function Dashboard() {
   // Fixed station ID for Vasiliki weather station
@@ -24,13 +21,16 @@ export function Dashboard() {
   // Wind data state
   const [windData, setWindData] = useState<WindData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selectedUnit, setSelectedUnit] = useState<string>('m/s');
+  // Knots is the windsurfer default; the choice persists across visits
+  const [selectedUnit, setSelectedUnit] = useState<string>(
+    () => localStorage.getItem(UNIT_STORAGE_KEY) ?? 'knots',
+  );
   const [windHistory, setWindHistory] = useState<WindData[]>([]);
 
-  const transmitInstanceRef = useRef<Transmit | null>(null);
   const subscriptionRef = useRef<any | null>(null);
 
   const handleUnitChange = useCallback((unit: string) => {
+    localStorage.setItem(UNIT_STORAGE_KEY, unit);
     setSelectedUnit(unit);
   }, []);
 
@@ -38,15 +38,6 @@ export function Dashboard() {
     // Clear any previous connection state
     setError(null);
 
-    // Initialize Transmit instance if it doesn't exist
-    if (!transmitInstanceRef.current) {
-      console.log('Creating new Transmit instance');
-      transmitInstanceRef.current = new Transmit({
-        baseUrl: window.location.origin,
-      });
-    }
-
-    const transmit = transmitInstanceRef.current;
     const channelName = `wind/live/${stationId}`;
 
     const newSubscription = transmit.subscription(channelName);
@@ -111,6 +102,7 @@ export function Dashboard() {
                 error={error}
                 selectedUnit={selectedUnit}
                 onUnitChange={handleUnitChange}
+                lastWindData={windData}
               />
 
               <div className="px-4 lg:px-6">
@@ -142,7 +134,7 @@ export function Dashboard() {
       </SidebarInset>
 
       {/* Floating Status Indicator */}
-      <FloatingStatusIndicator stationId={stationId} />
+      <FloatingStatusIndicator stationId={stationId} lastWindData={windData} />
     </SidebarProvider>
   );
 }

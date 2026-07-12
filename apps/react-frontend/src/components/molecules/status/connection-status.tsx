@@ -1,6 +1,9 @@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, Eye, Moon } from 'lucide-react';
+import { useNow } from '@/hooks/use-now';
+import { getStationHour, isInSleepWindow, staleThresholdMs } from '@/lib/time-utils';
+import type { WindData } from '@/types/wind';
+import { AlertTriangle, Eye, Moon, WifiOff } from 'lucide-react';
 import { memo, useState, useEffect } from 'react';
 
 interface StationConfig {
@@ -17,20 +20,25 @@ interface StationConfig {
   otaMinute: number | null;
   otaDuration: number | null;
   remoteOta: boolean;
+  utcOffsetMinutes?: number | null;
   message?: string;
 }
 
 interface ConnectionStatusProps {
   error: string | null;
   stationId: string;
+  lastWindData: WindData | null;
 }
+
+type StationMode = 'live' | 'sleeping' | 'offline' | 'unknown';
 
 export const ConnectionStatus = memo(function ConnectionStatus({
   error,
   stationId,
+  lastWindData,
 }: ConnectionStatusProps) {
   const [stationConfig, setStationConfig] = useState<StationConfig | null>(null);
-  const [stationMode, setStationMode] = useState<'live' | 'sleeping' | 'unknown'>('unknown');
+  const now = useNow(30_000);
 
   // Fetch station config
   useEffect(() => {
@@ -51,46 +59,34 @@ export const ConnectionStatus = memo(function ConnectionStatus({
     fetchStationConfig();
   }, [stationId]);
 
-  // Determine station mode based on current time and config
-  useEffect(() => {
-    const updateStationMode = () => {
-      if (
-        !stationConfig ||
-        stationConfig.sleepStartHour === null ||
-        stationConfig.sleepEndHour === null
-      ) {
-        setStationMode('live'); // Default to live if no sleep config
-        return;
+  // Status is driven by DATA freshness first; the sleep schedule only
+  // explains the silence. A green "Live" must mean data is flowing.
+  const getStationMode = (): StationMode => {
+    const dataFresh =
+      lastWindData !== null &&
+      now - new Date(lastWindData.timestamp).getTime() <= staleThresholdMs(lastWindData.intervalMs);
+
+    if (dataFresh) {
+      return 'live';
+    }
+
+    if (
+      stationConfig &&
+      stationConfig.sleepStartHour !== null &&
+      stationConfig.sleepEndHour !== null
+    ) {
+      const stationHour = getStationHour(stationConfig.utcOffsetMinutes ?? null);
+      if (isInSleepWindow(stationHour, stationConfig.sleepStartHour, stationConfig.sleepEndHour)) {
+        return 'sleeping';
       }
+    }
 
-      const now = new Date();
-      const currentHour = now.getHours();
-      const sleepStart = stationConfig.sleepStartHour;
-      const sleepEnd = stationConfig.sleepEndHour;
+    // No fresh data outside sleep hours: before the config arrives we can't
+    // tell sleeping from offline yet
+    return stationConfig ? 'offline' : 'unknown';
+  };
 
-      let isSleeping = false;
-
-      if (sleepStart === sleepEnd) {
-        // No sleep period configured
-        isSleeping = false;
-      } else if (sleepStart < sleepEnd) {
-        // Sleep period within same day (e.g., 2 AM to 6 AM)
-        isSleeping = currentHour >= sleepStart && currentHour < sleepEnd;
-      } else {
-        // Sleep period spans midnight (e.g., 22 PM to 6 AM)
-        isSleeping = currentHour >= sleepStart || currentHour < sleepEnd;
-      }
-
-      setStationMode(isSleeping ? 'sleeping' : 'live');
-    };
-
-    updateStationMode();
-
-    // Update every 30 seconds to keep status accurate
-    const interval = setInterval(updateStationMode, 30000);
-
-    return () => clearInterval(interval);
-  }, [stationConfig]);
+  const stationMode = getStationMode();
 
   const getModeDisplay = () => {
     switch (stationMode) {
@@ -109,6 +105,14 @@ export const ConnectionStatus = memo(function ConnectionStatus({
           icon: <Moon className="h-4 w-4" />,
           description: 'Station is in power-saving mode',
           className: 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600',
+        };
+      case 'offline':
+        return {
+          label: 'Offline',
+          variant: 'secondary' as const,
+          icon: <WifiOff className="h-4 w-4" />,
+          description: 'No recent data from the station outside its sleep schedule',
+          className: 'bg-amber-600 hover:bg-amber-700 text-white border-amber-600',
         };
       default:
         return {
