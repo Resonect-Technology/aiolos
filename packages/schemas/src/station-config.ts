@@ -5,9 +5,11 @@ const nullableNumber = z.number().nullable();
 /**
  * Response of GET /api/stations/:id/config — the shape the deployed stations
  * read. Intervals are milliseconds except restartInterval (seconds).
- * remoteOta can surface as SQLite 0/1; normalized to boolean here.
+ * remoteOta can surface as SQLite 0/1; normalized to boolean here. A strict
+ * object (DB extras like id/createdAt are stripped) so the inferred type has
+ * no index signature and stays keyof-friendly.
  */
-export const stationConfigResponseSchema = z.looseObject({
+export const stationConfigResponseSchema = z.object({
   tempInterval: nullableNumber,
   windSendInterval: nullableNumber,
   windSampleInterval: nullableNumber,

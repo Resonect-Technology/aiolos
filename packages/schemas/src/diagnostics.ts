@@ -20,7 +20,7 @@ export const diagnosticsLivePayloadSchema = z.looseObject({
 export type DiagnosticsLivePayload = z.infer<typeof diagnosticsLivePayloadSchema>;
 
 /** Row shape of GET /api/stations/:id/diagnostics/history (and the single-row GET) */
-export const diagnosticsHistoryRowSchema = z.looseObject({
+export const diagnosticsHistoryRowSchema = z.object({
   id: z.number(),
   stationId: z.string(),
   batteryVoltage: z.number(),

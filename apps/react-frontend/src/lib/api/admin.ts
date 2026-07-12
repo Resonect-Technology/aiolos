@@ -1,44 +1,20 @@
+import { z } from 'zod';
+
 /**
- * Admin API client — all requests carry the admin session cookie.
+ * Admin API client — all requests carry the admin session cookie and every
+ * response body is validated against a zod schema before use.
  */
+import {
+  diagnosticsHistoryRowSchema,
+  stationConfigResponseSchema,
+  type StationConfig,
+  type StationConfigResponse,
+} from '@repo/schemas';
+
+// Re-exported so existing importers keep working
+export type { DiagnosticsHistoryRow, StationConfig } from '@repo/schemas';
+
 const API_URL = import.meta.env.VITE_API_URL || window.location.origin;
-
-/**
- * Station config as served by GET /api/stations/:station_id/config.
- * Intervals are milliseconds except restartInterval (seconds).
- */
-export interface StationConfig {
-  tempInterval: number | null;
-  windSendInterval: number | null;
-  windSampleInterval: number | null;
-  diagInterval: number | null;
-  timeInterval: number | null;
-  restartInterval: number | null;
-  sleepStartHour: number | null;
-  sleepEndHour: number | null;
-  otaHour: number | null;
-  otaMinute: number | null;
-  otaDuration: number | null;
-  remoteOta: boolean;
-  utcOffsetMinutes: number | null;
-  livestreamStartHour: number | null;
-  lowBatteryThreshold: number | null;
-}
-
-export interface DiagnosticsHistoryRow {
-  id: number;
-  stationId: string;
-  batteryVoltage: number;
-  solarVoltage: number;
-  internalTemperature: number | null;
-  signalQuality: number;
-  uptime: number;
-  firmwareVersion: string | null;
-  freeHeap: number | null;
-  minFreeHeap: number | null;
-  resetReason: string | null;
-  createdAt: string;
-}
 
 /** Thrown on non-OK responses so callers can react to 401s (session expired). */
 export class AdminApiError extends Error {
@@ -50,7 +26,11 @@ export class AdminApiError extends Error {
   }
 }
 
-const request = async <T = unknown>(path: string, init?: RequestInit): Promise<T> => {
+const request = async <S extends z.ZodType>(
+  schema: S,
+  path: string,
+  init?: RequestInit,
+): Promise<z.output<S>> => {
   const response = await fetch(`${API_URL}${path}`, {
     credentials: 'include',
     ...init,
@@ -69,7 +49,11 @@ const request = async <T = unknown>(path: string, init?: RequestInit): Promise<T
     throw new AdminApiError(response.status, message);
   }
 
-  return response.json() as Promise<T>;
+  const parsed = schema.safeParse(await response.json());
+  if (!parsed.success) {
+    throw new AdminApiError(response.status, 'Unexpected response shape');
+  }
+  return parsed.data;
 };
 
 const jsonInit = (method: string, body: unknown): RequestInit => ({
@@ -78,39 +62,42 @@ const jsonInit = (method: string, body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 });
 
+// Endpoints whose response body is ignored
+const ignoredBody = z.unknown();
+
 export const login = async (password: string): Promise<void> => {
-  await request('/api/admin/session', jsonInit('POST', { password }));
+  await request(ignoredBody, '/api/admin/session', jsonInit('POST', { password }));
 };
 
 export const logout = async (): Promise<void> => {
-  await request('/api/admin/session', { method: 'DELETE' });
+  await request(ignoredBody, '/api/admin/session', { method: 'DELETE' });
 };
 
+const sessionResponseSchema = z.looseObject({ authenticated: z.boolean().optional() });
+
 export const getSession = async (): Promise<boolean> => {
-  const body = await request<{ authenticated?: boolean }>('/api/admin/session');
+  const body = await request(sessionResponseSchema, '/api/admin/session');
   return Boolean(body.authenticated);
 };
 
-export const getStationConfig = async (stationId: string): Promise<StationConfig> => {
-  return request<StationConfig>(`/api/stations/${stationId}/config`);
+export const getStationConfig = async (stationId: string): Promise<StationConfigResponse> => {
+  return request(stationConfigResponseSchema, `/api/stations/${stationId}/config`);
 };
 
 export const saveStationConfig = async (
   stationId: string,
   config: Partial<StationConfig>,
 ): Promise<void> => {
-  await request(`/api/stations/${stationId}/config`, jsonInit('POST', config));
+  await request(ignoredBody, `/api/stations/${stationId}/config`, jsonInit('POST', config));
 };
 
 export const setSystemConfig = async (key: string, value: string): Promise<void> => {
-  await request(`/api/system/config/${key}`, jsonInit('POST', { value }));
+  await request(ignoredBody, `/api/system/config/${key}`, jsonInit('POST', { value }));
 };
 
-export const getDiagnosticsHistory = async (
-  stationId: string,
-  hours: number,
-): Promise<DiagnosticsHistoryRow[]> => {
-  return request<DiagnosticsHistoryRow[]>(
+export const getDiagnosticsHistory = async (stationId: string, hours: number) => {
+  return request(
+    z.array(diagnosticsHistoryRowSchema),
     `/api/stations/${stationId}/diagnostics/history?hours=${hours}`,
   );
 };

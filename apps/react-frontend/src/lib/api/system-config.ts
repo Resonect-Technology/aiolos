@@ -1,23 +1,14 @@
+import {
+  systemConfigSchema,
+  systemConfigsSchema,
+  type SystemConfig,
+  type SystemConfigs,
+} from '@repo/schemas';
+
 /**
  * Base API URL for the backend services
  */
 const API_URL = import.meta.env.VITE_API_URL || window.location.origin;
-
-/**
- * Interface for system configuration values
- */
-interface SystemConfig {
-  key: string;
-  value: string | null;
-  message?: string;
-}
-
-/**
- * Interface for all system configurations
- */
-interface SystemConfigs {
-  [key: string]: string;
-}
 
 /**
  * Fetches a specific system configuration value
@@ -32,7 +23,7 @@ export const getSystemConfig = async (key: string): Promise<SystemConfig> => {
       throw new Error(`Failed to fetch system config: ${response.statusText}`);
     }
 
-    return await response.json();
+    return systemConfigSchema.parse(await response.json());
   } catch (error) {
     console.error('Error fetching system config:', error);
     return { key, value: null, message: 'Failed to fetch configuration' };
@@ -51,7 +42,7 @@ export const getAllSystemConfigs = async (): Promise<SystemConfigs> => {
       throw new Error(`Failed to fetch system configs: ${response.statusText}`);
     }
 
-    return await response.json();
+    return systemConfigsSchema.parse(await response.json());
   } catch (error) {
     console.error('Error fetching system configs:', error);
     return {};

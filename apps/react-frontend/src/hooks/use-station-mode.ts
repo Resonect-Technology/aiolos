@@ -1,14 +1,12 @@
 import { useEffect, useState } from 'react';
 
-import type { StationConfig } from '../lib/api/admin';
+import { stationConfigResponseSchema, type StationConfigResponse } from '@repo/schemas';
+
 import { getStationHour, isInSleepWindow, staleThresholdMs } from '../lib/time-utils';
 import type { WindData } from '../types/wind';
 import { useNow } from './use-now';
 
 export type StationMode = 'live' | 'sleeping' | 'offline' | 'unknown';
-
-/** GET /config responses carry a couple of fields beyond the write shape */
-export type StationConfigResponse = StationConfig & { stationId?: string; message?: string };
 
 /**
  * Fetch the station config and derive the station's mode.
@@ -28,10 +26,15 @@ export function useStationMode(
     const fetchStationConfig = async () => {
       try {
         const response = await fetch(`/api/stations/${stationId}/config`);
-        if (response.ok) {
-          setConfig(await response.json());
-        } else {
+        if (!response.ok) {
           console.warn('Failed to fetch station config:', response.statusText);
+          return;
+        }
+        const parsed = stationConfigResponseSchema.safeParse(await response.json());
+        if (parsed.success) {
+          setConfig(parsed.data);
+        } else {
+          console.warn('Received station config in unexpected format');
         }
       } catch (error) {
         console.error('Error fetching station config:', error);
