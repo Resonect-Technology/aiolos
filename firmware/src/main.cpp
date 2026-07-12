@@ -12,6 +12,7 @@
 #include <esp_task_wdt.h>
 
 #include "core/Watchdog.h"
+#include "logic/ConfigLogic.h"
 #include "logic/TimeLogic.h"
 #include <math.h> // For isnan()
 #include "config/Config.h"
@@ -68,6 +69,7 @@ int dynamicSleepEndHour = DEFAULT_SLEEP_END_HOUR;
 int dynamicOtaHour = DEFAULT_OTA_HOUR;
 int dynamicOtaMinute = DEFAULT_OTA_MINUTE;
 int dynamicOtaDuration = DEFAULT_OTA_DURATION;
+unsigned long dynamicRestartIntervalMs = UPTIME_RESTART_INTERVAL;
 
 // Calibration mode - can be enabled via build flags
 #ifdef CALIBRATION_MODE
@@ -314,8 +316,8 @@ void loop()
     // Get current time
     unsigned long currentMillis = millis();
 
-    // Check for uptime-based restart (4 hours of continuous operation)
-    if (currentMillis >= UPTIME_RESTART_INTERVAL)
+    // Check for uptime-based restart (default 4 hours, adjustable via remote config)
+    if (currentMillis >= dynamicRestartIntervalMs)
     {
         Logger.info(LOG_TAG_SYSTEM, "Uptime restart: Device has been running for %.1f hours, restarting for maintenance",
                     currentMillis / 3600000.0);
@@ -763,7 +765,7 @@ void handleRemoteConfiguration()
     unsigned long windSampleInterval = dynamicWindSampleInterval;
     unsigned long diagInterval = dynamicDiagInterval;
     unsigned long timeInterval = dynamicTimeInterval;
-    unsigned long restartInterval = 0; // We ignore this value but keep it for API compatibility
+    unsigned long restartInterval = 0; // Seconds from server; 0 = keep current
     int sleepStartHour = dynamicSleepStartHour;
     int sleepEndHour = dynamicSleepEndHour;
     int otaHour = dynamicOtaHour;
@@ -814,11 +816,11 @@ void handleRemoteConfiguration()
             Logger.info(LOG_TAG_SYSTEM, "Updated time update interval to %lu ms", dynamicTimeInterval);
         }
 
-        // Note: restartInterval is received from server for API compatibility but ignored
-        // We use a fixed uptime-based restart (UPTIME_RESTART_INTERVAL) instead
         if (restartInterval > 0)
         {
-            Logger.info(LOG_TAG_SYSTEM, "Received restart interval %lu seconds from server (ignored - using fixed uptime restart)", restartInterval);
+            dynamicRestartIntervalMs = ConfigLogic::clampRestartIntervalMs(restartInterval, UPTIME_RESTART_INTERVAL);
+            Logger.info(LOG_TAG_SYSTEM, "Updated restart interval to %lu ms (server sent %lu s, floor 1h)",
+                        dynamicRestartIntervalMs, restartInterval);
         }
 
         if (sleepStartHour >= 0 && sleepStartHour < 24)
