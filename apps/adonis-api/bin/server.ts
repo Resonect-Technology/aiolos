@@ -49,8 +49,9 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
       // Set up wind aggregation service
       const { windAggregationService } = await import('#services/wind_aggregation_service');
 
-      // Set up DB retention cleanup
+      // Set up DB retention cleanup and rollups (downsampling)
       const { dataCleanupService } = await import('#services/data_cleanup_service');
+      const { rollupService } = await import('#services/rollup_service');
 
       // Clean up old data every hour (1 hour = 60 * 60 * 1000 ms)
       const cleanupInterval = setInterval(
@@ -60,20 +61,54 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
         60 * 60 * 1000,
       );
 
-      // DB retention cleanup: once shortly after boot, then every 6 hours
-      const retentionBootTimeout = setTimeout(() => {
-        dataCleanupService.runAllCleanups().catch((error) => {
+      // Rollups MUST run before the retention cleanup so fine-grained data is
+      // always downsampled before it can be deleted (catchUp also backfills
+      // empty rollup tables on the first boot after they are introduced).
+      const rollupsThenCleanup = async () => {
+        try {
+          await rollupService.catchUp();
+        } catch (error) {
+          console.error('Error running rollup catch-up:', error);
+        }
+        try {
+          await dataCleanupService.runAllCleanups();
+        } catch (error) {
           console.error('Error running data retention cleanup:', error);
-        });
+        }
+      };
+
+      // Once shortly after boot, then every 6 hours
+      const retentionBootTimeout = setTimeout(() => {
+        rollupsThenCleanup();
       }, 30 * 1000);
-      const retentionInterval = setInterval(
-        () => {
-          dataCleanupService.runAllCleanups().catch((error) => {
-            console.error('Error running data retention cleanup:', error);
-          });
-        },
-        6 * 60 * 60 * 1000,
-      );
+      const retentionInterval = setInterval(rollupsThenCleanup, 6 * 60 * 60 * 1000);
+
+      // Hourly rollup timer aligned to :05 past the hour — by then the
+      // previous hour's last 10-minute wind aggregate has been written
+      const bootTime = new Date();
+      const msIntoHour =
+        (bootTime.getMinutes() * 60 + bootTime.getSeconds()) * 1000 + bootTime.getMilliseconds();
+      let rollupDelay = 5 * 60 * 1000 - msIntoHour;
+      if (rollupDelay <= 0) rollupDelay += 60 * 60 * 1000;
+
+      const rollupInitialTimeout = setTimeout(() => {
+        rollupService.catchUp().catch((error) => {
+          console.error('Error running rollup catch-up:', error);
+        });
+
+        const rollupInterval = setInterval(
+          () => {
+            rollupService.catchUp().catch((error) => {
+              console.error('Error running rollup catch-up:', error);
+            });
+          },
+          60 * 60 * 1000,
+        );
+
+        app.terminating(() => {
+          clearInterval(rollupInterval);
+        });
+      }, rollupDelay);
 
       // Set up 10-minute aggregation timer
       // Calculate delay to align with 10-minute boundaries (00:00, 00:10, 00:20, etc.)
@@ -137,6 +172,7 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
         clearTimeout(initialTimeout);
         clearTimeout(retentionBootTimeout);
         clearInterval(retentionInterval);
+        clearTimeout(rollupInitialTimeout);
         windAggregationService.stopFlushTimer();
         // Persist the in-flight minute instead of dropping it on shutdown
         await windAggregationService.forceFlushBuckets();

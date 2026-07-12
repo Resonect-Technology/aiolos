@@ -27,3 +27,9 @@ export const diagnosticsHistoryQuerySchema = z.object({
   hours: clampedIntQuery(24, 1, 720),
   limit: clampedIntQuery(500, 1, 2000),
 });
+
+/** Query for GET /diagnostics/aggregated (daily rollups, kept indefinitely) */
+export const diagnosticsAggregatedQuerySchema = z.object({
+  days: clampedIntQuery(30, 1, 3650),
+  limit: clampedIntQuery(365, 1, 3650),
+});

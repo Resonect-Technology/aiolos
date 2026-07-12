@@ -65,9 +65,9 @@ const systemConfigs = [{ key: 'construction_mode', value: 'false' }];
 const retentionPolicies = [
   {
     dataType: 'temperature',
-    retentionDays: 365,
+    retentionDays: 180,
     isActive: true,
-    description: 'Temperature readings retention for 1 year',
+    description: 'Raw temperature readings retention for 6 months (hourly rollup kept forever)',
   },
   {
     dataType: 'wind_1min',
@@ -77,9 +77,9 @@ const retentionPolicies = [
   },
   {
     dataType: 'wind_10min',
-    retentionDays: 365,
+    retentionDays: 180,
     isActive: true,
-    description: '10-minute wind aggregation retention for 1 year',
+    description: '10-minute wind aggregation retention for 6 months (hourly rollup kept forever)',
   },
   {
     dataType: 'diagnostics',
@@ -130,17 +130,30 @@ for (const policy of retentionPolicies) {
   }
 }
 
-// One-time correction: wind_10min originally shipped as 1 day, referencing an
-// hourly rollup that never existed — cleanup would wipe all 10-minute history.
-const wind10MinPolicy = await prisma.dataRetentionPolicy.findFirst({
-  where: { dataType: 'wind_10min', retentionDays: 1 },
-});
-if (wind10MinPolicy) {
-  await prisma.dataRetentionPolicy.update({
-    where: { id: wind10MinPolicy.id },
-    data: { retentionDays: 365, description: '10-minute wind aggregation retention for 1 year' },
+// One-time corrections for existing databases (seeds above only insert when
+// the dataType is missing). With the hourly/daily rollups in place, raw
+// temperature and 10-minute wind drop from 365 to 180 days; the rollup
+// catch-up in bin/server.ts always runs before the cleanup, so history is
+// downsampled before the tighter policy deletes it. The wind_10min "1 day"
+// value is the original shipping bug, corrected here as well.
+const retentionCorrections = [
+  { dataType: 'temperature', fromDays: [365] },
+  { dataType: 'wind_10min', fromDays: [1, 365] },
+];
+for (const correction of retentionCorrections) {
+  const target = retentionPolicies.find((policy) => policy.dataType === correction.dataType)!;
+  const outdated = await prisma.dataRetentionPolicy.findFirst({
+    where: { dataType: correction.dataType, retentionDays: { in: correction.fromDays } },
   });
-  console.log('Corrected wind_10min retention policy from 1 day to 365 days');
+  if (outdated) {
+    await prisma.dataRetentionPolicy.update({
+      where: { id: outdated.id },
+      data: { retentionDays: target.retentionDays, description: target.description },
+    });
+    console.log(
+      `Corrected ${correction.dataType} retention policy from ${outdated.retentionDays} to ${target.retentionDays} days`,
+    );
+  }
 }
 
 console.log('Seeding completed');

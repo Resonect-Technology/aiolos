@@ -35,3 +35,21 @@ export const diagnosticsHistoryRowSchema = z.object({
   createdAt: z.string(),
 });
 export type DiagnosticsHistoryRow = z.infer<typeof diagnosticsHistoryRowSchema>;
+
+/** Daily rollup rows of GET /api/stations/:id/diagnostics/aggregated */
+export const diagnosticsDailyRowSchema = z.object({
+  stationId: z.string(),
+  date: z.string(),
+  batteryMin: z.number(),
+  batteryAvg: z.number(),
+  batteryMax: z.number(),
+  solarMin: z.number(),
+  solarAvg: z.number(),
+  solarMax: z.number(),
+  signalQualityAvg: z.number(),
+  internalTempMin: z.number().nullable(),
+  internalTempAvg: z.number().nullable(),
+  internalTempMax: z.number().nullable(),
+  sampleCount: z.number(),
+});
+export type DiagnosticsDailyRow = z.infer<typeof diagnosticsDailyRowSchema>;

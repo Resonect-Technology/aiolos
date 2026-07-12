@@ -24,6 +24,11 @@ create-if-missing only).
 - **Wind timestamps (`wind_data_1min/10min.timestamp`) are UTC ISO-8601
   `String`s by design** — stored as text, range-queried lexicographically. Never
   change them to `DateTime`, and always compare with `.toUTC().toISO()` values.
+- The rollup tables (`temperature_hourly`, `wind_data_hourly`,
+  `station_diagnostics_daily`) follow the same String-timestamp convention
+  (`date` is `YYYY-MM-DD` text) and are kept **forever** — never add a retention
+  policy or cleanup for them; the retention cleanup must always run AFTER the
+  rollup catch-up (`bin/server.ts` chains them).
 - `tendency` is a plain String constrained at app level (`WindTendency` in
   `app/types.ts`).
 - Tests recreate `tmp/db.sqlite3` from migrations each run

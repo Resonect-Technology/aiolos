@@ -9,6 +9,18 @@ import { prisma } from '#services/prisma';
 import type { WindData1MinModel } from '../../generated/prisma/models.js';
 
 /**
+ * Circular (vector) mean of accumulated direction components, in [0, 360).
+ * Shared with the hourly rollup service.
+ */
+export function circularMean(sinSum: number, cosSum: number): number {
+  if (sinSum === 0 && cosSum === 0) {
+    return 0;
+  }
+  const degrees = (Math.atan2(sinSum, cosSum) * 180) / Math.PI;
+  return Math.round((degrees + 360) % 360) % 360;
+}
+
+/**
  * Data structure for tracking wind data in a minute interval
  */
 interface WindBucket {
@@ -234,11 +246,7 @@ export class WindAggregationService {
    * Circular (vector) mean of accumulated direction components, in [0, 360)
    */
   private circularMean(sinSum: number, cosSum: number): number {
-    if (sinSum === 0 && cosSum === 0) {
-      return 0;
-    }
-    const degrees = (Math.atan2(sinSum, cosSum) * 180) / Math.PI;
-    return Math.round((degrees + 360) % 360) % 360;
+    return circularMean(sinSum, cosSum);
   }
 
   /**

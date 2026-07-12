@@ -34,6 +34,9 @@ test.group('Data Cleanup Service', (group) => {
   group.each.teardown(async () => {
     await prisma.windData1Min.deleteMany();
     await prisma.windData10Min.deleteMany();
+    await prisma.temperatureHourly.deleteMany();
+    await prisma.windDataHourly.deleteMany();
+    await prisma.diagnosticsDaily.deleteMany();
     await prisma.dataRetentionPolicy.deleteMany();
     await prisma.weatherStation.deleteMany();
   });
@@ -83,5 +86,52 @@ test.group('Data Cleanup Service', (group) => {
 
     assert.match(result.windData1MinCleanup.policy, /Default retention: 1 days/);
     assert.match(result.windData10MinCleanup.policy, /Default retention: 365 days/);
+  });
+
+  test('should never delete rollup rows regardless of age', async ({ assert }) => {
+    // Rollups have no retention policy — they are kept indefinitely
+    const ancient = DateTime.now().minus({ days: 1000 });
+
+    await prisma.temperatureHourly.create({
+      data: {
+        stationId: testStationId,
+        timestamp: ancient.toUTC().toISO()!,
+        avgTemperature: 20.0,
+        minTemperature: 18.0,
+        maxTemperature: 22.0,
+        sampleCount: 12,
+      },
+    });
+    await prisma.windDataHourly.create({
+      data: {
+        stationId: testStationId,
+        timestamp: ancient.toUTC().toISO()!,
+        avgSpeed: 10.0,
+        minSpeed: 8.0,
+        maxSpeed: 12.0,
+        dominantDirection: 270,
+        intervalCount: 6,
+      },
+    });
+    await prisma.diagnosticsDaily.create({
+      data: {
+        stationId: testStationId,
+        date: ancient.toISODate()!,
+        batteryMin: 3.8,
+        batteryAvg: 4.0,
+        batteryMax: 4.2,
+        solarMin: 0.0,
+        solarAvg: 3.0,
+        solarMax: 6.0,
+        signalQualityAvg: 22.0,
+        sampleCount: 288,
+      },
+    });
+
+    await dataCleanupService.runAllCleanups();
+
+    assert.lengthOf(await prisma.temperatureHourly.findMany(), 1);
+    assert.lengthOf(await prisma.windDataHourly.findMany(), 1);
+    assert.lengthOf(await prisma.diagnosticsDaily.findMany(), 1);
   });
 });

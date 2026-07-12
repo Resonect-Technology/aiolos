@@ -141,6 +141,75 @@ model WindData1Min {
   @@map("wind_data_1min")
 }
 
+/// Hourly wind rollup aggregated from wind_data_10min (rollup_service).
+/// Kept indefinitely — no retention policy. Timestamp is a UTC ISO-8601
+/// String like the other wind tables (see the WindData1Min comment).
+model WindDataHourly {
+  id                Int       @id @default(autoincrement())
+  stationId         String    @map("station_id")
+  timestamp         String
+  avgSpeed          Float     @map("avg_speed")
+  minSpeed          Float     @map("min_speed")
+  maxSpeed          Float     @map("max_speed")
+  gustSpeed         Float?    @map("gust_speed")
+  dominantDirection Int       @map("dominant_direction")
+  intervalCount     Int       @map("interval_count")
+  createdAt         DateTime? @default(now()) @map("created_at")
+  updatedAt         DateTime? @updatedAt @map("updated_at")
+
+  @@unique([stationId, timestamp])
+  @@index([stationId])
+  @@index([timestamp])
+  @@map("wind_data_hourly")
+}
+
+/// Hourly temperature rollup aggregated from temperature_readings
+/// (rollup_service). Kept indefinitely — no retention policy. Timestamp is a
+/// UTC ISO-8601 String (hour start), same convention as the wind tables.
+model TemperatureHourly {
+  id             Int       @id @default(autoincrement())
+  stationId      String    @map("station_id")
+  timestamp      String
+  avgTemperature Float     @map("avg_temperature")
+  minTemperature Float     @map("min_temperature")
+  maxTemperature Float     @map("max_temperature")
+  sampleCount    Int       @map("sample_count")
+  createdAt      DateTime? @default(now()) @map("created_at")
+  updatedAt      DateTime? @updatedAt @map("updated_at")
+
+  @@unique([stationId, timestamp])
+  @@index([stationId])
+  @@index([timestamp])
+  @@map("temperature_hourly")
+}
+
+/// Daily diagnostics rollup aggregated from station_diagnostics
+/// (rollup_service). Kept indefinitely — no retention policy. date is the
+/// UTC day as "YYYY-MM-DD" text, range-queried lexicographically.
+model DiagnosticsDaily {
+  id              Int       @id @default(autoincrement())
+  stationId       String    @map("station_id")
+  date            String
+  batteryMin      Float     @map("battery_min")
+  batteryAvg      Float     @map("battery_avg")
+  batteryMax      Float     @map("battery_max")
+  solarMin        Float     @map("solar_min")
+  solarAvg        Float     @map("solar_avg")
+  solarMax        Float     @map("solar_max")
+  signalQualityAvg Float    @map("signal_quality_avg")
+  internalTempMin Float?    @map("internal_temp_min")
+  internalTempAvg Float?    @map("internal_temp_avg")
+  internalTempMax Float?    @map("internal_temp_max")
+  sampleCount     Int       @map("sample_count")
+  createdAt       DateTime? @default(now()) @map("created_at")
+  updatedAt       DateTime? @updatedAt @map("updated_at")
+
+  @@unique([stationId, date])
+  @@index([stationId])
+  @@index([date])
+  @@map("station_diagnostics_daily")
+}
+
 /// tendency is 'increasing' | 'decreasing' | 'stable' (CHECK constraint in the
 /// legacy DDL; enforced at app level via the WindTendency union type).
 model WindData10Min {
