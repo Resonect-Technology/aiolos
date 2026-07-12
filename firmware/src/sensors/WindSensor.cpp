@@ -5,6 +5,7 @@
 
 #include "WindSensor.h"
 #include "../core/Logger.h"
+#include "../logic/WindLogic.h"
 #include <Arduino.h> // Make sure this is included
 
 #define LOG_TAG_WIND "WIND"
@@ -70,74 +71,15 @@ float WindSensor::getWindDirection()
     // Get averaged ADC value to reduce noise
     int adcValue = getAveragedAdcReading();
 
-    // Use direct ADC value mapping from the old working code
-    float direction;
-
-    // Log the raw ADC value for debugging
-    Logger.debug(LOG_TAG_WIND, "Wind vane raw ADC value: %d", adcValue);
-
-    // Map ADC value to wind direction based on calibrated ranges
-    // Updated with calibration results from wizard (July 2025)
-    // Calibration data (sorted by ADC):
-    // EAST(90°): 330, SOUTHEAST(135°): 586, SOUTH(180°): 1023,
-    // NORTHEAST(45°): 1909, SOUTHWEST(225°): 2427, NORTH(0°): 3071,
-    // NORTHWEST(315°): 3546, WEST(270°): 3927
-
-    if (adcValue < 458) // Below 458 (midpoint of 330 and 586)
-    {
-        direction = 90; // EAST
-        Logger.debug(LOG_TAG_WIND, "ADC %d -> EAST (90°)", adcValue);
-    }
-    else if (adcValue < 804) // 458-804 (midpoint of 586 and 1023)
-    {
-        direction = 135; // SOUTHEAST
-        Logger.debug(LOG_TAG_WIND, "ADC %d -> SOUTHEAST (135°)", adcValue);
-    }
-    else if (adcValue < 1466) // 804-1466 (midpoint of 1023 and 1909)
-    {
-        direction = 180; // SOUTH
-        Logger.debug(LOG_TAG_WIND, "ADC %d -> SOUTH (180°)", adcValue);
-    }
-    else if (adcValue < 2168) // 1466-2168 (midpoint of 1909 and 2427)
-    {
-        direction = 45; // NORTHEAST
-        Logger.debug(LOG_TAG_WIND, "ADC %d -> NORTHEAST (45°)", adcValue);
-    }
-    else if (adcValue < 2749) // 2168-2749 (midpoint of 2427 and 3071)
-    {
-        direction = 225; // SOUTHWEST
-        Logger.debug(LOG_TAG_WIND, "ADC %d -> SOUTHWEST (225°)", adcValue);
-    }
-    else if (adcValue < 3308) // 2749-3308 (midpoint of 3071 and 3546)
-    {
-        direction = 0; // NORTH
-        Logger.debug(LOG_TAG_WIND, "ADC %d -> NORTH (0°)", adcValue);
-    }
-    else if (adcValue < 3736) // 3308-3736 (midpoint of 3546 and 3927)
-    {
-        direction = 315; // NORTHWEST
-        Logger.debug(LOG_TAG_WIND, "ADC %d -> NORTHWEST (315°)", adcValue);
-    }
-    else
-    {
-        direction = 270; // WEST (3736+)
-        Logger.debug(LOG_TAG_WIND, "ADC %d -> WEST (270°)", adcValue);
-    }
-
-    // Note: No adjustment needed since calibration already gives us correct directions
-    // The old code needed -90 adjustment because it used different direction mapping
-    // Our calibration wizard mapped directions correctly, so we use them directly
+    // Map ADC value to wind direction based on calibrated ranges (see WindLogic.h)
+    float direction = WindLogic::adcToDirection(adcValue);
+    Logger.debug(LOG_TAG_WIND, "ADC %d -> %.0f°", adcValue, direction);
 
     // Implement minimum change time to prevent rapid direction bouncing
     unsigned long currentTime = millis();
 
-    // Check if this is a significant direction change
-    float directionDifference = abs(direction - _lastStableDirection);
-    if (directionDifference > 180)
-    {
-        // Handle wrap-around (e.g., 350° to 10° is only 20° difference)
-        directionDifference = 360 - directionDifference;
-    }
+    // Check if this is a significant direction change (handles 0°/360° wrap)
+    float directionDifference = WindLogic::angularDifference(direction, _lastStableDirection);
 
     // If direction has changed significantly
     if (directionDifference > 11.25)
@@ -206,11 +148,8 @@ float WindSensor::getWindSpeed(unsigned long samplePeriodMs)
         return 0.0;
     }
 
-    // Calculate frequency (pulses per second) using synchronized pulse count and time
-    float frequency = (float)pulsesInPeriod * 1000.0 / elapsedTime;
-
-    // Convert frequency to wind speed using calibration factor
-    float windSpeed = frequency * ANEMOMETER_FACTOR;
+    // Convert synchronized pulse count and time to wind speed
+    float windSpeed = WindLogic::pulsesToSpeed(pulsesInPeriod, elapsedTime, ANEMOMETER_FACTOR);
 
     Logger.debug(LOG_TAG_WIND, "Anemometer: %lu pulses in %lu ms (total: %lu), Speed: %.2f m/s",
                  pulsesInPeriod, elapsedTime, currentTotalPulses, windSpeed);
@@ -463,9 +402,7 @@ bool WindSensor::getAveragedWindData(unsigned long samplingPeriodMs, float &avgS
         float currentDirection = getWindDirection();
 
         // Convert direction to X,Y components for vector averaging
-        float radians = currentDirection * PI / 180.0;
-        _directionSumX += cos(radians);
-        _directionSumY += sin(radians);
+        WindLogic::addDirectionSample(_directionSumX, _directionSumY, currentDirection);
         _directionSampleCount++;
 
         // Accumulate pulse count
@@ -495,17 +432,10 @@ bool WindSensor::getAveragedWindData(unsigned long samplingPeriodMs, float &avgS
     }
 
     // Calculate averaged wind direction using vector averaging
-    float avgX = _directionSumX / _directionSampleCount;
-    float avgY = _directionSumY / _directionSampleCount;
-    avgDirection = atan2(avgY, avgX) * 180.0 / PI;
-
-    // Ensure direction is in 0-360 range
-    if (avgDirection < 0)
-        avgDirection += 360.0;
+    avgDirection = WindLogic::vectorAverageDeg(_directionSumX, _directionSumY, _directionSampleCount);
 
     // Calculate averaged wind speed
-    float frequency = (float)_totalPulseCount * 1000.0 / elapsedTime;
-    avgSpeed = frequency * ANEMOMETER_FACTOR;
+    avgSpeed = WindLogic::pulsesToSpeed(_totalPulseCount, elapsedTime, ANEMOMETER_FACTOR);
 
     Logger.info(LOG_TAG_WIND, "Sampling complete: Avg Speed: %.2f m/s, Avg Direction: %.1f° (Samples: %d, Pulses: %lu)",
                 avgSpeed, avgDirection, _directionSampleCount, _totalPulseCount);

@@ -144,10 +144,13 @@ jobs:
       - name: Install PlatformIO
         run: pip install platformio
 
-      - name: Build firmware
+      - name: Run native unit tests
         run: |
           cp firmware/secrets.ini.example firmware/secrets.ini
-          pio run -e aiolos-esp32dev -e aiolos-esp32dev-debug
+          pio test -e native
+
+      - name: Build firmware
+        run: pio run -e aiolos-esp32dev -e aiolos-esp32dev-debug
 
   ci-summary:
     name: CI Summary

@@ -12,6 +12,7 @@
 #include <esp_task_wdt.h>
 
 #include "core/Watchdog.h"
+#include "logic/TimeLogic.h"
 #include <math.h> // For isnan()
 #include "config/Config.h"
 #include "core/Logger.h"
@@ -955,28 +956,9 @@ bool isSleepTime()
         return false;
     }
 
-    bool inSleepWindow;
-
-    if (dynamicSleepStartHour == dynamicSleepEndHour)
-    {
-        // If start and end hours are the same, no sleep window is defined
-        inSleepWindow = false;
-        Logger.debug(LOG_TAG_SYSTEM, "isSleepTime(): Sleep start and end hours are the same, no sleep window");
-    }
-    else if (dynamicSleepStartHour < dynamicSleepEndHour)
-    {
-        // Sleep window is within the same day (e.g., 02:00 to 06:00)
-        inSleepWindow = (currentHour >= dynamicSleepStartHour && currentHour < dynamicSleepEndHour);
-        Logger.debug(LOG_TAG_SYSTEM, "isSleepTime(): Same-day sleep window (%02d:00-%02d:00), currentHour=%d, inWindow=%s",
-                     dynamicSleepStartHour, dynamicSleepEndHour, currentHour, inSleepWindow ? "true" : "false");
-    }
-    else
-    {
-        // Sleep window crosses midnight (e.g., 23:00 to 06:00)
-        inSleepWindow = (currentHour >= dynamicSleepStartHour || currentHour < dynamicSleepEndHour);
-        Logger.debug(LOG_TAG_SYSTEM, "isSleepTime(): Midnight-crossing sleep window (%02d:00-%02d:00), currentHour=%d, inWindow=%s",
-                     dynamicSleepStartHour, dynamicSleepEndHour, currentHour, inSleepWindow ? "true" : "false");
-    }
+    bool inSleepWindow = TimeLogic::isInSleepWindow(currentHour, dynamicSleepStartHour, dynamicSleepEndHour);
+    Logger.debug(LOG_TAG_SYSTEM, "isSleepTime(): Sleep window %02d:00-%02d:00, currentHour=%d, inWindow=%s",
+                 dynamicSleepStartHour, dynamicSleepEndHour, currentHour, inSleepWindow ? "true" : "false");
 
     return inSleepWindow;
 #endif
