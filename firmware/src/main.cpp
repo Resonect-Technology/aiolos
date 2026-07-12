@@ -86,6 +86,17 @@ unsigned long lastSlowModeCheck = 0;
 RTC_DATA_ATTR bool rtcCriticalSleepActive = false;
 RTC_DATA_ATTR uint16_t rtcCriticalSleepCycles = 0;
 
+// Last-known remote sleep window + UTC offset, so the pre-config sleep check
+// in setup() honors the server config instead of the compile-time defaults
+// (a configured wake at 6 would otherwise re-sleep until the default 9).
+// The magic marks the values as written: power-on zeroes RTC RAM and an
+// all-zero window would pass range checks while disabling night sleep.
+constexpr uint32_t RTC_CONFIG_MAGIC = 0xA105C0F6; // "AIOLOS CONFIG"
+RTC_DATA_ATTR uint32_t rtcConfigMagic = 0;
+RTC_DATA_ATTR int rtcSleepStartHour = -1;
+RTC_DATA_ATTR int rtcSleepEndHour = -1;
+RTC_DATA_ATTR int rtcUtcOffsetMinutes = 0;
+
 // Calibration mode - can be enabled via build flags
 #ifdef CALIBRATION_MODE
 const bool CALIBRATION_ENABLED = true;
@@ -152,18 +163,33 @@ void setup()
     // Deliberately not gated on ESP_RST_DEEPSLEEP so uptime restarts and
     // brownout resets are covered too.
     {
-        float bootVoltage = BatteryUtils::readBatteryVoltage();
-        int bootLowReads = 0;
-        // A single read suffices here: the modem is still off, so a false
-        // positive costs one hibernation cycle at most
-        if (SchedLogic::updateCriticalBattery(rtcCriticalSleepActive, bootVoltage,
-                                              CRITICAL_BATTERY_VOLTAGE, CRITICAL_BATTERY_RECOVERY_V,
-                                              bootLowReads, 1))
+        // Debounced 3-read decision: a false entry is NOT "one cycle at most"
+        // (recovery needs +0.1 V, so one noisy low read would latch a healthy
+        // pack into hourly hibernation), and a false exit powers the modem on
+        // a dying pack. Normal boots pay only the first ~20 ms read.
+        float bootReads[3];
+        bootReads[0] = BatteryUtils::readBatteryVoltage();
+        bool needsDebounce = rtcCriticalSleepActive || bootReads[0] < CRITICAL_BATTERY_VOLTAGE;
+        if (needsDebounce)
+        {
+            for (int i = 1; i < 3; i++)
+            {
+                delay(200);
+                bootReads[i] = BatteryUtils::readBatteryVoltage();
+            }
+        }
+        float bootVoltage = bootReads[0];
+        if (needsDebounce &&
+            SchedLogic::criticalAtBoot(rtcCriticalSleepActive, bootReads, 3,
+                                       CRITICAL_BATTERY_VOLTAGE, CRITICAL_BATTERY_RECOVERY_V))
         {
             rtcCriticalSleepActive = true;
             rtcCriticalSleepCycles++;
             Logger.error(LOG_TAG_SYSTEM, "Battery critical at boot (%.2f V), hibernating %d s (cycle %u)",
                          bootVoltage, CRITICAL_SLEEP_DURATION_S, rtcCriticalSleepCycles);
+            // On non-deep-sleep resets the modem may still be powered - shut
+            // it down or the hibernation drains the pack it protects
+            modemManager.emergencyPowerOff();
             esp_sleep_enable_timer_wakeup((uint64_t)CRITICAL_SLEEP_DURATION_S * 1000000ULL);
             esp_deep_sleep_start();
         }
@@ -176,6 +202,18 @@ void setup()
         }
     }
 #endif
+
+    // Restore the last-known remote sleep window + UTC offset so the
+    // pre-config sleep check below uses server values, not compiled defaults
+    if (rtcConfigMagic == RTC_CONFIG_MAGIC &&
+        ConfigLogic::validSleepConfig(rtcSleepStartHour, rtcSleepEndHour, rtcUtcOffsetMinutes))
+    {
+        dynamicSleepStartHour = rtcSleepStartHour;
+        dynamicSleepEndHour = rtcSleepEndHour;
+        dynamicUtcOffsetMinutes = rtcUtcOffsetMinutes;
+        Logger.info(LOG_TAG_SYSTEM, "Restored sleep window %02d:00-%02d:00 (UTC%+d min) from RTC memory",
+                    dynamicSleepStartHour, dynamicSleepEndHour, dynamicUtcOffsetMinutes);
+    }
 
     // Set up LED
     pinMode(LED_PIN, OUTPUT);
@@ -889,36 +927,40 @@ void handleRemoteConfiguration()
 
     if (httpClient.fetchConfiguration(DEVICE_ID, config))
     {
-        // Apply configuration if values are valid (non-zero)
+        // Apply configuration if values are valid (non-zero); every interval
+        // is clamped so a seconds-scale server value can't put the station
+        // into a sub-second send loop
         if (config.tempInterval > 0)
         {
-            dynamicTempInterval = config.tempInterval;
+            dynamicTempInterval = ConfigLogic::clampIntervalMs(config.tempInterval, 10000UL, 86400000UL);
             Logger.info(LOG_TAG_SYSTEM, "Updated temperature interval to %lu ms", dynamicTempInterval);
         }
 
         if (config.windSendInterval > 0)
         {
-            dynamicWindInterval = config.windSendInterval;
+            dynamicWindInterval = ConfigLogic::clampIntervalMs(config.windSendInterval, 1000UL, 3600000UL);
             Logger.info(LOG_TAG_SYSTEM, "Updated wind send interval to %lu ms", dynamicWindInterval);
         }
 
         if (config.windSampleInterval > 0)
         {
-            dynamicWindSampleInterval = config.windSampleInterval;
+            dynamicWindSampleInterval = ConfigLogic::clampIntervalMs(config.windSampleInterval, 1000UL, 60000UL);
             windSensor.setSampleInterval(dynamicWindSampleInterval);
             Logger.info(LOG_TAG_SYSTEM, "Updated wind sample interval to %lu ms", dynamicWindSampleInterval);
         }
 
         if (config.diagInterval > 0)
         {
-            dynamicDiagInterval = config.diagInterval;
+            dynamicDiagInterval = ConfigLogic::clampIntervalMs(config.diagInterval, 60000UL, 86400000UL);
             diagnosticsManager.setInterval(dynamicDiagInterval);
             Logger.info(LOG_TAG_SYSTEM, "Updated diagnostics interval to %lu ms", dynamicDiagInterval);
         }
 
         if (config.timeInterval > 0)
         {
-            dynamicTimeInterval = config.timeInterval;
+            // The 1h cap keeps time syncs fresher than isSleepTime()'s 2h
+            // staleness gate, which would otherwise suppress night sleep
+            dynamicTimeInterval = ConfigLogic::clampIntervalMs(config.timeInterval, 600000UL, 3600000UL);
             Logger.info(LOG_TAG_SYSTEM, "Updated time update interval to %lu ms", dynamicTimeInterval);
         }
 
@@ -980,6 +1022,13 @@ void handleRemoteConfiguration()
             dynamicLowBatteryThreshold = config.lowBatteryThreshold;
             Logger.info(LOG_TAG_SYSTEM, "Updated low battery threshold to %.2f V", dynamicLowBatteryThreshold);
         }
+
+        // Persist the applied sleep window + UTC offset for the pre-config
+        // sleep check on the next boot (written together to stay consistent)
+        rtcSleepStartHour = dynamicSleepStartHour;
+        rtcSleepEndHour = dynamicSleepEndHour;
+        rtcUtcOffsetMinutes = dynamicUtcOffsetMinutes;
+        rtcConfigMagic = RTC_CONFIG_MAGIC;
 
         // Check for remote OTA flag after config update
         if (!otaActive && config.remoteOta)

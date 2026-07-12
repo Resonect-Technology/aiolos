@@ -8,6 +8,7 @@
 #include <ArduinoJson.h> // Use ArduinoJson for robust parsing
 #include "esp_task_wdt.h"
 #include "core/ModemManager.h"
+#include "logic/HttpLogic.h"
 
 #define LOG_TAG_HTTP "HTTP"
 
@@ -155,6 +156,10 @@ int AiolosHttpClient::_performRequest(const char *method, const char *path, cons
         return 0; // Throttled, do not attempt
     }
 
+    // A single request is bounded well under the loop watchdog timeout, but a
+    // loop pass chaining several requests is not - feed it per request
+    esp_task_wdt_reset();
+
     if (!_modemManager)
     {
         Logger.error(LOG_TAG_HTTP, "HTTP client not initialized");
@@ -182,6 +187,7 @@ int AiolosHttpClient::_performRequest(const char *method, const char *path, cons
             _arduinoClient->sendHeader("Content-Type", "application/json");
             _arduinoClient->sendHeader("Content-Length", strlen(requestBody));
             _arduinoClient->sendHeader("X-API-Key", STATION_API_KEY);
+            _arduinoClient->sendHeader("Connection", "close");
             _arduinoClient->beginBody();
             _arduinoClient->print(requestBody);
         }
@@ -192,6 +198,7 @@ int AiolosHttpClient::_performRequest(const char *method, const char *path, cons
         if (err == 0)
         {
             _arduinoClient->sendHeader("X-API-Key", STATION_API_KEY);
+            _arduinoClient->sendHeader("Connection", "close");
         }
     }
     _arduinoClient->endRequest();
@@ -237,6 +244,11 @@ int AiolosHttpClient::_performRequest(const char *method, const char *path, cons
             responseBody += c;
             lastRead = millis(); // Reset timeout timer with each byte received
         }
+        if (contentLength >= 0 && (int)responseBody.length() >= contentLength)
+        {
+            break; // Full body received - don't idle-wait on a keep-alive socket
+        }
+        delay(1); // Yield instead of busy-spinning the core
     }
 
     // It's important to stop the client after each request to close the connection
@@ -247,19 +259,28 @@ int AiolosHttpClient::_performRequest(const char *method, const char *path, cons
         Logger.debug(LOG_TAG_HTTP, "Response Body: %s", responseBody.c_str());
     }
 
-    if (statusCode >= 200 && statusCode < 300)
+    switch (HttpLogic::classify(statusCode))
     {
+    case HttpLogic::Outcome::Ok:
         _resetBackoff();
-    }
-    else
-    {
-        // If the status code is not successful, handle the failure.
+        break;
+    case HttpLogic::Outcome::RejectedNoBackoff:
+        // Delivered but rejected - connectivity is fine, don't throttle
+        _resetBackoff();
+        Logger.error(LOG_TAG_HTTP, "HTTP request delivered but rejected (%d)", statusCode);
+        if (responseBody.length() > 0)
+        {
+            Logger.error(LOG_TAG_HTTP, "Response: %s", responseBody.c_str());
+        }
+        break;
+    case HttpLogic::Outcome::Backoff:
         _handleHttpFailure();
         Logger.error(LOG_TAG_HTTP, "HTTP request failed with status code: %d", statusCode);
         if (responseBody.length() > 0)
         {
             Logger.error(LOG_TAG_HTTP, "Response: %s", responseBody.c_str());
         }
+        break;
     }
 
     return statusCode;
@@ -278,6 +299,10 @@ int AiolosHttpClient::_performLightweightPost(const char *path, const char *body
     {
         return 0; // Throttled, do not attempt
     }
+
+    // A single request is bounded well under the loop watchdog timeout, but a
+    // loop pass chaining several requests is not - feed it per request
+    esp_task_wdt_reset();
 
     if (!_modemManager)
     {
@@ -302,6 +327,7 @@ int AiolosHttpClient::_performLightweightPost(const char *path, const char *body
         _arduinoClient->sendHeader("Content-Type", "application/json");
         _arduinoClient->sendHeader("Content-Length", strlen(requestBody));
         _arduinoClient->sendHeader("X-API-Key", STATION_API_KEY);
+        _arduinoClient->sendHeader("Connection", "close");
         _arduinoClient->beginBody();
         _arduinoClient->print(requestBody);
     }
@@ -321,14 +347,20 @@ int AiolosHttpClient::_performLightweightPost(const char *path, const char *body
     // Important: stop the client immediately to close the connection
     _arduinoClient->stop();
 
-    if (statusCode >= 200 && statusCode < 300)
+    switch (HttpLogic::classify(statusCode))
     {
+    case HttpLogic::Outcome::Ok:
         _resetBackoff();
-    }
-    else
-    {
+        break;
+    case HttpLogic::Outcome::RejectedNoBackoff:
+        // Delivered but rejected - connectivity is fine, don't throttle
+        _resetBackoff();
+        Logger.error(LOG_TAG_HTTP, "HTTP request delivered but rejected (%d)", statusCode);
+        break;
+    case HttpLogic::Outcome::Backoff:
         _handleHttpFailure();
         Logger.error(LOG_TAG_HTTP, "HTTP request failed with status code: %d", statusCode);
+        break;
     }
 
     return statusCode;

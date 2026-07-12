@@ -198,10 +198,10 @@ test.group('Station Configs Controller', (group) => {
     });
 
     const configData = {
-      tempInterval: 600,
-      windSendInterval: 30,
-      windSampleInterval: 5,
-      diagInterval: 1800,
+      tempInterval: 600_000,
+      windSendInterval: 30_000,
+      windSampleInterval: 5000,
+      diagInterval: 1_800_000,
       remoteOta: true,
     };
 
@@ -286,6 +286,89 @@ test.group('Station Configs Controller', (group) => {
     assert.equal(typeof body.error, 'string');
     assert.include(body.error, 'Invalid value for tempInterval');
     assert.notProperty(body, 'ok', 'Success field should not be present in error response');
+  });
+
+  /**
+   * Test: POST /api/stations/:station_id/config - Out-of-range values
+   * A seconds-scale interval (legacy unit mixup) or a windSendInterval the
+   * wind ingest endpoint would reject must not be storable.
+   */
+  test('should reject out-of-range configuration values', async ({ client, assert }) => {
+    const stationId = 'test-station-ranges';
+    const adminCookie = { loggedInAt: new Date().toISOString() };
+
+    const cases = [
+      { body: { tempInterval: 300 }, field: 'tempInterval' }, // seconds-scale mixup
+      { body: { windSendInterval: 300 }, field: 'windSendInterval' }, // below ingest intervalMs floor
+      { body: { windSendInterval: 7_200_000 }, field: 'windSendInterval' }, // above ingest intervalMs cap
+      { body: { restartInterval: 60 }, field: 'restartInterval' }, // below firmware 1 h floor
+      { body: { sleepEndHour: 24 }, field: 'sleepEndHour' },
+      { body: { utcOffsetMinutes: 900 }, field: 'utcOffsetMinutes' },
+    ];
+
+    for (const { body, field } of cases) {
+      const response = await client
+        .post(`/api/stations/${stationId}/config`)
+        .withEncryptedCookie('aiolos_admin', adminCookie)
+        .json(body);
+      response.assertStatus(400);
+      assert.include(response.body().error, `Invalid value for ${field}`);
+    }
+  });
+
+  /**
+   * Test: POST /api/stations/:station_id/config - Partial update carry-forward
+   * Omitted fields must keep the latest row's values instead of becoming NULL
+   * (which would silently revert the station to firmware defaults on restart).
+   */
+  test('should carry forward previous values on a partial config update', async ({
+    client,
+    assert,
+  }) => {
+    const stationId = 'test-station-carry';
+
+    await prisma.weatherStation.create({
+      data: {
+        stationId: stationId,
+        name: 'Test Station Carry',
+        location: 'Test Environment',
+        description: 'Test station for carry-forward test',
+        isActive: true,
+      },
+    });
+
+    const adminCookie = { loggedInAt: new Date().toISOString() };
+
+    // Full config first
+    await client
+      .post(`/api/stations/${stationId}/config`)
+      .withEncryptedCookie('aiolos_admin', adminCookie)
+      .json({
+        tempInterval: 300_000,
+        windSendInterval: 120_000,
+        windSampleInterval: 10_000,
+        diagInterval: 300_000,
+        timeInterval: 3_600_000,
+        restartInterval: 21_600,
+        sleepStartHour: 22,
+        sleepEndHour: 6,
+        utcOffsetMinutes: 180,
+      });
+
+    // Partial update touching a single field
+    const partial = await client
+      .post(`/api/stations/${stationId}/config`)
+      .withEncryptedCookie('aiolos_admin', adminCookie)
+      .json({ windSendInterval: 1000 });
+    partial.assertStatus(200);
+
+    const body = (await client.get(`/api/stations/${stationId}/config`)).body();
+    assert.equal(body.windSendInterval, 1000, 'posted field should be updated');
+    assert.equal(body.tempInterval, 300_000, 'omitted field should carry forward');
+    assert.equal(body.sleepStartHour, 22, 'omitted field should carry forward');
+    assert.equal(body.sleepEndHour, 6, 'omitted field should carry forward');
+    assert.equal(body.utcOffsetMinutes, 180, 'omitted field should carry forward');
+    assert.equal(body.restartInterval, 21_600, 'omitted field should carry forward');
   });
 
   /**

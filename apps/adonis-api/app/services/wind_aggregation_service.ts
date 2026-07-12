@@ -114,10 +114,13 @@ export class WindAggregationService {
     const currentMinuteStart = this.getIntervalStart(now);
 
     for (const [bucketKey, bucket] of this.buckets.entries()) {
-      // If bucket is for a previous minute, save it
+      // If bucket is for a previous minute, save it. Delete BEFORE the
+      // awaited save: this runs concurrently from every ingest request and
+      // the flush timer, and two overlapping runs saving the same bucket
+      // would double-merge it (inflating sampleCount).
       if (bucket.intervalStart < currentMinuteStart) {
-        await this.saveAggregatedData(bucket);
         this.buckets.delete(bucketKey);
+        await this.saveAggregatedData(bucket);
       }
     }
   }
@@ -278,6 +281,12 @@ export class WindAggregationService {
     const intervalStart = currentIntervalStart.minus({ minutes: 10 });
 
     try {
+      // Flush the interval's final minute first: this job fires right at the
+      // boundary, when the :x9 bucket is usually still in memory (the 30 s
+      // timer hasn't run yet) — without this the aggregate permanently
+      // misses its last minute, since existing rows are never recomputed.
+      await this.checkAndSaveCompletedIntervals();
+
       // Get all stations that have 1-minute data for the interval
       const stations = await prisma.windData1Min.groupBy({
         by: ['stationId'],

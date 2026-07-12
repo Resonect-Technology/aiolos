@@ -130,7 +130,7 @@ bool DiagnosticsManager::sendDiagnostics(float internalTemp)
 
 #ifdef DISABLE_WDT_FOR_MODEM
     Logger.debug(LOG_TAG_DIAG, "Restoring watchdog after diagnostics");
-    watchdogEnable();
+    watchdogRestore();
 #endif
 
     if (success)

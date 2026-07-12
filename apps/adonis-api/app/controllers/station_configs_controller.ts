@@ -58,11 +58,40 @@ export default class StationConfigsController {
       // Coerce/validate the allowlisted fields; unknown keys are stripped
       const parsed = stationConfigWriteSchema.safeParse(data);
       if (!parsed.success) {
-        const field = String(parsed.error.issues[0]?.path[0] ?? 'field');
-        return response.badRequest({ error: `Invalid value for ${field}. Must be a number.` });
+        const issue = parsed.error.issues[0];
+        const field = String(issue?.path[0] ?? 'field');
+        return response.badRequest({
+          error: `Invalid value for ${field}. ${issue?.message ?? 'Must be a number.'}`,
+        });
       }
 
-      const configData = { ...parsed.data, stationId };
+      // Carry forward the latest row's values for omitted fields — a partial
+      // POST must not null them out, or the station silently reverts those
+      // settings to compile-time defaults at its next restart
+      const previous = await prisma.stationConfig.findFirst({
+        where: { stationId },
+        orderBy: { id: 'desc' },
+      });
+      const carried = previous
+        ? {
+            tempInterval: previous.tempInterval,
+            windSendInterval: previous.windSendInterval,
+            windSampleInterval: previous.windSampleInterval,
+            diagInterval: previous.diagInterval,
+            timeInterval: previous.timeInterval,
+            restartInterval: previous.restartInterval,
+            sleepStartHour: previous.sleepStartHour,
+            sleepEndHour: previous.sleepEndHour,
+            otaHour: previous.otaHour,
+            otaMinute: previous.otaMinute,
+            otaDuration: previous.otaDuration,
+            remoteOta: previous.remoteOta,
+            utcOffsetMinutes: previous.utcOffsetMinutes,
+            livestreamStartHour: previous.livestreamStartHour,
+            lowBatteryThreshold: previous.lowBatteryThreshold,
+          }
+        : {};
+      const configData = { ...carried, ...parsed.data, stationId };
 
       // Create new config record
       await prisma.stationConfig.create({ data: configData });

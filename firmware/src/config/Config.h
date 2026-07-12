@@ -150,10 +150,12 @@
 
 // Critical-battery hibernation (compile-time on purpose - a hard safety floor
 // must not be remotely mis-configurable). Single Li-ion 18650: 3.5 V is
-// ~10-15% charge; recovery at 3.7 V leaves margin for GPRS load sag so a
-// recovered station cannot flap straight back into hibernation.
+// ~10-15% charge. Entry reads happen under modem load (sagged); the boot-time
+// recovery read is unloaded (modem off), so 3.6 V unloaded sits comfortably
+// above 3.5 V loaded while still letting a battery resting at 3.6-3.7 V exit
+// hibernation without waiting for strong solar input.
 #define CRITICAL_BATTERY_VOLTAGE 3.5f        // Volts; hibernate below this
-#define CRITICAL_BATTERY_RECOVERY_V 3.7f     // Resume normal operation at >= this
+#define CRITICAL_BATTERY_RECOVERY_V 3.6f     // Resume at >= this (unloaded boot read)
 #define CRITICAL_BATTERY_CONSECUTIVE_READS 3 // Minute-spaced low reads required to hibernate
 #define CRITICAL_SLEEP_DURATION_S 3600       // Hibernation cycle length (1h) between battery re-checks
 

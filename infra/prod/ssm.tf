@@ -9,12 +9,12 @@
 # these on the instance — secrets never transit the GitHub runner.
 
 # =============================================================================
-# Infrastructure (Terraform provider inputs)
+# Infrastructure (Cloudflare — consumed by the Terraform provider AND Traefik)
 # =============================================================================
 
-resource "aws_ssm_parameter" "cloudflare_resonect_api_token" {
-  name        = "/aiolos/infrastructure/cloudflare-resonect-api-token"
-  description = "Cloudflare API token with DNS edit on resonect.cz (Terraform + Traefik ACME)"
+resource "aws_ssm_parameter" "cloudflare_dns_api_token" {
+  name        = "/aiolos/prod/infrastructure/cloudflare-dns-api-token"
+  description = "Cloudflare DNS-edit token for resonect.cz — Terraform provider + Traefik ACME DNS-01"
   type        = "SecureString"
   value       = "PLACEHOLDER"
 
@@ -27,8 +27,8 @@ resource "aws_ssm_parameter" "cloudflare_resonect_api_token" {
   }
 }
 
-resource "aws_ssm_parameter" "cloudflare_resonect_zone_id" {
-  name        = "/aiolos/config/cloudflare-resonect-zone-id"
+resource "aws_ssm_parameter" "cloudflare_zone_id" {
+  name        = "/aiolos/prod/config/cloudflare-zone-id"
   description = "Cloudflare zone ID for resonect.cz"
   type        = "String"
   value       = "PLACEHOLDER"
@@ -64,6 +64,21 @@ resource "aws_ssm_parameter" "backend_app_key" {
 resource "aws_ssm_parameter" "backend_admin_password" {
   name        = "/aiolos/prod/backend/admin-password"
   description = "Admin login password for the dashboard /admin section"
+  type        = "SecureString"
+  value       = "PLACEHOLDER"
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+
+  tags = {
+    Project = local.project_name
+  }
+}
+
+resource "aws_ssm_parameter" "backend_station_api_key" {
+  name        = "/aiolos/prod/backend/station-api-key"
+  description = "Station ingest X-API-Key; must match STATION_API_KEY in firmware/secrets.ini — the deploy refuses to ship the PLACEHOLDER value"
   type        = "SecureString"
   value       = "PLACEHOLDER"
 
@@ -155,25 +170,6 @@ resource "aws_ssm_parameter" "config_database_url" {
   description = "SQLite path inside the backend container (bind mount ./data:/data)"
   type        = "String"
   value       = "file:/data/db.sqlite3"
-
-  lifecycle {
-    ignore_changes = [value]
-  }
-
-  tags = {
-    Project = local.project_name
-  }
-}
-
-# =============================================================================
-# Traefik
-# =============================================================================
-
-resource "aws_ssm_parameter" "traefik_cf_dns_api_token" {
-  name        = "/aiolos/prod/traefik/cf-dns-api-token"
-  description = "Cloudflare DNS-edit token for Traefik ACME DNS-01 (may equal the infrastructure token)"
-  type        = "SecureString"
-  value       = "PLACEHOLDER"
 
   lifecycle {
     ignore_changes = [value]

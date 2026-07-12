@@ -8,6 +8,7 @@
 #include <unity.h>
 
 #include "logic/ConfigLogic.h"
+#include "logic/HttpLogic.h"
 #include "logic/SchedLogic.h"
 #include "logic/TimeLogic.h"
 #include "logic/WindLogic.h"
@@ -200,6 +201,36 @@ void test_restart_interval_clamp()
     TEST_ASSERT_EQUAL_UINT32(604800000UL, ConfigLogic::clampRestartIntervalMs(10000000UL, DEFAULT_MS));
 }
 
+void test_interval_clamp()
+{
+    // In range -> passed through
+    TEST_ASSERT_EQUAL_UINT32(300000UL, ConfigLogic::clampIntervalMs(300000UL, 1000UL, 3600000UL));
+    // A seconds-scale mistake (300 "ms") is floored, not applied raw
+    TEST_ASSERT_EQUAL_UINT32(1000UL, ConfigLogic::clampIntervalMs(300UL, 1000UL, 3600000UL));
+    // Above cap -> capped
+    TEST_ASSERT_EQUAL_UINT32(3600000UL, ConfigLogic::clampIntervalMs(7200000UL, 1000UL, 3600000UL));
+    // Boundaries are inclusive
+    TEST_ASSERT_EQUAL_UINT32(1000UL, ConfigLogic::clampIntervalMs(1000UL, 1000UL, 3600000UL));
+    TEST_ASSERT_EQUAL_UINT32(3600000UL, ConfigLogic::clampIntervalMs(3600000UL, 1000UL, 3600000UL));
+}
+
+void test_valid_sleep_config()
+{
+    // The seeded production window
+    TEST_ASSERT_TRUE(ConfigLogic::validSleepConfig(22, 6, 180));
+    // Hour bounds
+    TEST_ASSERT_FALSE(ConfigLogic::validSleepConfig(24, 6, 180));
+    TEST_ASSERT_FALSE(ConfigLogic::validSleepConfig(22, -1, 180));
+    // UTC offset bounds (-12:00 to +14:00)
+    TEST_ASSERT_FALSE(ConfigLogic::validSleepConfig(22, 6, -721));
+    TEST_ASSERT_FALSE(ConfigLogic::validSleepConfig(22, 6, 841));
+    TEST_ASSERT_TRUE(ConfigLogic::validSleepConfig(22, 6, -720));
+    TEST_ASSERT_TRUE(ConfigLogic::validSleepConfig(22, 6, 840));
+    // (0,0,0) passes range checks - this is why callers must also check the
+    // RTC validity magic (power-on zeroes RTC RAM)
+    TEST_ASSERT_TRUE(ConfigLogic::validSleepConfig(0, 0, 0));
+}
+
 // --- SchedLogic: battery gate hysteresis --------------------------------------
 
 void test_battery_gate_hysteresis()
@@ -265,13 +296,56 @@ void test_critical_battery_recovery_hysteresis()
     TEST_ASSERT_FALSE(SchedLogic::updateCriticalBattery(true, 3.7f, 3.5f, 3.7f, lowReads, 3));
 }
 
-void test_critical_battery_boot_single_read()
+void test_critical_battery_boot_entry_debounced()
 {
-    // The boot-time guard uses requiredReads=1: one low read hibernates
-    int lowReads = 0;
-    TEST_ASSERT_TRUE(SchedLogic::updateCriticalBattery(false, 3.4f, 3.5f, 3.7f, lowReads, 1));
-    lowReads = 0;
-    TEST_ASSERT_FALSE(SchedLogic::updateCriticalBattery(false, 3.5f, 3.5f, 3.7f, lowReads, 1));
+    // Entry needs ALL reads below critical - one noisy read must not latch
+    const float allLow[3] = {3.4f, 3.4f, 3.4f};
+    TEST_ASSERT_TRUE(SchedLogic::criticalAtBoot(false, allLow, 3, 3.5f, 3.6f));
+    const float noisyLast[3] = {3.4f, 3.4f, 3.6f};
+    TEST_ASSERT_FALSE(SchedLogic::criticalAtBoot(false, noisyLast, 3, 3.5f, 3.6f));
+    const float noisyMiddle[3] = {3.4f, 3.6f, 3.4f};
+    TEST_ASSERT_FALSE(SchedLogic::criticalAtBoot(false, noisyMiddle, 3, 3.5f, 3.6f));
+    const float atThreshold[3] = {3.5f, 3.5f, 3.5f};
+    TEST_ASSERT_FALSE(SchedLogic::criticalAtBoot(false, atThreshold, 3, 3.5f, 3.6f));
+}
+
+void test_critical_battery_boot_recovery_debounced()
+{
+    // Recovery needs ALL reads at/above recovery - one noisy high read must
+    // not power the modem on a dying pack
+    const float oneStillLow[3] = {3.65f, 3.55f, 3.65f};
+    TEST_ASSERT_TRUE(SchedLogic::criticalAtBoot(true, oneStillLow, 3, 3.5f, 3.6f));
+    const float allRecovered[3] = {3.62f, 3.61f, 3.65f};
+    TEST_ASSERT_FALSE(SchedLogic::criticalAtBoot(true, allRecovered, 3, 3.5f, 3.6f));
+    // Bench-power sentinel never hibernates in either state
+    const float sentinel[3] = {0.1f, 0.1f, 0.1f};
+    TEST_ASSERT_FALSE(SchedLogic::criticalAtBoot(true, sentinel, 3, 3.5f, 3.6f));
+    TEST_ASSERT_FALSE(SchedLogic::criticalAtBoot(false, sentinel, 3, 3.5f, 3.6f));
+}
+
+// --- HttpLogic: status classification for backoff ---------------------------
+
+void test_http_classify()
+{
+    // 2xx succeeds
+    TEST_ASSERT_TRUE(HttpLogic::classify(200) == HttpLogic::Outcome::Ok);
+    TEST_ASSERT_TRUE(HttpLogic::classify(204) == HttpLogic::Outcome::Ok);
+    // Validation rejections were delivered - connectivity fine, no backoff
+    TEST_ASSERT_TRUE(HttpLogic::classify(400) == HttpLogic::Outcome::RejectedNoBackoff);
+    TEST_ASSERT_TRUE(HttpLogic::classify(404) == HttpLogic::Outcome::RejectedNoBackoff);
+    TEST_ASSERT_TRUE(HttpLogic::classify(422) == HttpLogic::Outcome::RejectedNoBackoff);
+    // Auth failures reject every endpoint (compile-time key) - keep the throttle
+    TEST_ASSERT_TRUE(HttpLogic::classify(401) == HttpLogic::Outcome::Backoff);
+    TEST_ASSERT_TRUE(HttpLogic::classify(403) == HttpLogic::Outcome::Backoff);
+    // Server errors and redirects back off
+    TEST_ASSERT_TRUE(HttpLogic::classify(500) == HttpLogic::Outcome::Backoff);
+    TEST_ASSERT_TRUE(HttpLogic::classify(502) == HttpLogic::Outcome::Backoff);
+    TEST_ASSERT_TRUE(HttpLogic::classify(503) == HttpLogic::Outcome::Backoff);
+    TEST_ASSERT_TRUE(HttpLogic::classify(301) == HttpLogic::Outcome::Backoff);
+    // ArduinoHttpClient transport errors are <= 0
+    TEST_ASSERT_TRUE(HttpLogic::classify(0) == HttpLogic::Outcome::Backoff);
+    TEST_ASSERT_TRUE(HttpLogic::classify(-1) == HttpLogic::Outcome::Backoff);
+    TEST_ASSERT_TRUE(HttpLogic::classify(-3) == HttpLogic::Outcome::Backoff);
 }
 
 // --- SchedLogic: morning slow mode ----------------------------------------------
@@ -509,12 +583,16 @@ int main()
     RUN_TEST(test_sleep_window_midnight_wrap);
     RUN_TEST(test_sleep_window_disabled_when_equal);
     RUN_TEST(test_restart_interval_clamp);
+    RUN_TEST(test_interval_clamp);
+    RUN_TEST(test_valid_sleep_config);
     RUN_TEST(test_battery_gate_hysteresis);
     RUN_TEST(test_battery_gate_disabled_and_sentinel);
     RUN_TEST(test_critical_battery_sentinel);
     RUN_TEST(test_critical_battery_consecutive_reads);
     RUN_TEST(test_critical_battery_recovery_hysteresis);
-    RUN_TEST(test_critical_battery_boot_single_read);
+    RUN_TEST(test_critical_battery_boot_entry_debounced);
+    RUN_TEST(test_critical_battery_boot_recovery_debounced);
+    RUN_TEST(test_http_classify);
     RUN_TEST(test_morning_slow_mode);
     RUN_TEST(test_effective_interval);
     RUN_TEST(test_ring_push_and_wrap);

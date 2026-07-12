@@ -1,5 +1,11 @@
 # Single ARM EC2 box running Docker Compose (Traefik + API + frontend).
 
+variable "instance_type" {
+  description = "EC2 instance type for the prod box"
+  type        = string
+  default     = "t4g.micro"
+}
+
 # Get default VPC (hastr-staging style; replaces the old shared-bastion-VPC lookup)
 data "aws_vpc" "default" {
   default = true
@@ -9,7 +15,7 @@ resource "aws_instance" "aiolos_prod" {
   # Ubuntu 24.04 LTS arm64 (Noble) in eu-central-1 — same AMI hastr staging uses.
   # Verify with: aws ec2 describe-images --image-ids ami-0cf445cd7f85869e0
   ami           = "ami-0cf445cd7f85869e0"
-  instance_type = "t4g.micro"
+  instance_type = var.instance_type
 
   # No key_name: access is SSM Session Manager only, no SSH anywhere
   associate_public_ip_address = true

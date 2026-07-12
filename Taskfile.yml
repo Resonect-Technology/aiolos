@@ -55,6 +55,16 @@ tasks:
     cmds:
       - pnpm format
 
+  login:prod:
+    desc: "AWS SSO login for the prod account (resource provider)"
+    cmds:
+      - aws sso login --profile resonect-prod --use-device-code
+
+  login:master:
+    desc: "AWS SSO login for the master account (Terraform S3 state backend)"
+    cmds:
+      - aws sso login --profile resonect-master --use-device-code
+
   db:migrate:
     desc: "Create/apply a dev migration (usage: task db:migrate -- --name add_x)"
     dir: apps/adonis-api

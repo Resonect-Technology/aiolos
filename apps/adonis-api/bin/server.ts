@@ -35,6 +35,14 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
     app.booting(async () => {
       await import('#start/env');
 
+      // The stationAuth middleware is deliberately fail-open when the key is
+      // unset — surface which mode we're in so it's never a silent surprise
+      console.log(
+        process.env.STATION_API_KEY
+          ? 'Station ingest auth: ENFORCED (X-API-Key required)'
+          : 'Station ingest auth: OPEN (STATION_API_KEY not set)',
+      );
+
       // Set up periodic cleanup for station data cache
       const { stationDataCache } = await import('#services/station_data_cache');
 

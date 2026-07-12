@@ -73,6 +73,18 @@ public:
     bool powerOff();
 
     /**
+     * @brief Best-effort modem power-off before init(), for boot-time hibernation
+     *
+     * After a software/panic/watchdog/brownout reset the modem is usually
+     * still powered; hibernating without shutting it down would drain the
+     * exact battery the critical-battery guard protects. Brings up the UART,
+     * probes AT, and shuts down responsive modems in software. The PWRKEY
+     * pulse is a toggle (it would power ON an off modem), so the hardware
+     * fallback only runs for reset reasons where the modem is likely on.
+     */
+    void emergencyPowerOff();
+
+    /**
      * @brief Check if the modem is connected to the network
      *
      * @return true if connected
@@ -247,6 +259,8 @@ private:
     static const unsigned long UNRESPONSIVE_TIMEOUT = 180000; // 3 minutes of unresponsiveness
 
     bool _initHardware();     // Declaration for the private hardware init function
+    void _softPowerOff();     // AT+CPOWD software shutdown (modem responsive)
+    void _hardPowerOffPulse(); // PWRKEY power-off pulse (modem on but unresponsive)
     SimStatus getSimStatus(); // Declaration for getSimStatus
 
     // Connection management methods
@@ -259,7 +273,7 @@ private:
     /**
      * @brief Temporarily relax the watchdog for long modem operations
      *
-     * @param disable true to relax (2x timeout, no panic), false to restore
+     * @param disable true to relax (5x timeout), false to restore
      */
     void _setWatchdog(bool disable)
     {
@@ -270,7 +284,7 @@ private:
         }
         else
         {
-            watchdogEnable();
+            watchdogRestore();
         }
 #endif
     }

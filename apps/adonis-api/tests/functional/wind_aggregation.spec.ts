@@ -170,6 +170,31 @@ test.group('Wind Aggregation Service', (group) => {
     assert.equal(rows[0].dominantDirection, 180);
   });
 
+  test('should flush pending buckets before the 10-minute rollup', async ({ assert }) => {
+    // Build a bucket, then backdate it to a completed minute: this mirrors
+    // the boundary race where the interval's final minute is still in memory
+    // when the 10-minute job fires (the 30 s flush timer hasn't run yet)
+    const currentMinute = DateTime.now().startOf('minute');
+    await windAggregationService.processWindData(testStationId, 12.0, 180, currentMinute.toISO());
+
+    const internals = windAggregationService as unknown as {
+      buckets: Map<string, { intervalStart: DateTime }>;
+    };
+    for (const bucket of internals.buckets.values()) {
+      bucket.intervalStart = currentMinute.minus({ minutes: 1 });
+    }
+
+    await windAggregationService.process10MinuteAggregation();
+
+    // The backdated minute must have been persisted by the rollup's flush
+    const flushed = await prisma.windData1Min.findFirst({
+      where: { stationId: testStationId },
+    });
+    assert.isNotNull(flushed);
+    assert.equal(flushed!.avgSpeed, 12.0);
+    assert.equal(windAggregationService.getBucketCount(), 0);
+  });
+
   test('should provide bucket monitoring information', async ({ assert }) => {
     const baseTimestamp = DateTime.now().startOf('minute').toISO();
 

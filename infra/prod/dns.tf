@@ -1,19 +1,30 @@
-# aiolos.resonect.cz — Cloudflare-proxied A record pointing at the box.
+# Cloudflare DNS for the resonect.cz zone.
 #
-# The record already exists in Cloudflare (it serves production today).
-# At cutover, IMPORT it before the apply that flips the origin:
+# - aiolos.resonect.cz: proxied (orange cloud) HTTPS frontend. No device uses
+#   this hostname, so Cloudflare "Always Use HTTPS" may be ON for it.
+# - api.aiolos.resonect.cz: DNS-only (grey cloud) alias straight to the box EIP,
+#   for humans/tooling. Stations do NOT use it — the firmware posts to the raw
+#   reserved IP because the cellular modem's DNS is unreliable.
+#
+# If a record already exists in Cloudflare, import it before the first apply:
 #   terraform import cloudflare_dns_record.aiolos <zone_id>/<record_id>
-#
-# proxied = true is load-bearing: deployed ESP32 stations POST plain HTTP to
-# aiolos.resonect.cz:80 through the Cloudflare edge, so flipping the origin
-# EIP is invisible to them. "Always Use HTTPS" must stay OFF for this zone.
 
 resource "cloudflare_dns_record" "aiolos" {
-  zone_id = aws_ssm_parameter.cloudflare_resonect_zone_id.value
+  zone_id = aws_ssm_parameter.cloudflare_zone_id.value
   name    = "aiolos.resonect.cz"
   type    = "A"
   content = aws_eip.aiolos_prod.public_ip
   proxied = true
   ttl     = 1
-  comment = "Aiolos weather station (prod) - managed by Terraform"
+  comment = "Aiolos weather station frontend (prod) - managed by Terraform"
+}
+
+resource "cloudflare_dns_record" "api" {
+  zone_id = aws_ssm_parameter.cloudflare_zone_id.value
+  name    = "api.aiolos.resonect.cz"
+  type    = "A"
+  content = aws_eip.aiolos_prod.public_ip
+  proxied = false # DNS-only: resolves straight to the origin EIP, plain HTTP :80
+  ttl     = 300
+  comment = "Aiolos ingest alias (prod) - managed by Terraform"
 }

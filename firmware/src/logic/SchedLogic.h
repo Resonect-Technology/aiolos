@@ -78,6 +78,50 @@ namespace SchedLogic
     }
 
     /**
+     * @brief Multi-read critical-battery decision for the boot-time guard
+     *
+     * Entry requires ALL n readings below criticalV (one noisy low read right
+     * after wake must not latch a healthy pack into hibernation - recovery
+     * needs a higher voltage, so a false entry is not "one cycle at most").
+     * Recovery requires ALL n readings at or above recoveryV (one noisy high
+     * read must not power the modem on a dying pack).
+     *
+     * @param criticalActive Current hibernation state
+     * @param readings Battery readings, oldest first
+     * @param n Number of readings
+     * @param criticalV Hibernate below this
+     * @param recoveryV Resume at or above this
+     * @return true = hibernation requested / still required
+     */
+    inline bool criticalAtBoot(bool criticalActive, const float readings[], int n,
+                               float criticalV, float recoveryV)
+    {
+        int consecutiveLow = 0;
+        if (criticalActive)
+        {
+            // Any read below recoveryV keeps hibernating; sentinel reads
+            // return false, so bench power still exits
+            bool stayCritical = false;
+            for (int i = 0; i < n; i++)
+            {
+                if (updateCriticalBattery(true, readings[i], criticalV, recoveryV, consecutiveLow, n))
+                {
+                    stayCritical = true;
+                }
+            }
+            return stayCritical;
+        }
+        // The counter mechanics require all n reads low: any high/sentinel
+        // read resets consecutiveLow, so the threshold can't be reached
+        bool critical = false;
+        for (int i = 0; i < n; i++)
+        {
+            critical = updateCriticalBattery(false, readings[i], criticalV, recoveryV, consecutiveLow, n);
+        }
+        return critical;
+    }
+
+    /**
      * @brief Morning slow mode: true before the livestream start hour
      *
      * @param localHour Station-local hour (0-23)

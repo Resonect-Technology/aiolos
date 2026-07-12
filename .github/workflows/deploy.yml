@@ -149,11 +149,24 @@ jobs:
             DATABASE_URL=$(get_ssm /aiolos/prod/config/database-url)
             APP_KEY=$(get_ssm /aiolos/prod/backend/app-key)
             ADMIN_PASSWORD=$(get_ssm /aiolos/prod/backend/admin-password)
+            STATION_API_KEY=$(get_ssm /aiolos/prod/backend/station-api-key)
             ENVEOF
             cat > /opt/aiolos/.env.traefik <<ENVEOF
-            CF_DNS_API_TOKEN=$(get_ssm /aiolos/prod/traefik/cf-dns-api-token)
+            CF_DNS_API_TOKEN=$(get_ssm /aiolos/prod/infrastructure/cloudflare-dns-api-token)
             ENVEOF
             chmod 600 /opt/aiolos/.env.prod /opt/aiolos/.env.traefik
+
+            echo "=== Validate rendered env files ==="
+            # A missing/renamed SSM parameter renders as an empty value, and a
+            # never-overwritten Terraform secret renders as PLACEHOLDER (which
+            # would e.g. arm station auth with a bogus key and 401 the
+            # station) — the backend only fails minutes later at boot, if at
+            # all, so fail the deploy here
+            if grep -qE '^[A-Za-z_]+=(PLACEHOLDER)?$' /opt/aiolos/.env.prod /opt/aiolos/.env.traefik; then
+              echo "ERROR: empty or PLACEHOLDER value(s) in rendered env files — missing 'aws ssm put-parameter'?"
+              grep -hE '^[A-Za-z_]+=(PLACEHOLDER)?$' /opt/aiolos/.env.prod /opt/aiolos/.env.traefik
+              exit 1
+            fi
 
             echo "=== Pull and start ==="
             aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 590183887485.dkr.ecr.eu-central-1.amazonaws.com

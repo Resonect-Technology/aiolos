@@ -36,7 +36,7 @@ provider "aws" {
 
 # Cloudflare provider for the resonect.cz zone - token stored in SSM
 provider "cloudflare" {
-  api_token = aws_ssm_parameter.cloudflare_resonect_api_token.value
+  api_token = aws_ssm_parameter.cloudflare_dns_api_token.value
 }
 
 locals {

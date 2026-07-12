@@ -2,10 +2,13 @@
 # Lives at /opt/aiolos on the box; deployed via SSM Run Command from CI.
 #
 # Routing contract (DO NOT BREAK):
-# - ESP32 stations POST plain HTTP to aiolos.resonect.cz:80 (/api paths).
-#   The API HTTP router must never redirect to HTTPS.
-# - Browsers get the SPA over HTTPS; their plain-HTTP hits are redirected
-#   (frontend router only — API priority wins so devices never match it).
+# - ESP32 stations POST plain HTTP to the reserved Elastic IP on :80 (/api
+#   paths). They target the raw IP, not a hostname (the cellular modem's DNS is
+#   unreliable), so the ingest router on the `web` entrypoint is host-agnostic
+#   and must never redirect to HTTPS.
+# - Browsers get the SPA over HTTPS on aiolos.resonect.cz; their plain-HTTP hits
+#   are redirected (frontend router only — API priority wins so devices never
+#   match it).
 # - /__transmit (SSE) must not be compressed or buffered.
 services:
   traefik:
@@ -61,8 +64,11 @@ services:
       - "traefik.http.routers.api.tls.certresolver=letsencrypt"
       - "traefik.http.routers.api.priority=20"
       - "traefik.http.routers.api.service=api"
-      # Plain-HTTP router (ESP32 stations — MUST NOT redirect)
-      - "traefik.http.routers.api-http.rule=Host(`aiolos.resonect.cz`) && (PathPrefix(`/api`) || PathPrefix(`/__transmit`) || Path(`/healthcheck`))"
+      # Plain-HTTP ingest router (ESP32 stations POST to the raw IP — MUST NOT
+      # redirect). Host-agnostic: no Host() clause, so a POST to the bare Elastic
+      # IP matches. Priority 20 beats frontend-http (1), so /api on :80 is never
+      # bounced to HTTPS. No /__transmit here — SSE is browser-only over HTTPS.
+      - "traefik.http.routers.api-http.rule=PathPrefix(`/api`) || Path(`/healthcheck`)"
       - "traefik.http.routers.api-http.entrypoints=web"
       - "traefik.http.routers.api-http.priority=20"
       - "traefik.http.routers.api-http.service=api"

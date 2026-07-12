@@ -56,7 +56,10 @@ inline void watchdogEnable()
 }
 
 /**
- * @brief Relax the watchdog to 2x timeout (no panic) for long modem operations
+ * @brief Relax the watchdog to 5x timeout for long modem operations
+ *
+ * Panic stays enabled: the extended timeout must remain a real backstop -
+ * a modem op wedged past 10 minutes needs a reset, not a log line.
  */
 inline void watchdogExtend()
 {
@@ -65,7 +68,22 @@ inline void watchdogExtend()
         return; // Fully disabled is already more relaxed than extended
     }
     esp_task_wdt_reset();
-    watchdogConfigure(WDT_TIMEOUT_S * 2, false);
+    watchdogConfigure(WDT_TIMEOUT_S * 5, true);
+}
+
+/**
+ * @brief Restore WDT_TIMEOUT_S after watchdogExtend(); no-op if the WDT was disabled
+ *
+ * watchdogExtend() early-returns while disabled and never arms the WDT, so
+ * checking watchdogInitialized() here is enough to preserve a deliberate
+ * disable (e.g. setup()'s modem-init window) across an extend/restore pair.
+ */
+inline void watchdogRestore()
+{
+    if (watchdogInitialized())
+    {
+        watchdogEnable();
+    }
 }
 
 /**
