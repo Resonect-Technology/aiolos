@@ -268,8 +268,8 @@ void setup()
         // Just print a single wind reading at initialization
         windSensor.printWindReading();
 
-        // Start initial wind sampling period
-        windSensor.startSamplingPeriod();
+        // No sampling period here — the averaged branch in loop() starts one
+        // when needed; live statistics warm up automatically via service()
     }
     else
     {
@@ -314,6 +314,10 @@ void loop()
 
     // Get current time
     unsigned long currentMillis = millis();
+
+    // Wind measurement tick (1 Hz pulse snapshot) — runs regardless of
+    // connectivity so live statistics stay warm through outages
+    windSensor.service(currentMillis);
 
     // Check for uptime-based restart (default 4 hours, adjustable via remote config)
     if (currentMillis >= dynamicRestartIntervalMs)
@@ -532,18 +536,29 @@ void loop()
         if (effectiveWindInterval <= LIVESTREAM_THRESHOLD_MS)
         {
             // --- LIVESTREAM MODE ---
+            if (isSamplingWind)
+            {
+                // Slow mode ended mid-period; discard the partial average
+                windSensor.abandonSamplingPeriod();
+                isSamplingWind = false;
+            }
+
             if (currentMillis - lastWindUpdate >= effectiveWindInterval)
             {
                 lastWindUpdate = currentMillis;
 
-                // Get instantaneous wind data
-                float windSpeed = windSensor.getWindSpeed();
+                // 3 s rolling mean plus gust/lull over the trailing 60 s
+                float windSpeed = windSensor.getLiveSpeed();
                 float windDirection = windSensor.getWindDirection();
+                float gustSpeed = windSensor.getLiveGust();
+                float minSpeed = windSensor.getLiveLull();
 
-                Logger.info(LOG_TAG_SYSTEM, "Livestream Wind: %.1f m/s at %.0f°", windSpeed, windDirection);
+                Logger.info(LOG_TAG_SYSTEM, "Livestream Wind: %.1f m/s (gust %.1f) at %.0f°",
+                            windSpeed, gustSpeed, windDirection);
 
                 // Send wind data to server
-                if (httpClient.sendWindData(DEVICE_ID, windSpeed, windDirection))
+                if (httpClient.sendWindData(DEVICE_ID, windSpeed, windDirection, gustSpeed, minSpeed,
+                                            effectiveWindInterval))
                 {
                     Logger.info(LOG_TAG_SYSTEM, "Livestream wind data sent successfully");
                 }
@@ -566,13 +581,15 @@ void loop()
 
             // Check if the sampling period is complete.
             // getAveragedWindData is non-blocking and returns true only when data is ready.
-            float avgSpeed, avgDirection;
-            if (windSensor.getAveragedWindData(effectiveWindInterval, avgSpeed, avgDirection))
+            float avgSpeed, avgDirection, gustSpeed, minSpeed;
+            if (windSensor.getAveragedWindData(effectiveWindInterval, avgSpeed, avgDirection, gustSpeed, minSpeed))
             {
-                Logger.info(LOG_TAG_SYSTEM, "Averaged Wind: %.1f m/s at %.0f°", avgSpeed, avgDirection);
+                Logger.info(LOG_TAG_SYSTEM, "Averaged Wind: %.1f m/s (gust %.1f) at %.0f°",
+                            avgSpeed, gustSpeed, avgDirection);
 
                 // Send the averaged data to the server
-                if (httpClient.sendWindData(DEVICE_ID, avgSpeed, avgDirection))
+                if (httpClient.sendWindData(DEVICE_ID, avgSpeed, avgDirection, gustSpeed, minSpeed,
+                                            effectiveWindInterval))
                 {
                     Logger.info(LOG_TAG_SYSTEM, "Averaged wind data sent successfully");
                 }

@@ -490,7 +490,8 @@ bool AiolosHttpClient::fetchConfiguration(const char *stationId, StationConfigDa
 /**
  * @brief Send wind data to the server (optimized for high-frequency sending)
  */
-bool AiolosHttpClient::sendWindData(const char *stationId, float windSpeed, float windDirection)
+bool AiolosHttpClient::sendWindData(const char *stationId, float windSpeed, float windDirection,
+                                    float gustSpeed, float minSpeed, unsigned long intervalMs)
 {
     Logger.info(LOG_TAG_HTTP, "Sending wind data for station %s", stationId);
 
@@ -499,6 +500,9 @@ bool AiolosHttpClient::sendWindData(const char *stationId, float windSpeed, floa
     doc.to<JsonObject>(); // Ensure it's an object
     doc["windSpeed"] = windSpeed;
     doc["windDirection"] = windDirection;
+    doc["gustSpeed"] = gustSpeed;
+    doc["minSpeed"] = minSpeed;
+    doc["intervalMs"] = intervalMs;
 
     String jsonBuffer;
     serializeJson(doc, jsonBuffer);

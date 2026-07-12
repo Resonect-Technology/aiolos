@@ -11,6 +11,7 @@
 #include "logic/SchedLogic.h"
 #include "logic/TimeLogic.h"
 #include "logic/WindLogic.h"
+#include "logic/WindStats.h"
 
 void setUp() {}
 void tearDown() {}
@@ -236,6 +237,192 @@ void test_effective_wind_interval()
     TEST_ASSERT_EQUAL_UINT32(900000UL, SchedLogic::effectiveWindIntervalMs(true, 900000UL, SLOW_MS));
 }
 
+// --- WindStats: ring buffer + rolling/window means ------------------------------
+
+// Calibration factor used across the WindStats tests (m/s per Hz)
+static const float WS_FACTOR = 0.6667f;
+
+void test_ring_push_and_wrap()
+{
+    WindStats::Ring ring;
+    // A peak first, then enough calm samples to evict it
+    ring.push(100, 1000);
+    for (int i = 0; i < 69; i++)
+    {
+        ring.push(0, 1000);
+    }
+    TEST_ASSERT_EQUAL_INT(WindStats::RING_CAPACITY, ring.count);
+    // The evicted peak must not influence any window
+    TEST_ASSERT_EQUAL_FLOAT(0, WindStats::maxWindowMean(ring, 3000, 600000, WS_FACTOR));
+    ring.push(9, 1000);
+    TEST_ASSERT_EQUAL_UINT32(9, ring.newest(0).pulses);
+}
+
+void test_rolling_mean_exact_3s()
+{
+    WindStats::Ring ring;
+    for (int i = 0; i < 3; i++)
+    {
+        ring.push(3, 1000); // 3 Hz
+    }
+    TEST_ASSERT_FLOAT_WITHIN(0.01, 2.0, WindStats::rollingMean(ring, 3000, WS_FACTOR));
+}
+
+void test_rolling_mean_partial_data()
+{
+    WindStats::Ring ring;
+    ring.push(6, 1000); // 6 Hz, ring spans only 1 s
+    TEST_ASSERT_FLOAT_WITHIN(0.01, 4.0, WindStats::rollingMean(ring, 3000, WS_FACTOR));
+    // Empty ring is 0, not NaN
+    WindStats::Ring empty;
+    TEST_ASSERT_EQUAL_FLOAT(0, WindStats::rollingMean(empty, 3000, WS_FACTOR));
+}
+
+void test_rolling_mean_uses_newest()
+{
+    WindStats::Ring ring;
+    ring.push(30, 1000); // old burst
+    ring.push(0, 1000);
+    ring.push(0, 1000);
+    ring.push(0, 1000);
+    TEST_ASSERT_EQUAL_FLOAT(0, WindStats::rollingMean(ring, 3000, WS_FACTOR));
+    ring.push(9, 1000);
+    TEST_ASSERT_FLOAT_WITHIN(0.01, 2.0, WindStats::rollingMean(ring, 3000, WS_FACTOR));
+}
+
+void test_gust_detects_peak()
+{
+    WindStats::Ring ring;
+    for (int i = 0; i < 10; i++)
+    {
+        ring.push(1, 1000); // calm
+    }
+    for (int i = 0; i < 3; i++)
+    {
+        ring.push(9, 1000); // 3 s burst at 9 Hz
+    }
+    for (int i = 0; i < 5; i++)
+    {
+        ring.push(1, 1000); // calm again
+    }
+    TEST_ASSERT_FLOAT_WITHIN(0.01, 6.0, WindStats::maxWindowMean(ring, 3000, 60000, WS_FACTOR));
+}
+
+void test_gust_requires_complete_window()
+{
+    WindStats::Ring ring;
+    ring.push(5, 1000);
+    ring.push(5, 1000); // spans only 2 s < 3 s window
+    TEST_ASSERT_EQUAL_FLOAT(0, WindStats::maxWindowMean(ring, 3000, 60000, WS_FACTOR));
+}
+
+void test_gust_max_age_expiry()
+{
+    WindStats::Ring ring;
+    for (int i = 0; i < 3; i++)
+    {
+        ring.push(9, 1000); // old 3 s burst
+    }
+    for (int i = 0; i < 10; i++)
+    {
+        ring.push(0, 1000); // 10 s of calm since
+    }
+    // Trailing 5 s: burst is out of reach
+    TEST_ASSERT_EQUAL_FLOAT(0, WindStats::maxWindowMean(ring, 3000, 5000, WS_FACTOR));
+    // Unbounded age (period-style query) still finds it
+    TEST_ASSERT_FLOAT_WITHIN(0.01, 6.0, WindStats::maxWindowMean(ring, 3000, 600000, WS_FACTOR));
+}
+
+void test_stall_long_sample_semantics()
+{
+    // A 12 s loop stall produces one long sample; gusts inside it are
+    // smoothed to the stall average, never inflated to a phantom spike.
+    WindStats::Ring ring;
+    ring.push(9, 1000);   // 9 Hz second
+    ring.push(36, 12000); // stall: 3 Hz average over 12 s
+    ring.push(9, 1000);   // 9 Hz second
+    float gust = WindStats::maxWindowMean(ring, 3000, 600000, WS_FACTOR);
+    // Best complete window: (9 + 36) pulses / 13 s = 3.46 Hz -> ~2.31 m/s
+    TEST_ASSERT_FLOAT_WITHIN(0.01, 2.31, gust);
+    // Far below the 6.0 m/s a fabricated 9 Hz gust would read
+    TEST_ASSERT_TRUE(gust < 6.0f);
+}
+
+void test_lull_symmetric()
+{
+    WindStats::Ring ring;
+    for (int i = 0; i < 10; i++)
+    {
+        ring.push(9, 1000); // strong
+    }
+    for (int i = 0; i < 3; i++)
+    {
+        ring.push(1, 1000); // 3 s dip at 1 Hz
+    }
+    for (int i = 0; i < 5; i++)
+    {
+        ring.push(9, 1000); // strong again
+    }
+    TEST_ASSERT_FLOAT_WITHIN(0.01, 0.667, WindStats::minWindowMean(ring, 3000, 60000, WS_FACTOR));
+}
+
+void test_period_accumulate_totals()
+{
+    // 9 full 1 s ticks plus a residual 700 ms tick at period end — the
+    // residual must count (regression for the final-subinterval undercount).
+    WindStats::Period period;
+    for (int i = 0; i < 9; i++)
+    {
+        WindStats::accumulateTick(period, 3, 1000, -1.0f);
+    }
+    WindStats::accumulateTick(period, 2, 700, -1.0f);
+    TEST_ASSERT_EQUAL_UINT32(29, period.totalPulses);
+    TEST_ASSERT_EQUAL_UINT32(9700, period.totalMs);
+    TEST_ASSERT_FLOAT_WITHIN(0.01, 1.99,
+                             WindLogic::pulsesToSpeed(period.totalPulses, period.totalMs, WS_FACTOR));
+}
+
+void test_period_gust_lull_and_skip()
+{
+    WindStats::Period period;
+    WindStats::accumulateTick(period, 3, 1000, 2.0f);
+    WindStats::accumulateTick(period, 8, 1000, 5.0f);
+    WindStats::accumulateTick(period, 1, 1000, 1.0f);
+    WindStats::accumulateTick(period, 3, 1000, -1.0f); // no 3 s window yet: skip gust/lull
+    TEST_ASSERT_EQUAL_FLOAT(5.0f, period.gustMax);
+    TEST_ASSERT_EQUAL_FLOAT(1.0f, period.lullMin);
+    TEST_ASSERT_TRUE(period.gustMax >= period.lullMin);
+    // The skipped tick still counts toward the totals
+    TEST_ASSERT_EQUAL_UINT32(15, period.totalPulses);
+    TEST_ASSERT_EQUAL_UINT32(4000, period.totalMs);
+}
+
+void test_period_reset_no_bleed()
+{
+    // Regression for the mode-switch phantom spike: a new period must not
+    // inherit anything from the previous one.
+    WindStats::Period period;
+    WindStats::accumulateTick(period, 50, 1000, 8.0f);
+    period.reset();
+    WindStats::accumulateTick(period, 1, 1000, 0.5f);
+    TEST_ASSERT_EQUAL_UINT32(1, period.totalPulses);
+    TEST_ASSERT_EQUAL_UINT32(1000, period.totalMs);
+    TEST_ASSERT_EQUAL_FLOAT(0.5f, period.gustMax);
+    TEST_ASSERT_EQUAL_FLOAT(0.5f, period.lullMin);
+}
+
+void test_zero_wind()
+{
+    WindStats::Ring ring;
+    for (int i = 0; i < 10; i++)
+    {
+        ring.push(0, 1000);
+    }
+    TEST_ASSERT_EQUAL_FLOAT(0, WindStats::rollingMean(ring, 3000, WS_FACTOR));
+    TEST_ASSERT_EQUAL_FLOAT(0, WindStats::maxWindowMean(ring, 3000, 60000, WS_FACTOR));
+    TEST_ASSERT_EQUAL_FLOAT(0, WindStats::minWindowMean(ring, 3000, 60000, WS_FACTOR));
+}
+
 int main()
 {
     UNITY_BEGIN();
@@ -257,5 +444,18 @@ int main()
     RUN_TEST(test_battery_gate_disabled_and_sentinel);
     RUN_TEST(test_morning_slow_mode);
     RUN_TEST(test_effective_wind_interval);
+    RUN_TEST(test_ring_push_and_wrap);
+    RUN_TEST(test_rolling_mean_exact_3s);
+    RUN_TEST(test_rolling_mean_partial_data);
+    RUN_TEST(test_rolling_mean_uses_newest);
+    RUN_TEST(test_gust_detects_peak);
+    RUN_TEST(test_gust_requires_complete_window);
+    RUN_TEST(test_gust_max_age_expiry);
+    RUN_TEST(test_stall_long_sample_semantics);
+    RUN_TEST(test_lull_symmetric);
+    RUN_TEST(test_period_accumulate_totals);
+    RUN_TEST(test_period_gust_lull_and_skip);
+    RUN_TEST(test_period_reset_no_bleed);
+    RUN_TEST(test_zero_wind);
     return UNITY_END();
 }

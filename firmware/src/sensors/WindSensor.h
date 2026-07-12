@@ -4,11 +4,21 @@
  *
  * Provides functionality to read wind direction and speed
  * from common wind sensor assemblies.
+ *
+ * Measurement architecture: service() drains the anemometer ISR pulse
+ * counter (at most) once per second into a WindStats::Ring — it is the ONLY
+ * place the counter is read or reset, so livestream and averaged mode can
+ * never corrupt each other's state. Live statistics (3 s rolling mean,
+ * trailing gust/lull) come straight from the ring; averaged mode adds a
+ * WindStats::Period accumulator with an explicit start/finalize/abandon
+ * lifecycle.
  */
 
 #pragma once
 
 #include <Arduino.h>
+
+#include "../logic/WindStats.h"
 
 class WindSensor
 {
@@ -24,28 +34,44 @@ public:
     bool init(uint8_t anemometerPin, uint8_t windVanePin);
 
     /**
+     * @brief Per-loop tick: snapshot the ISR pulse counter into the ring
+     *
+     * Call every loop() iteration (cheap no-op between 1 s boundaries).
+     * Must run regardless of connectivity so measurement continues offline.
+     *
+     * @param nowMs Current millis()
+     */
+    void service(unsigned long nowMs);
+
+    /**
      * @brief Get the current wind direction in degrees (0-359)
      *
      * 0° = North, 90° = East, 180° = South, 270° = West
+     * Applies a stability filter (hysteresis) suited to the live stream.
      *
      * @return float Wind direction in degrees
      */
     float getWindDirection();
 
     /**
-     * @brief Get the current wind speed
-     *
-     * @param samplePeriodMs The period over which to measure wind speed
-     * @return float Wind speed in meters per second
+     * @brief Live wind speed: 3 s rolling mean (m/s)
      */
-    float getWindSpeed(unsigned long samplePeriodMs = 1000);
+    float getLiveSpeed();
+
+    /**
+     * @brief Live gust: max 3 s mean over the trailing 60 s (m/s)
+     */
+    float getLiveGust();
+
+    /**
+     * @brief Live lull: min 3 s mean over the trailing 60 s (m/s)
+     */
+    float getLiveLull();
 
     /**
      * @brief Print wind sensor reading to serial monitor
-     *
-     * @param samplePeriodMs The period over which to measure wind speed
      */
-    void printWindReading(unsigned long samplePeriodMs = 1000);
+    void printWindReading();
 
     /**
      * @brief Handle interrupt for anemometer pulse counting
@@ -64,33 +90,37 @@ public:
     void calibrateWindVane(unsigned long durationMs = 30000);
 
     /**
-     * @brief Start a new wind sampling period
+     * @brief Start a new averaged-mode sampling period
      *
-     * Resets counters and starts collecting wind data for averaging
+     * Resets only the period accumulator — the pulse counter and live ring
+     * are untouched, so live statistics stay valid across mode switches.
      */
     void startSamplingPeriod();
+
+    /**
+     * @brief Discard an in-progress sampling period (averaged -> live switch)
+     */
+    void abandonSamplingPeriod();
 
     /**
      * @brief Get averaged wind data over the sampling period
      *
      * @param samplingPeriodMs The duration in milliseconds to sample over
-     * @param avgSpeed Reference to store the averaged wind speed (m/s)
-     * @param avgDirection Reference to store the averaged wind direction (degrees)
+     * @param avgSpeed Averaged wind speed over the period (m/s)
+     * @param avgDirection Vector-averaged wind direction (degrees)
+     * @param gustSpeed Max 3 s mean during the period (m/s)
+     * @param minSpeed Min 3 s mean during the period (m/s)
      * @return true if sampling period is complete and data is valid
      */
-    bool getAveragedWindData(unsigned long samplingPeriodMs, float &avgSpeed, float &avgDirection);
+    bool getAveragedWindData(unsigned long samplingPeriodMs, float &avgSpeed, float &avgDirection,
+                             float &gustSpeed, float &minSpeed);
 
     /**
-     * @brief Set the internal sampling interval for wind readings
+     * @brief Legacy remote-config hook for the averaging sample interval
      *
-     * Controls how often wind direction readings are taken during the AVERAGING period.
-     * This parameter is ONLY used in averaged mode (windSendInterval > 5000ms).
-     *
-     * In live-stream mode (windSendInterval ≤ 5000ms), this parameter is ignored
-     * because getWindSpeed() and getWindDirection() are called directly.
-     *
-     * @param intervalMs Interval between individual samples in milliseconds (default: 2000ms)
-     *                   Only relevant for averaging mode, should be smaller than windSendInterval
+     * Direction/pulse sampling now runs at a fixed 1 Hz (service()), so this
+     * only logs the requested value. Kept so the config protocol and
+     * windSampleInterval server field remain valid.
      */
     void setSampleInterval(unsigned long intervalMs);
 
@@ -98,28 +128,33 @@ private:
     uint8_t _anemometerPin = 0;
     uint8_t _windVanePin = 0;
     volatile unsigned long _pulseCount = 0;
-    unsigned long _lastMeasurementTime = 0;
-    unsigned long _lastPulseCount = 0; // Track last pulse count for differential measurement
 
-    // Wind direction stability variables
+    // Wind direction stability variables (live mode)
     float _lastStableDirection = 0.0;
     unsigned long _directionChangeTime = 0;
     static const unsigned long DIRECTION_CHANGE_DELAY_MS = 1000; // 1 second minimum
     static const int ADC_SAMPLE_COUNT = 5;                       // Number of samples to average
 
-    // Wind sampling/averaging variables
-    unsigned long _samplingStartTime = 0;
-    float _directionSumX = 0.0; // X component sum for vector averaging
-    float _directionSumY = 0.0; // Y component sum for vector averaging
-    unsigned int _directionSampleCount = 0;
-    unsigned long _totalPulseCount = 0;     // Total pulses during sampling period
-    unsigned long _lastSampleTime = 0;      // For internal sampling rate control
-    unsigned long _sampleIntervalMs = 2000; // Default: 2s (ONLY used in averaging mode, ignored in live-stream mode)
+    // Measurement state (see WindStats.h)
+    WindStats::Ring _ring;
+    WindStats::Period _period;
+    bool _periodActive = false;
+    unsigned long _periodStartMs = 0;
+    unsigned long _lastTickMs = 0;
 
     // Constants for anemometer calibration
     // From datasheet: 2.4 km/h causes the switch to close once per second
     // 2.4 km/h = 2.4 * (1000/3600) = 0.6667 m/s per Hz
     const float ANEMOMETER_FACTOR = 0.6667; // m/s per Hz (2.4 km/h per Hz)
+
+    /**
+     * @brief Drain the ISR counter into the ring and period accumulator
+     *
+     * @param nowMs Current millis(); uses whatever time elapsed since the
+     *              last snapshot (also folds residual sub-second intervals
+     *              when finalizing a period)
+     */
+    void takeSnapshot(unsigned long nowMs);
 
     /**
      * @brief Get averaged ADC reading for wind vane

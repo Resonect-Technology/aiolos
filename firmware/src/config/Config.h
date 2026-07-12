@@ -136,6 +136,9 @@
 // Wind sensor specific settings
 #define WIND_AVERAGING_SAMPLE_INTERVAL_MS 10000 // (10s) Interval for samples within a larger averaging period
 #define LIVESTREAM_THRESHOLD_MS 5000UL          // Wind send intervals <= this use instantaneous (livestream) mode
+#define WIND_TICK_INTERVAL_MS 1000UL            // Per-second pulse snapshot cadence (WindSensor::service)
+#define WIND_GUST_WINDOW_MS 3000UL              // WMO 3 s gust window; also the reported live speed window
+#define WIND_LIVE_STATS_WINDOW_MS 60000UL       // Trailing window for live gust/lull
 
 // Power-aware scheduling (remote-configurable; see SchedLogic.h)
 #define DEFAULT_UTC_OFFSET_MINUTES 180      // Station-local offset from UTC in minutes (Greece summer time)

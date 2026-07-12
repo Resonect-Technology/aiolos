@@ -64,12 +64,17 @@ public:
      * @brief Send wind data to the server
      *
      * @param stationId Station identifier
-     * @param windSpeed Wind speed in m/s
+     * @param windSpeed Wind speed in m/s (3 s rolling mean in livestream mode,
+     *                  period mean in averaged mode)
      * @param windDirection Wind direction in degrees (0-360)
+     * @param gustSpeed Max 3 s mean in m/s (trailing 60 s / sampling period)
+     * @param minSpeed Min 3 s mean in m/s (trailing 60 s / sampling period)
+     * @param intervalMs Effective send interval the reading was produced under
      * @return true if successful
      * @return false if failed
      */
-    bool sendWindData(const char *stationId, float windSpeed, float windDirection);
+    bool sendWindData(const char *stationId, float windSpeed, float windDirection,
+                      float gustSpeed, float minSpeed, unsigned long intervalMs);
 
     /**
      * @brief Remote station configuration
