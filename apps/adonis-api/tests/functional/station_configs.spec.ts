@@ -45,6 +45,9 @@ test.group('Station Configs Controller', (group) => {
       otaMinute: null,
       otaDuration: null,
       remoteOta: false,
+      utcOffsetMinutes: null,
+      livestreamStartHour: null,
+      lowBatteryThreshold: null,
       message: 'No configuration found for this station. Default values will be used.',
     };
 
@@ -435,5 +438,61 @@ test.group('Station Configs Controller', (group) => {
     assert.equal(body.tempInterval, 300);
     assert.equal(body.windSendInterval, 60);
     assert.equal(body.windSampleInterval, 10);
+  });
+
+  /**
+   * Test: scheduling fields (utcOffsetMinutes, livestreamStartHour,
+   * lowBatteryThreshold) round-trip through store -> show and survive
+   * the confirmOta copy.
+   */
+  test('should round-trip scheduling fields and preserve them across OTA confirmation', async ({
+    client,
+    assert,
+  }) => {
+    const stationId = 'test-station-sched';
+    const apiKey = process.env.ADMIN_API_KEY || 'test-api-key';
+    process.env.ADMIN_API_KEY = apiKey;
+
+    await prisma.weatherStation.create({
+      data: {
+        stationId: stationId,
+        name: 'Test Station Sched',
+        location: 'Test Environment',
+        description: 'Test station for scheduling fields',
+        isActive: true,
+      },
+    });
+
+    const storeResponse = await client
+      .post(`/api/stations/${stationId}/config`)
+      .header('X-API-Key', apiKey)
+      .json({
+        utcOffsetMinutes: 180,
+        livestreamStartHour: 11,
+        lowBatteryThreshold: 4.0,
+        remoteOta: true,
+      });
+
+    storeResponse.assertStatus(200);
+
+    // Round-trip via show()
+    const showResponse = await client.get(`/api/stations/${stationId}/config`);
+    showResponse.assertStatus(200);
+    let body = showResponse.body();
+    assert.equal(body.utcOffsetMinutes, 180);
+    assert.equal(body.livestreamStartHour, 11);
+    assert.equal(body.lowBatteryThreshold, 4.0);
+
+    // confirmOta copies the config into a new row - the fields must survive
+    const confirmResponse = await client.post(`/api/stations/${stationId}/ota-confirm`);
+    confirmResponse.assertStatus(200);
+
+    const afterConfirm = await client.get(`/api/stations/${stationId}/config`);
+    afterConfirm.assertStatus(200);
+    body = afterConfirm.body();
+    assert.equal(body.remoteOta, 0, 'remoteOta should be reset');
+    assert.equal(body.utcOffsetMinutes, 180);
+    assert.equal(body.livestreamStartHour, 11);
+    assert.equal(body.lowBatteryThreshold, 4.0);
   });
 });

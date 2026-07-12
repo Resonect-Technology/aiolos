@@ -46,6 +46,9 @@ model StationConfig {
   remoteOta          Boolean?  @default(false) @map("remote_ota")
   windSendInterval   Int?      @map("wind_send_interval")
   windSampleInterval Int?      @map("wind_sample_interval")
+  utcOffsetMinutes   Int?      @map("utc_offset_minutes")
+  livestreamStartHour Int?     @map("livestream_start_hour")
+  lowBatteryThreshold Float?   @map("low_battery_threshold")
   createdAt          DateTime? @default(now()) @map("created_at")
   updatedAt          DateTime? @updatedAt @map("updated_at")
 

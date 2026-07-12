@@ -8,6 +8,7 @@
 #include <unity.h>
 
 #include "logic/ConfigLogic.h"
+#include "logic/SchedLogic.h"
 #include "logic/TimeLogic.h"
 #include "logic/WindLogic.h"
 
@@ -180,6 +181,61 @@ void test_restart_interval_clamp()
     TEST_ASSERT_EQUAL_UINT32(604800000UL, ConfigLogic::clampRestartIntervalMs(10000000UL, DEFAULT_MS));
 }
 
+// --- SchedLogic: battery gate hysteresis --------------------------------------
+
+void test_battery_gate_hysteresis()
+{
+    const float threshold = 4.0f;
+    const float hys = 0.1f;
+
+    // Inactive: stays off above (threshold - hysteresis)
+    TEST_ASSERT_FALSE(SchedLogic::updateBatteryGate(false, 4.2f, threshold, hys));
+    TEST_ASSERT_FALSE(SchedLogic::updateBatteryGate(false, 3.95f, threshold, hys)); // In the band - no flap
+    // Enters below threshold - hysteresis
+    TEST_ASSERT_TRUE(SchedLogic::updateBatteryGate(false, 3.89f, threshold, hys));
+    // Active: stays on inside the band, exits at >= threshold
+    TEST_ASSERT_TRUE(SchedLogic::updateBatteryGate(true, 3.95f, threshold, hys));
+    TEST_ASSERT_FALSE(SchedLogic::updateBatteryGate(true, 4.0f, threshold, hys));
+}
+
+void test_battery_gate_disabled_and_sentinel()
+{
+    // Threshold <= 0 disables the gate entirely
+    TEST_ASSERT_FALSE(SchedLogic::updateBatteryGate(true, 3.0f, 0.0f, 0.1f));
+    TEST_ASSERT_FALSE(SchedLogic::updateBatteryGate(false, 3.0f, -1.0f, 0.1f));
+    // The 0.1 no-battery sentinel keeps the previous state
+    TEST_ASSERT_TRUE(SchedLogic::updateBatteryGate(true, 0.1f, 4.0f, 0.1f));
+    TEST_ASSERT_FALSE(SchedLogic::updateBatteryGate(false, 0.1f, 4.0f, 0.1f));
+}
+
+// --- SchedLogic: morning slow mode ----------------------------------------------
+
+void test_morning_slow_mode()
+{
+    // Livestream starts at 11 local
+    TEST_ASSERT_TRUE(SchedLogic::isMorningSlow(9, 11));
+    TEST_ASSERT_TRUE(SchedLogic::isMorningSlow(10, 11));
+    TEST_ASSERT_FALSE(SchedLogic::isMorningSlow(11, 11));
+    TEST_ASSERT_FALSE(SchedLogic::isMorningSlow(15, 11));
+    // -1 (and out-of-range) disables the feature
+    TEST_ASSERT_FALSE(SchedLogic::isMorningSlow(9, -1));
+    TEST_ASSERT_FALSE(SchedLogic::isMorningSlow(9, 24));
+}
+
+// --- SchedLogic: effective wind interval ------------------------------------------
+
+void test_effective_wind_interval()
+{
+    const unsigned long SLOW_MS = 600000UL;
+
+    // Normal mode passes the configured interval through
+    TEST_ASSERT_EQUAL_UINT32(1000UL, SchedLogic::effectiveWindIntervalMs(false, 1000UL, SLOW_MS));
+    // Slow mode floors a livestream cadence to 10 minutes
+    TEST_ASSERT_EQUAL_UINT32(SLOW_MS, SchedLogic::effectiveWindIntervalMs(true, 1000UL, SLOW_MS));
+    // Slow mode never speeds up an already-slower cadence
+    TEST_ASSERT_EQUAL_UINT32(900000UL, SchedLogic::effectiveWindIntervalMs(true, 900000UL, SLOW_MS));
+}
+
 int main()
 {
     UNITY_BEGIN();
@@ -197,5 +253,9 @@ int main()
     RUN_TEST(test_sleep_window_midnight_wrap);
     RUN_TEST(test_sleep_window_disabled_when_equal);
     RUN_TEST(test_restart_interval_clamp);
+    RUN_TEST(test_battery_gate_hysteresis);
+    RUN_TEST(test_battery_gate_disabled_and_sentinel);
+    RUN_TEST(test_morning_slow_mode);
+    RUN_TEST(test_effective_wind_interval);
     return UNITY_END();
 }

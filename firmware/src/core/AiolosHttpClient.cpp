@@ -384,10 +384,7 @@ bool AiolosHttpClient::sendDiagnostics(const char *stationId, const DiagnosticsP
 /**
  * @brief Fetch configuration from the server
  */
-bool AiolosHttpClient::fetchConfiguration(const char *stationId, unsigned long *tempInterval, unsigned long *windInterval,
-                                          unsigned long *windSampleInterval, unsigned long *diagInterval, unsigned long *timeInterval,
-                                          unsigned long *restartInterval, int *sleepStartHour, int *sleepEndHour,
-                                          int *otaHour, int *otaMinute, int *otaDuration, bool *remoteOta)
+bool AiolosHttpClient::fetchConfiguration(const char *stationId, StationConfigData &config)
 {
     Logger.info(LOG_TAG_HTTP, "Fetching configuration for station %s", stationId);
 
@@ -398,90 +395,92 @@ bool AiolosHttpClient::fetchConfiguration(const char *stationId, unsigned long *
     String responseBody;
     int statusCode = _performRequest("GET", urlPath, nullptr, responseBody);
 
-    if (statusCode >= 200 && statusCode < 300)
-    {
-        Logger.info(LOG_TAG_HTTP, "Configuration data received.");
-
-        // Use a JsonDocument for configuration data
-        JsonDocument doc;
-        Logger.debug(LOG_TAG_HTTP, "About to parse JSON with length: %d", responseBody.length());
-        DeserializationError error = deserializeJson(doc, responseBody);
-
-        if (error)
-        {
-            Logger.error(LOG_TAG_HTTP, "Failed to parse JSON configuration: %s", error.c_str());
-            Logger.error(LOG_TAG_HTTP, "JSON was: %s", responseBody.c_str());
-            _handleHttpFailure(); // Treat parsing error as a failure for backoff
-            return false;
-        }
-
-        Logger.debug(LOG_TAG_HTTP, "JSON parsed successfully");
-
-        // Safely extract values using the parsed JSON document
-        if (!doc["tempInterval"].isNull())
-        {
-            unsigned long value = doc["tempInterval"].as<unsigned long>();
-            Logger.debug(LOG_TAG_HTTP, "tempInterval from JSON: %lu", value);
-            *tempInterval = value;
-        }
-        if (!doc["windSendInterval"].isNull())
-        {
-            unsigned long value = doc["windSendInterval"].as<unsigned long>();
-            Logger.debug(LOG_TAG_HTTP, "windSendInterval from JSON: %lu", value);
-            *windInterval = value;
-        }
-        if (windSampleInterval && !doc["windSampleInterval"].isNull())
-        {
-            unsigned long value = doc["windSampleInterval"].as<unsigned long>();
-            Logger.debug(LOG_TAG_HTTP, "windSampleInterval from JSON: %lu", value);
-            *windSampleInterval = value;
-        }
-        if (!doc["diagInterval"].isNull())
-        {
-            unsigned long value = doc["diagInterval"].as<unsigned long>();
-            Logger.debug(LOG_TAG_HTTP, "diagInterval from JSON: %lu", value);
-            *diagInterval = value;
-        }
-        if (timeInterval && !doc["timeInterval"].isNull())
-        {
-            *timeInterval = doc["timeInterval"].as<unsigned long>();
-        }
-        if (restartInterval && !doc["restartInterval"].isNull())
-        {
-            *restartInterval = doc["restartInterval"].as<unsigned long>();
-        }
-        if (sleepStartHour && !doc["sleepStartHour"].isNull())
-        {
-            *sleepStartHour = doc["sleepStartHour"].as<int>();
-        }
-        if (sleepEndHour && !doc["sleepEndHour"].isNull())
-        {
-            *sleepEndHour = doc["sleepEndHour"].as<int>();
-        }
-        if (otaHour && !doc["otaHour"].isNull())
-        {
-            *otaHour = doc["otaHour"].as<int>();
-        }
-        if (otaMinute && !doc["otaMinute"].isNull())
-        {
-            *otaMinute = doc["otaMinute"].as<int>();
-        }
-        if (otaDuration && !doc["otaDuration"].isNull())
-        {
-            *otaDuration = doc["otaDuration"].as<int>();
-        }
-        if (remoteOta && !doc["remoteOta"].isNull())
-        {
-            *remoteOta = doc["remoteOta"].as<bool>();
-        }
-
-        return true;
-    }
-    else
+    if (statusCode < 200 || statusCode >= 300)
     {
         Logger.error(LOG_TAG_HTTP, "Failed to fetch configuration.");
         return false;
     }
+
+    Logger.info(LOG_TAG_HTTP, "Configuration data received.");
+
+    // Use a JsonDocument for configuration data
+    JsonDocument doc;
+    Logger.debug(LOG_TAG_HTTP, "About to parse JSON with length: %d", responseBody.length());
+    DeserializationError error = deserializeJson(doc, responseBody);
+
+    if (error)
+    {
+        Logger.error(LOG_TAG_HTTP, "Failed to parse JSON configuration: %s", error.c_str());
+        Logger.error(LOG_TAG_HTTP, "JSON was: %s", responseBody.c_str());
+        _handleHttpFailure(); // Treat parsing error as a failure for backoff
+        return false;
+    }
+
+    Logger.debug(LOG_TAG_HTTP, "JSON parsed successfully");
+
+    // Overwrite only the fields present in the response
+    if (!doc["tempInterval"].isNull())
+    {
+        config.tempInterval = doc["tempInterval"].as<unsigned long>();
+    }
+    if (!doc["windSendInterval"].isNull())
+    {
+        config.windSendInterval = doc["windSendInterval"].as<unsigned long>();
+    }
+    if (!doc["windSampleInterval"].isNull())
+    {
+        config.windSampleInterval = doc["windSampleInterval"].as<unsigned long>();
+    }
+    if (!doc["diagInterval"].isNull())
+    {
+        config.diagInterval = doc["diagInterval"].as<unsigned long>();
+    }
+    if (!doc["timeInterval"].isNull())
+    {
+        config.timeInterval = doc["timeInterval"].as<unsigned long>();
+    }
+    if (!doc["restartInterval"].isNull())
+    {
+        config.restartInterval = doc["restartInterval"].as<unsigned long>();
+    }
+    if (!doc["sleepStartHour"].isNull())
+    {
+        config.sleepStartHour = doc["sleepStartHour"].as<int>();
+    }
+    if (!doc["sleepEndHour"].isNull())
+    {
+        config.sleepEndHour = doc["sleepEndHour"].as<int>();
+    }
+    if (!doc["otaHour"].isNull())
+    {
+        config.otaHour = doc["otaHour"].as<int>();
+    }
+    if (!doc["otaMinute"].isNull())
+    {
+        config.otaMinute = doc["otaMinute"].as<int>();
+    }
+    if (!doc["otaDuration"].isNull())
+    {
+        config.otaDuration = doc["otaDuration"].as<int>();
+    }
+    if (!doc["remoteOta"].isNull())
+    {
+        config.remoteOta = doc["remoteOta"].as<bool>();
+    }
+    if (!doc["utcOffsetMinutes"].isNull())
+    {
+        config.utcOffsetMinutes = doc["utcOffsetMinutes"].as<int>();
+    }
+    if (!doc["livestreamStartHour"].isNull())
+    {
+        config.livestreamStartHour = doc["livestreamStartHour"].as<int>();
+    }
+    if (!doc["lowBatteryThreshold"].isNull())
+    {
+        config.lowBatteryThreshold = doc["lowBatteryThreshold"].as<float>();
+    }
+
+    return true;
 }
 
 /**

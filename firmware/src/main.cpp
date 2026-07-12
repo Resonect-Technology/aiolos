@@ -13,6 +13,7 @@
 
 #include "core/Watchdog.h"
 #include "logic/ConfigLogic.h"
+#include "logic/SchedLogic.h"
 #include "logic/TimeLogic.h"
 #include <math.h> // For isnan()
 #include "config/Config.h"
@@ -70,6 +71,14 @@ int dynamicOtaHour = DEFAULT_OTA_HOUR;
 int dynamicOtaMinute = DEFAULT_OTA_MINUTE;
 int dynamicOtaDuration = DEFAULT_OTA_DURATION;
 unsigned long dynamicRestartIntervalMs = UPTIME_RESTART_INTERVAL;
+int dynamicUtcOffsetMinutes = DEFAULT_UTC_OFFSET_MINUTES;
+int dynamicLivestreamStartHour = DEFAULT_LIVESTREAM_START_HOUR;
+float dynamicLowBatteryThreshold = DEFAULT_LOW_BATTERY_THRESHOLD;
+
+// Power-aware scheduling state (see SchedLogic.h)
+bool batteryGateActive = false;
+bool morningSlowActive = false;
+unsigned long lastSlowModeCheck = 0;
 
 // Calibration mode - can be enabled via build flags
 #ifdef CALIBRATION_MODE
@@ -88,6 +97,7 @@ const unsigned long CALIBRATION_TIME = 30000; // 30 seconds default
 void setupWatchdog();
 void resetWatchdog();
 bool isSleepTime();
+bool updateLocalTime();
 void enterDeepSleepUntil(int hour, int minute);
 void testModemConnectivity();
 bool checkAndInitOta();
@@ -162,23 +172,12 @@ void setup()
     // Run modem connectivity test
     testModemConnectivity();
 
-    // Get network time
-    int year, month, day;
-    float timezone;
-    bool networkTimeObtained = false;
-    if (modemManager.getNetworkTime(&year, &month, &day, &currentHour, &currentMinute, &currentSecond, &timezone))
+    // Get network time (station-local, derived from modem UTC + configured offset)
+    bool networkTimeObtained = updateLocalTime();
+    if (networkTimeObtained)
     {
-        // Update logger with real time
-        Logger.setRealTime(currentHour, currentMinute, currentSecond);
-
-        // Record when we got network time
-        lastNetworkTimeUpdate = millis();
-
-        Logger.info(LOG_TAG_SYSTEM, "Network time obtained: %04d-%02d-%02d %02d:%02d:%02d (TZ: %.1f)",
-                    year, month, day, currentHour, currentMinute, currentSecond, timezone);
         Logger.info(LOG_TAG_SYSTEM, "Sleep window: %02d:00 to %02d:00 (current: %02d:%02d)",
                     dynamicSleepStartHour, dynamicSleepEndHour, currentHour, currentMinute);
-        networkTimeObtained = true;
     }
     else
     {
@@ -351,20 +350,7 @@ void loop()
     {
         lastTimeUpdate = currentMillis;
 
-        int year, month, day;
-        float timezone;
-        if (modemManager.getNetworkTime(&year, &month, &day, &currentHour, &currentMinute, &currentSecond, &timezone))
-        {
-            // Update logger with real time
-            Logger.setRealTime(currentHour, currentMinute, currentSecond);
-
-            // Record when we got network time
-            lastNetworkTimeUpdate = millis();
-
-            Logger.info(LOG_TAG_SYSTEM, "Time updated: %04d-%02d-%02d %02d:%02d:%02d (TZ: %.1f)",
-                        year, month, day, currentHour, currentMinute, currentSecond, timezone);
-        }
-        else
+        if (!updateLocalTime())
         {
             Logger.warn(LOG_TAG_SYSTEM, "Failed to update time from network");
         }
@@ -501,12 +487,42 @@ void loop()
         }
 
         // --- Wind Data Task (Dual Mode: Livestream vs. Averaged) ---
-        const unsigned long LIVESTREAM_THRESHOLD_MS = 5000;
 
-        if (dynamicWindInterval <= LIVESTREAM_THRESHOLD_MS)
+        // Power-aware scheduling: refresh the slow-mode inputs once a minute
+        if (lastSlowModeCheck == 0 || currentMillis - lastSlowModeCheck >= 60000)
+        {
+            lastSlowModeCheck = currentMillis;
+
+            float batteryVoltage = BatteryUtils::readBatteryVoltage();
+            bool gate = SchedLogic::updateBatteryGate(batteryGateActive, batteryVoltage,
+                                                      dynamicLowBatteryThreshold, BATTERY_GATE_HYSTERESIS_V);
+            if (gate != batteryGateActive)
+            {
+                batteryGateActive = gate;
+                Logger.info(LOG_TAG_SYSTEM, "Battery gate %s (%.2f V, threshold %.2f V)",
+                            gate ? "ACTIVE - wind cadence slowed to save power" : "cleared - battery recovered",
+                            batteryVoltage, dynamicLowBatteryThreshold);
+            }
+
+            // Morning slow mode needs valid station-local time
+            bool morning = lastNetworkTimeUpdate > 0 &&
+                           SchedLogic::isMorningSlow(currentHour, dynamicLivestreamStartHour);
+            if (morning != morningSlowActive)
+            {
+                morningSlowActive = morning;
+                Logger.info(LOG_TAG_SYSTEM, "Morning slow mode %s (local hour %d, livestream starts at %d)",
+                            morning ? "ACTIVE" : "ended", currentHour, dynamicLivestreamStartHour);
+            }
+        }
+
+        bool slowMode = morningSlowActive || batteryGateActive;
+        unsigned long effectiveWindInterval =
+            SchedLogic::effectiveWindIntervalMs(slowMode, dynamicWindInterval, SLOW_MODE_WIND_INTERVAL_MS);
+
+        if (effectiveWindInterval <= LIVESTREAM_THRESHOLD_MS)
         {
             // --- LIVESTREAM MODE ---
-            if (currentMillis - lastWindUpdate >= dynamicWindInterval)
+            if (currentMillis - lastWindUpdate >= effectiveWindInterval)
             {
                 lastWindUpdate = currentMillis;
 
@@ -533,7 +549,7 @@ void loop()
             if (!isSamplingWind)
             {
                 // Start a new sampling period if one isn't running
-                Logger.info(LOG_TAG_SYSTEM, "Starting %lu-second wind sampling period.", dynamicWindInterval / 1000);
+                Logger.info(LOG_TAG_SYSTEM, "Starting %lu-second wind sampling period.", effectiveWindInterval / 1000);
                 windSensor.startSamplingPeriod();
                 isSamplingWind = true;
             }
@@ -541,7 +557,7 @@ void loop()
             // Check if the sampling period is complete.
             // getAveragedWindData is non-blocking and returns true only when data is ready.
             float avgSpeed, avgDirection;
-            if (windSensor.getAveragedWindData(dynamicWindInterval, avgSpeed, avgDirection))
+            if (windSensor.getAveragedWindData(effectiveWindInterval, avgSpeed, avgDirection))
             {
                 Logger.info(LOG_TAG_SYSTEM, "Averaged Wind: %.1f m/s at %.0f°", avgSpeed, avgDirection);
 
@@ -759,102 +775,119 @@ void handleRemoteConfiguration()
 {
     Logger.info(LOG_TAG_SYSTEM, "Fetching remote configuration...");
 
-    // Initialize variables with current values to detect if they were updated
-    unsigned long tempInterval = dynamicTempInterval;
-    unsigned long windInterval = dynamicWindInterval;
-    unsigned long windSampleInterval = dynamicWindSampleInterval;
-    unsigned long diagInterval = dynamicDiagInterval;
-    unsigned long timeInterval = dynamicTimeInterval;
-    unsigned long restartInterval = 0; // Seconds from server; 0 = keep current
-    int sleepStartHour = dynamicSleepStartHour;
-    int sleepEndHour = dynamicSleepEndHour;
-    int otaHour = dynamicOtaHour;
-    int otaMinute = dynamicOtaMinute;
-    int otaDuration = dynamicOtaDuration;
-    bool remoteOtaRequested = false; // Flag to check for remote OTA
+    // Initialize with current values - fields absent from the response keep them
+    AiolosHttpClient::StationConfigData config;
+    config.tempInterval = dynamicTempInterval;
+    config.windSendInterval = dynamicWindInterval;
+    config.windSampleInterval = dynamicWindSampleInterval;
+    config.diagInterval = dynamicDiagInterval;
+    config.timeInterval = dynamicTimeInterval;
+    config.restartInterval = 0; // Seconds from server; 0 = keep current
+    config.sleepStartHour = dynamicSleepStartHour;
+    config.sleepEndHour = dynamicSleepEndHour;
+    config.otaHour = dynamicOtaHour;
+    config.otaMinute = dynamicOtaMinute;
+    config.otaDuration = dynamicOtaDuration;
+    config.utcOffsetMinutes = dynamicUtcOffsetMinutes;
+    config.livestreamStartHour = dynamicLivestreamStartHour;
+    config.lowBatteryThreshold = dynamicLowBatteryThreshold;
 
-    Logger.debug(LOG_TAG_SYSTEM, "Before fetch - tempInterval: %lu, windInterval: %lu, windSampleInterval: %lu",
-                 tempInterval, windInterval, windSampleInterval);
-
-    if (httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &windSampleInterval, &diagInterval,
-                                      &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
-                                      &otaHour, &otaMinute, &otaDuration, &remoteOtaRequested))
+    if (httpClient.fetchConfiguration(DEVICE_ID, config))
     {
-        Logger.debug(LOG_TAG_SYSTEM, "After fetch - tempInterval: %lu, windInterval: %lu, windSampleInterval: %lu",
-                     tempInterval, windInterval, windSampleInterval);
-
         // Apply configuration if values are valid (non-zero)
-        if (tempInterval > 0)
+        if (config.tempInterval > 0)
         {
-            dynamicTempInterval = tempInterval;
+            dynamicTempInterval = config.tempInterval;
             Logger.info(LOG_TAG_SYSTEM, "Updated temperature interval to %lu ms", dynamicTempInterval);
         }
 
-        if (windInterval > 0)
+        if (config.windSendInterval > 0)
         {
-            dynamicWindInterval = windInterval;
+            dynamicWindInterval = config.windSendInterval;
             Logger.info(LOG_TAG_SYSTEM, "Updated wind send interval to %lu ms", dynamicWindInterval);
         }
 
-        if (windSampleInterval > 0)
+        if (config.windSampleInterval > 0)
         {
-            dynamicWindSampleInterval = windSampleInterval;
+            dynamicWindSampleInterval = config.windSampleInterval;
             windSensor.setSampleInterval(dynamicWindSampleInterval);
             Logger.info(LOG_TAG_SYSTEM, "Updated wind sample interval to %lu ms", dynamicWindSampleInterval);
         }
 
-        if (diagInterval > 0)
+        if (config.diagInterval > 0)
         {
-            dynamicDiagInterval = diagInterval;
+            dynamicDiagInterval = config.diagInterval;
             diagnosticsManager.setInterval(dynamicDiagInterval);
             Logger.info(LOG_TAG_SYSTEM, "Updated diagnostics interval to %lu ms", dynamicDiagInterval);
         }
 
-        if (timeInterval > 0)
+        if (config.timeInterval > 0)
         {
-            dynamicTimeInterval = timeInterval;
+            dynamicTimeInterval = config.timeInterval;
             Logger.info(LOG_TAG_SYSTEM, "Updated time update interval to %lu ms", dynamicTimeInterval);
         }
 
-        if (restartInterval > 0)
+        if (config.restartInterval > 0)
         {
-            dynamicRestartIntervalMs = ConfigLogic::clampRestartIntervalMs(restartInterval, UPTIME_RESTART_INTERVAL);
+            dynamicRestartIntervalMs = ConfigLogic::clampRestartIntervalMs(config.restartInterval, UPTIME_RESTART_INTERVAL);
             Logger.info(LOG_TAG_SYSTEM, "Updated restart interval to %lu ms (server sent %lu s, floor 1h)",
-                        dynamicRestartIntervalMs, restartInterval);
+                        dynamicRestartIntervalMs, config.restartInterval);
         }
 
-        if (sleepStartHour >= 0 && sleepStartHour < 24)
+        if (config.sleepStartHour >= 0 && config.sleepStartHour < 24)
         {
-            dynamicSleepStartHour = sleepStartHour;
+            dynamicSleepStartHour = config.sleepStartHour;
             Logger.info(LOG_TAG_SYSTEM, "Updated sleep start hour to %d", dynamicSleepStartHour);
         }
 
-        if (sleepEndHour >= 0 && sleepEndHour < 24)
+        if (config.sleepEndHour >= 0 && config.sleepEndHour < 24)
         {
-            dynamicSleepEndHour = sleepEndHour;
+            dynamicSleepEndHour = config.sleepEndHour;
             Logger.info(LOG_TAG_SYSTEM, "Updated sleep end hour to %d", dynamicSleepEndHour);
         }
 
-        if (otaHour >= 0 && otaHour < 24)
+        if (config.otaHour >= 0 && config.otaHour < 24)
         {
-            dynamicOtaHour = otaHour;
+            dynamicOtaHour = config.otaHour;
             Logger.info(LOG_TAG_SYSTEM, "Updated OTA hour to %d", dynamicOtaHour);
         }
 
-        if (otaMinute >= 0 && otaMinute < 60)
+        if (config.otaMinute >= 0 && config.otaMinute < 60)
         {
-            dynamicOtaMinute = otaMinute;
-            Logger.info(LOG_TAG_SYSTEM, "Updated OTA minute to %d", otaMinute);
+            dynamicOtaMinute = config.otaMinute;
+            Logger.info(LOG_TAG_SYSTEM, "Updated OTA minute to %d", dynamicOtaMinute);
         }
 
-        if (otaDuration > 0)
+        if (config.otaDuration > 0)
         {
-            dynamicOtaDuration = otaDuration;
+            dynamicOtaDuration = config.otaDuration;
             Logger.info(LOG_TAG_SYSTEM, "Updated OTA duration to %d minutes", dynamicOtaDuration);
         }
 
+        // UTC offsets are valid from -12:00 to +14:00
+        if (config.utcOffsetMinutes >= -720 && config.utcOffsetMinutes <= 840 &&
+            config.utcOffsetMinutes != dynamicUtcOffsetMinutes)
+        {
+            dynamicUtcOffsetMinutes = config.utcOffsetMinutes;
+            Logger.info(LOG_TAG_SYSTEM, "Updated station UTC offset to %+d min", dynamicUtcOffsetMinutes);
+        }
+
+        // -1 (or any out-of-range hour) disables morning slow mode
+        if (config.livestreamStartHour != dynamicLivestreamStartHour)
+        {
+            dynamicLivestreamStartHour = config.livestreamStartHour;
+            Logger.info(LOG_TAG_SYSTEM, "Updated livestream start hour to %d", dynamicLivestreamStartHour);
+        }
+
+        // <= 0 disables the battery gate; anything above 5V is a config error
+        if (config.lowBatteryThreshold <= 5.0f && config.lowBatteryThreshold != dynamicLowBatteryThreshold)
+        {
+            dynamicLowBatteryThreshold = config.lowBatteryThreshold;
+            Logger.info(LOG_TAG_SYSTEM, "Updated low battery threshold to %.2f V", dynamicLowBatteryThreshold);
+        }
+
         // Check for remote OTA flag after config update
-        if (!otaActive && remoteOtaRequested)
+        if (!otaActive && config.remoteOta)
         {
             Logger.info(LOG_TAG_SYSTEM, "Remote OTA flag detected, attempting to start remote OTA...");
             if (checkAndInitRemoteOta())
@@ -918,6 +951,49 @@ void resetWatchdog()
     {
         Logger.warn(LOG_TAG_SYSTEM, "Failed to reset watchdog timer");
     }
+}
+
+/**
+ * @brief Refresh currentHour/Minute/Second with station-local time
+ *
+ * The modem reports operator-local time plus a timezone offset. We convert
+ * to UTC and apply the remote-configurable dynamicUtcOffsetMinutes, so all
+ * hour-based settings (sleep, OTA, livestream start) are station-local and
+ * independent of the SIM operator. DST is a remote config tweak.
+ *
+ * @return true if the time was updated
+ */
+bool updateLocalTime()
+{
+    int year, month, day, hour, minute, second;
+    float timezone;
+
+    if (!modemManager.getNetworkTime(&year, &month, &day, &hour, &minute, &second, &timezone))
+    {
+        return false;
+    }
+
+    // A stale RTC (e.g. 1980-01-06) means the network never provided time
+    if (year < 2024)
+    {
+        Logger.warn(LOG_TAG_SYSTEM, "Modem time not valid yet (year %d), ignoring", year);
+        return false;
+    }
+
+    int utcMinutes = TimeLogic::modemLocalToUtcMinutes(hour, minute, timezone);
+    int localMinutes = TimeLogic::utcToLocalMinutes(utcMinutes, dynamicUtcOffsetMinutes);
+
+    currentHour = localMinutes / 60;
+    currentMinute = localMinutes % 60;
+    currentSecond = second;
+
+    Logger.setRealTime(currentHour, currentMinute, currentSecond);
+    lastNetworkTimeUpdate = millis();
+
+    Logger.info(LOG_TAG_SYSTEM, "Local time %02d:%02d:%02d (modem %02d:%02d TZ %+.1fh, station offset %+d min)",
+                currentHour, currentMinute, currentSecond, hour, minute, timezone, dynamicUtcOffsetMinutes);
+
+    return true;
 }
 
 /**

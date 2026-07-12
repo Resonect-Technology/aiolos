@@ -434,6 +434,9 @@ test.group('Firmware Critical Endpoints', (group) => {
       otaMinute: null,
       otaDuration: null,
       remoteOta: false,
+      utcOffsetMinutes: null,
+      livestreamStartHour: null,
+      lowBatteryThreshold: null,
       message: 'No configuration found for this station. Default values will be used.',
     };
 

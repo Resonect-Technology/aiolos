@@ -72,28 +72,41 @@ public:
     bool sendWindData(const char *stationId, float windSpeed, float windDirection);
 
     /**
+     * @brief Remote station configuration
+     *
+     * Initialize fields with the currently-active values before calling
+     * fetchConfiguration() - only fields present (non-null) in the server
+     * response are overwritten.
+     */
+    struct StationConfigData
+    {
+        unsigned long tempInterval = 0;       // ms
+        unsigned long windSendInterval = 0;   // ms
+        unsigned long windSampleInterval = 0; // ms
+        unsigned long diagInterval = 0;       // ms
+        unsigned long timeInterval = 0;       // ms
+        unsigned long restartInterval = 0;    // seconds (0 = keep current)
+        int sleepStartHour = -1;
+        int sleepEndHour = -1;
+        int otaHour = -1;
+        int otaMinute = -1;
+        int otaDuration = 0;             // minutes
+        bool remoteOta = false;
+        int utcOffsetMinutes = 0;        // Station-local offset from UTC
+        int livestreamStartHour = -1;    // -1 = morning slow mode disabled
+        float lowBatteryThreshold = 0.0f; // Volts; <= 0 disables the battery gate
+    };
+
+    /**
      * @brief Fetch configuration from the server
      *
      * @param stationId Station identifier
-     * @param tempInterval Pointer to store retrieved temperature interval
-     * @param windInterval Pointer to store retrieved wind interval
-     * @param diagInterval Pointer to store retrieved diagnostics interval
-     * @param timeInterval Pointer to store retrieved time sync interval
-     * @param restartInterval Pointer to store retrieved restart interval
-     * @param sleepStartHour Pointer to store retrieved sleep start hour
-     * @param sleepEndHour Pointer to store retrieved sleep end hour
-     * @param otaHour Pointer to store retrieved OTA hour
-     * @param otaMinute Pointer to store retrieved OTA minute
-     * @param otaDuration Pointer to store retrieved OTA duration in minutes
-     * @param remoteOta Pointer to store retrieved remote OTA flag
+     * @param config In/out configuration; fields absent from the server
+     *               response keep the values they were initialized with
      * @return true if successful
      * @return false if failed
      */
-    bool fetchConfiguration(const char *stationId, unsigned long *tempInterval, unsigned long *windInterval,
-                            unsigned long *windSampleInterval, unsigned long *diagInterval, unsigned long *timeInterval = nullptr,
-                            unsigned long *restartInterval = nullptr, int *sleepStartHour = nullptr,
-                            int *sleepEndHour = nullptr, int *otaHour = nullptr,
-                            int *otaMinute = nullptr, int *otaDuration = nullptr, bool *remoteOta = nullptr);
+    bool fetchConfiguration(const char *stationId, StationConfigData &config);
 
     /**
      * @brief Checks if the HTTP client is currently in a backoff period.

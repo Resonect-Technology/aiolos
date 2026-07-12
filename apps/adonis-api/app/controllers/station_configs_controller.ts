@@ -31,6 +31,9 @@ export default class StationConfigsController {
           otaMinute: null,
           otaDuration: null,
           remoteOta: false,
+          utcOffsetMinutes: null,
+          livestreamStartHour: null,
+          lowBatteryThreshold: null,
           message: 'No configuration found for this station. Default values will be used.',
         };
       }
@@ -76,6 +79,9 @@ export default class StationConfigsController {
         'otaMinute',
         'otaDuration',
         'remoteOta',
+        'utcOffsetMinutes',
+        'livestreamStartHour',
+        'lowBatteryThreshold',
       ];
 
       // Process numeric fields
@@ -151,6 +157,9 @@ export default class StationConfigsController {
           otaHour: config.otaHour,
           otaMinute: config.otaMinute,
           otaDuration: config.otaDuration,
+          utcOffsetMinutes: config.utcOffsetMinutes,
+          livestreamStartHour: config.livestreamStartHour,
+          lowBatteryThreshold: config.lowBatteryThreshold,
           remoteOta: false, // Reset the OTA flag
         },
       });

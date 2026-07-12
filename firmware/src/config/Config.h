@@ -135,6 +135,14 @@
 
 // Wind sensor specific settings
 #define WIND_AVERAGING_SAMPLE_INTERVAL_MS 10000 // (10s) Interval for samples within a larger averaging period
+#define LIVESTREAM_THRESHOLD_MS 5000UL          // Wind send intervals <= this use instantaneous (livestream) mode
+
+// Power-aware scheduling (remote-configurable; see SchedLogic.h)
+#define DEFAULT_UTC_OFFSET_MINUTES 180      // Station-local offset from UTC in minutes (Greece summer time)
+#define DEFAULT_LIVESTREAM_START_HOUR -1    // Local hour to start live wind cadence; -1 = morning slow mode disabled
+#define DEFAULT_LOW_BATTERY_THRESHOLD 4.0f  // Volts; battery gate forces slow mode below this
+#define BATTERY_GATE_HYSTERESIS_V 0.1f      // Gate enters below (threshold - hysteresis), exits at >= threshold
+#define SLOW_MODE_WIND_INTERVAL_MS 600000UL // (10min) Wind send interval floor while in slow mode
 
 // Watchdog settings
 #define WDT_TIMEOUT_S 120 // Watchdog timeout in seconds
