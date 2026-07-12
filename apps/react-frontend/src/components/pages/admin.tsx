@@ -56,6 +56,7 @@ import {
 import * as React from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { z } from 'zod';
 
 type NumericConfigKey = Exclude<keyof StationConfig, 'remoteOta'>;
 type ConfigFormValues = Record<NumericConfigKey, string>;
@@ -65,46 +66,98 @@ interface ConfigField {
   key: NumericConfigKey;
   label: string;
   hint: string;
+  /** Coerces the form's string value and enforces the field's valid range */
+  schema: z.ZodType<number, unknown>;
 }
 
+const positiveInt = z.coerce.number().int().positive();
+const hourOfDay = z.coerce.number().int().min(0).max(23);
+const minuteOfHour = z.coerce.number().int().min(0).max(59);
+
 const CONFIG_FIELDS: ConfigField[] = [
-  { key: 'tempInterval', label: 'Temperature interval', hint: 'ms between temperature reports' },
+  {
+    key: 'tempInterval',
+    label: 'Temperature interval',
+    hint: 'ms between temperature reports',
+    schema: positiveInt,
+  },
   {
     key: 'windSendInterval',
     label: 'Wind send interval',
     hint: 'ms between wind reports; ≤ 5000 switches to livestream mode',
+    schema: positiveInt,
   },
   {
     key: 'windSampleInterval',
     label: 'Wind sample interval',
     hint: 'ms between samples in averaged mode',
+    schema: positiveInt,
   },
-  { key: 'diagInterval', label: 'Diagnostics interval', hint: 'ms between diagnostics reports' },
-  { key: 'timeInterval', label: 'Time sync interval', hint: 'ms between network clock syncs' },
+  {
+    key: 'diagInterval',
+    label: 'Diagnostics interval',
+    hint: 'ms between diagnostics reports',
+    schema: positiveInt,
+  },
+  {
+    key: 'timeInterval',
+    label: 'Time sync interval',
+    hint: 'ms between network clock syncs',
+    schema: positiveInt,
+  },
   {
     key: 'restartInterval',
     label: 'Restart interval',
     hint: 'seconds between scheduled restarts (firmware floor: 1 hour)',
+    schema: positiveInt,
   },
-  { key: 'sleepStartHour', label: 'Sleep start hour', hint: 'station-local hour 0–23' },
-  { key: 'sleepEndHour', label: 'Sleep end hour', hint: 'station-local hour 0–23' },
-  { key: 'otaHour', label: 'OTA window hour', hint: 'daily OTA window start hour' },
-  { key: 'otaMinute', label: 'OTA window minute', hint: 'OTA window start minute 0–59' },
-  { key: 'otaDuration', label: 'OTA window duration', hint: 'minutes the OTA AP stays open' },
+  {
+    key: 'sleepStartHour',
+    label: 'Sleep start hour',
+    hint: 'station-local hour 0–23',
+    schema: hourOfDay,
+  },
+  {
+    key: 'sleepEndHour',
+    label: 'Sleep end hour',
+    hint: 'station-local hour 0–23',
+    schema: hourOfDay,
+  },
+  {
+    key: 'otaHour',
+    label: 'OTA window hour',
+    hint: 'daily OTA window start hour',
+    schema: hourOfDay,
+  },
+  {
+    key: 'otaMinute',
+    label: 'OTA window minute',
+    hint: 'OTA window start minute 0–59',
+    schema: minuteOfHour,
+  },
+  {
+    key: 'otaDuration',
+    label: 'OTA window duration',
+    hint: 'minutes the OTA AP stays open',
+    schema: positiveInt,
+  },
   {
     key: 'utcOffsetMinutes',
     label: 'UTC offset',
     hint: 'station-local timezone offset in minutes (Vasiliki: 180)',
+    schema: z.coerce.number().int().min(-720).max(840),
   },
   {
     key: 'livestreamStartHour',
     label: 'Livestream start hour',
     hint: 'morning slow mode ends at this station-local hour',
+    schema: hourOfDay,
   },
   {
     key: 'lowBatteryThreshold',
     label: 'Low battery threshold',
     hint: 'volts; below this the station forces low-power mode',
+    schema: z.coerce.number().positive(),
   },
 ];
 
@@ -123,14 +176,26 @@ const configToFormValues = (config: StationConfig): ConfigFormValues => {
   return values;
 };
 
-/** Build the POST payload: filled fields become numbers, empty fields are omitted. */
-const formValuesToPayload = (values: ConfigFormValues): Partial<StationConfig> => {
+/**
+ * Build the POST payload: filled fields are validated per-field and become
+ * numbers, empty fields are omitted. Invalid fields are reported by label.
+ */
+const formValuesToPayload = (
+  values: ConfigFormValues,
+): { payload: Partial<StationConfig>; errors: string[] } => {
   const payload: Partial<StationConfig> = {};
+  const errors: string[] = [];
   for (const field of CONFIG_FIELDS) {
     const raw = values[field.key].trim();
-    if (raw !== '') payload[field.key] = Number(raw);
+    if (raw === '') continue;
+    const parsed = field.schema.safeParse(raw);
+    if (parsed.success) {
+      payload[field.key] = parsed.data;
+    } else {
+      errors.push(field.label);
+    }
   }
-  return payload;
+  return { payload, errors };
 };
 
 export function AdminPage() {
@@ -340,18 +405,35 @@ function StationConfigCard({
     }
   };
 
-  const handleSave = () => save(formValuesToPayload(values), 'Configuration saved.');
-
-  const applyPreset = (preset: ConfigPreset) => {
-    const merged = { ...formValuesToPayload(values), ...preset.values };
-    return save(merged, `Preset "${preset.name}" applied.`);
+  // Validates the form and toasts the offending field labels; null aborts the save
+  const buildPayload = (): Partial<StationConfig> | null => {
+    const { payload, errors } = formValuesToPayload(values);
+    if (errors.length > 0) {
+      toast.error(`Invalid values: ${errors.join(', ')}`);
+      return null;
+    }
+    return payload;
   };
 
-  const triggerOta = () =>
-    save(
-      { ...formValuesToPayload(values), remoteOta: true },
+  const handleSave = () => {
+    const payload = buildPayload();
+    if (payload) save(payload, 'Configuration saved.');
+  };
+
+  const applyPreset = (preset: ConfigPreset) => {
+    const payload = buildPayload();
+    if (!payload) return;
+    return save({ ...payload, ...preset.values }, `Preset "${preset.name}" applied.`);
+  };
+
+  const triggerOta = () => {
+    const payload = buildPayload();
+    if (!payload) return;
+    return save(
+      { ...payload, remoteOta: true },
       'OTA window requested. The station opens its access point on the next config fetch.',
     );
+  };
 
   return (
     <>

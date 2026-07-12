@@ -13,10 +13,15 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { useTransmitSubscription } from '@/hooks/use-transmit-subscription';
 import type { WindData } from '@/types/wind';
 import { useState, useCallback } from 'react';
+import { z } from 'zod';
 
 import { windLivePayloadSchema } from '@repo/schemas';
 
 const UNIT_STORAGE_KEY = 'aiolos:wind-unit';
+
+// Display units (UI concern — distinct from the API's ms/kmh/knots);
+// garbage in localStorage falls back to the windsurfer default
+const storedUnitSchema = z.enum(['m/s', 'km/h', 'knots', 'beaufort']).catch('knots');
 
 export function Dashboard() {
   // Fixed station ID for Vasiliki weather station
@@ -25,8 +30,8 @@ export function Dashboard() {
   // Wind data state
   const [windData, setWindData] = useState<WindData | null>(null);
   // Knots is the windsurfer default; the choice persists across visits
-  const [selectedUnit, setSelectedUnit] = useState<string>(
-    () => localStorage.getItem(UNIT_STORAGE_KEY) ?? 'knots',
+  const [selectedUnit, setSelectedUnit] = useState<string>(() =>
+    storedUnitSchema.parse(localStorage.getItem(UNIT_STORAGE_KEY)),
   );
   const [windHistory, setWindHistory] = useState<WindData[]>([]);
 
