@@ -5,8 +5,7 @@
  * This is the entry point for the Aiolos Weather Station.
  * It initializes all components and manages the main operation loop.
  *
- * @version 1.0.0
- * @date 2025-06-25
+ * @version FIRMWARE_VERSION (see config/Config.h)
  */
 
 #include <Arduino.h>
@@ -218,14 +217,8 @@ void setup()
         // Only proceed with network operations if GPRS is connected and not in backoff
         if (modemManager.isGprsConnected() && !httpClient.isConnectionThrottled())
         {
-            // Send initial diagnostics data with minimal temperature reading
-            float internalTemp = diagnosticsManager.readInternalTemperature();
-            float externalTemp = externalTempSensor.readTemperature();
-            if (externalTemp == DEVICE_DISCONNECTED_C)
-            {
-                externalTemp = -127.0f;
-            }
-            diagnosticsManager.sendDiagnostics(internalTemp, externalTemp);
+            // Send initial diagnostics data
+            diagnosticsManager.sendDiagnostics(diagnosticsManager.readInternalTemperature());
 
             // Initialize configuration update time
             lastConfigUpdate = millis();
@@ -493,35 +486,8 @@ void loop()
         {
             lastDiagnosticsUpdate = currentMillis;
 
-            // Get temperature readings from main loop sensors to avoid conflicts
-            float internalTemp = -127.0f; // Default to "no reading"
-            float externalTemp = -127.0f; // Default to "no reading"
-
-            // Try to get current temperature readings without blocking
-            if (tempConversionStarted)
-            {
-                // If conversion is in progress, try to get non-blocking result
-                externalTemp = externalTempSensor.getTemperatureNonBlocking();
-                if (isnan(externalTemp))
-                {
-                    externalTemp = -127.0f; // Conversion still in progress
-                }
-            }
-            else
-            {
-                // No conversion in progress, use last known values or start new reading
-                externalTemp = externalTempSensor.readTemperature();
-                if (externalTemp == DEVICE_DISCONNECTED_C)
-                {
-                    externalTemp = -127.0f;
-                }
-            }
-
-            // Get internal temperature (this uses a different bus, so should be safe)
-            internalTemp = diagnosticsManager.readInternalTemperature();
-
-            // Send diagnostics with temperature readings to avoid sensor conflicts
-            diagnosticsManager.sendDiagnostics(internalTemp, externalTemp);
+            // Internal temperature is on its own bus; external temp is sent by the temperature task
+            diagnosticsManager.sendDiagnostics(diagnosticsManager.readInternalTemperature());
         }
 
         // Fetch remote configuration periodically
@@ -610,20 +576,16 @@ void loop()
                     Logger.warn(LOG_TAG_SYSTEM, "Non-blocking temperature conversion failed, using blocking read");
                     float externalTemp = externalTempSensor.readTemperature();
 
-                    // Get internal temperature from diagnostics manager
-                    float internalTemp = diagnosticsManager.readInternalTemperature();
-
                     if (externalTemp == DEVICE_DISCONNECTED_C)
                     {
                         externalTemp = -127.0; // Use -127 as an indicator of no reading
                         Logger.warn(LOG_TAG_SYSTEM, "Failed to read external temperature");
                     }
 
-                    Logger.info(LOG_TAG_SYSTEM, "Temperature readings - Internal: %.2f°C, External: %.2f°C",
-                                internalTemp, externalTemp);
+                    Logger.info(LOG_TAG_SYSTEM, "External temperature: %.2f°C", externalTemp);
 
                     // Send external temperature data to server (internal temp is sent in diagnostics)
-                    if (httpClient.sendTemperatureData(DEVICE_ID, internalTemp, externalTemp))
+                    if (httpClient.sendTemperatureData(DEVICE_ID, externalTemp))
                     {
                         Logger.info(LOG_TAG_SYSTEM, "Temperature data sent successfully");
                     }
@@ -648,20 +610,16 @@ void loop()
                 tempConversionStarted = false;
                 lastTemperatureUpdate = currentMillis;
 
-                // Get internal temperature from diagnostics manager
-                float internalTemp = diagnosticsManager.readInternalTemperature();
-
                 if (externalTemp == DEVICE_DISCONNECTED_C)
                 {
                     externalTemp = -127.0; // Use -127 as an indicator of no reading
                     Logger.warn(LOG_TAG_SYSTEM, "Failed to read external temperature");
                 }
 
-                Logger.info(LOG_TAG_SYSTEM, "Temperature readings - Internal: %.2f°C, External: %.2f°C",
-                            internalTemp, externalTemp);
+                Logger.info(LOG_TAG_SYSTEM, "External temperature: %.2f°C", externalTemp);
 
                 // Send external temperature data to server (internal temp is sent in diagnostics)
-                if (httpClient.sendTemperatureData(DEVICE_ID, internalTemp, externalTemp))
+                if (httpClient.sendTemperatureData(DEVICE_ID, externalTemp))
                 {
                     Logger.info(LOG_TAG_SYSTEM, "Temperature data sent successfully");
                 }
@@ -1135,14 +1093,14 @@ void testModemConnectivity()
         String ip = modemManager.getLocalIP();
         Logger.info(LOG_TAG_SYSTEM, "Local IP address: %s", ip.c_str());
 
-        // Test connectivity with a reliable host
-        if (modemManager.testConnectivity("google.com", 80))
+        // Test connectivity against the server the station actually talks to
+        if (modemManager.testConnectivity(SERVER_ADDRESS, SERVER_PORT))
         {
-            Logger.info(LOG_TAG_SYSTEM, "Connectivity test to google.com:80 successful.");
+            Logger.info(LOG_TAG_SYSTEM, "Connectivity test to %s:%d successful.", SERVER_ADDRESS, SERVER_PORT);
         }
         else
         {
-            Logger.error(LOG_TAG_SYSTEM, "Connectivity test to google.com:80 failed.");
+            Logger.error(LOG_TAG_SYSTEM, "Connectivity test to %s:%d failed.", SERVER_ADDRESS, SERVER_PORT);
         }
     }
     else

@@ -21,7 +21,6 @@ bool DiagnosticsManager::init(ModemManager &modemManager, AiolosHttpClient &http
     _httpClient = &httpClient;
     _interval = interval;
     _internalTempAvailable = false;
-    _externalTempAvailable = false;
 
     // Initialize internal temperature sensor
     if (_internalTempSensor.init(TEMP_BUS_INT, "internal"))
@@ -35,27 +34,12 @@ bool DiagnosticsManager::init(ModemManager &modemManager, AiolosHttpClient &http
         // Don't fail initialization - we can still send other diagnostics
     }
 
-    // Initialize external temperature sensor
-    if (_externalTempSensor.init(TEMP_BUS_EXT, "external"))
-    {
-        _externalTempAvailable = true;
-        Logger.info(LOG_TAG_DIAG, "External temperature sensor initialized successfully");
-    }
-    else
-    {
-        Logger.warn(LOG_TAG_DIAG, "Failed to initialize external temperature sensor (optional)");
-        // Continue initialization even if external sensor fails
-    }
-
     // Configure ADC for solar voltage reading once
     configureSolarAdc();
 
     _initialized = true;
 
     Logger.info(LOG_TAG_DIAG, "Diagnostics manager initialized with interval of %lu ms", _interval);
-    Logger.info(LOG_TAG_DIAG, "Temperature sensors - Internal: %s, External: %s",
-                _internalTempAvailable ? "available" : "unavailable",
-                _externalTempAvailable ? "available" : "unavailable");
 
     return true;
 }
@@ -72,7 +56,7 @@ void DiagnosticsManager::setInterval(unsigned long interval)
 /**
  * @brief Send current diagnostics data to the server
  */
-bool DiagnosticsManager::sendDiagnostics()
+bool DiagnosticsManager::sendDiagnostics(float internalTemp)
 {
     if (!_initialized || !_modemManager || !_httpClient)
     {
@@ -80,34 +64,6 @@ bool DiagnosticsManager::sendDiagnostics()
         return false;
     }
 
-    // Read internal temperature if available
-    float internalTemp = _internalTempAvailable ? readInternalTemperature() : -127.0f;
-
-    // Read external temperature if available
-    float externalTemp = _externalTempAvailable ? readExternalTemperature() : -127.0f;
-
-    return sendDiagnosticsInternal(internalTemp, externalTemp);
-}
-
-/**
- * @brief Send diagnostics with external temperature readings
- */
-bool DiagnosticsManager::sendDiagnostics(float internalTemp, float externalTemp)
-{
-    if (!_initialized || !_modemManager || !_httpClient)
-    {
-        Logger.error(LOG_TAG_DIAG, "Diagnostics manager not initialized");
-        return false;
-    }
-
-    return sendDiagnosticsInternal(internalTemp, externalTemp);
-}
-
-/**
- * @brief Internal method to send diagnostics data
- */
-bool DiagnosticsManager::sendDiagnosticsInternal(float internalTemp, float externalTemp)
-{
     Logger.info(LOG_TAG_DIAG, "Collecting and sending diagnostics data...");
 
     // Get signal quality
@@ -121,10 +77,8 @@ bool DiagnosticsManager::sendDiagnosticsInternal(float internalTemp, float exter
     unsigned long uptime = getSystemUptime();
 
     // Log diagnostic values before sending
-    Logger.info(LOG_TAG_DIAG, "Diagnostics - Battery: %.2fV, Solar: %.2fV, Signal: %d, Uptime: %lus",
-                batteryVoltage, solarVoltage, signalQuality, uptime);
-    Logger.info(LOG_TAG_DIAG, "Diagnostics - Internal temp: %.1f°C, External temp: %.1f°C",
-                internalTemp, externalTemp);
+    Logger.info(LOG_TAG_DIAG, "Diagnostics - Battery: %.2fV, Solar: %.2fV, Signal: %d, Uptime: %lus, Internal temp: %.1f°C",
+                batteryVoltage, solarVoltage, signalQuality, uptime, internalTemp);
 
 #ifdef DISABLE_WDT_FOR_MODEM
     Logger.debug(LOG_TAG_DIAG, "Relaxing watchdog for diagnostics");
@@ -251,35 +205,5 @@ float DiagnosticsManager::readInternalTemperature()
     }
 
     Logger.debug(LOG_TAG_DIAG, "Internal temperature: %.2f°C", temp);
-    return temp;
-}
-
-/**
- * @brief Read the external temperature sensor
- */
-float DiagnosticsManager::readExternalTemperature()
-{
-    if (!_externalTempAvailable)
-    {
-        Logger.debug(LOG_TAG_DIAG, "External temperature sensor not available");
-        return -127.0;
-    }
-
-    float temp = _externalTempSensor.readTemperature();
-
-    if (temp == DEVICE_DISCONNECTED_C)
-    {
-        Logger.debug(LOG_TAG_DIAG, "External temperature sensor disconnected");
-        return -127.0;
-    }
-
-    // Validate temperature reading is within reasonable range
-    if (temp < -40.0 || temp > 85.0)
-    {
-        Logger.warn(LOG_TAG_DIAG, "External temperature reading out of range: %.2f°C", temp);
-        return -127.0;
-    }
-
-    Logger.debug(LOG_TAG_DIAG, "External temperature: %.2f°C", temp);
     return temp;
 }

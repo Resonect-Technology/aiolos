@@ -482,7 +482,7 @@ bool AiolosHttpClient::sendWindData(const char *stationId, float windSpeed, floa
 /**
  * @brief Send temperature data to the server (optimized for high-frequency sending)
  */
-bool AiolosHttpClient::sendTemperatureData(const char *stationId, float internalTemp, float externalTemp)
+bool AiolosHttpClient::sendTemperatureData(const char *stationId, float externalTemp)
 {
     Logger.info(LOG_TAG_HTTP, "Sending temperature data for station %s", stationId);
 

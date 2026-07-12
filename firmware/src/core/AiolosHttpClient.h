@@ -100,12 +100,11 @@ public:
      * @brief Send temperature data to the server
      *
      * @param stationId Station identifier
-     * @param internalTemp Internal temperature in Celsius (kept for backward compatibility)
      * @param externalTemp External temperature in Celsius
      * @return true if successful
      * @return false if failed
      */
-    bool sendTemperatureData(const char *stationId, float internalTemp, float externalTemp);
+    bool sendTemperatureData(const char *stationId, float externalTemp);
 
     /**
      * @brief Confirms to the server that OTA has been initiated
