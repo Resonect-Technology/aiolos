@@ -1,0 +1,104 @@
+version: "3"
+
+tasks:
+  default:
+    desc: "Show available tasks"
+    cmds:
+      - task --list
+
+  setup:
+    desc: "Setup development environment (corepack pnpm, deps, git hooks)"
+    cmds:
+      - corepack enable pnpm
+      - pnpm install --frozen-lockfile
+      - echo "✅ Development environment ready"
+
+  # === Monorepo (turbo) ===
+
+  dev:
+    desc: "Start API (:8080) + dashboard (:5173) with HMR"
+    cmds:
+      - pnpm dev
+
+  build:
+    desc: "Build all apps"
+    cmds:
+      - pnpm build
+
+  test:
+    desc: "Run the backend Japa suite"
+    cmds:
+      - pnpm test
+
+  check:
+    desc: "Full pre-PR gate: format, lint, types, tests"
+    cmds:
+      - pnpm format:check
+      - pnpm exec turbo run lint check-types test
+
+  format:
+    desc: "Format the repo with oxfmt"
+    cmds:
+      - pnpm format
+
+  # === Database (Prisma on SQLite) ===
+
+  db:migrate:
+    desc: "Create/apply a dev migration (usage: task db:migrate -- --name add_x)"
+    dir: apps/adonis-api
+    cmds:
+      - pnpm exec prisma migrate dev {{.CLI_ARGS}}
+
+  db:seed:
+    desc: "Run idempotent seeds"
+    dir: apps/adonis-api
+    cmds:
+      - pnpm run seed
+
+  db:generate:
+    desc: "Regenerate the Prisma client"
+    dir: apps/adonis-api
+    cmds:
+      - pnpm exec prisma generate
+
+  # === Full stack (Docker) ===
+
+  stack:up:
+    desc: "Run the full prod-like stack on :80 (Caddy + API + nginx frontend)"
+    cmds:
+      - docker compose -f infra/docker-compose.dev.yml up --build
+
+  stack:down:
+    desc: "Stop and remove the full stack"
+    cmds:
+      - docker compose -f infra/docker-compose.dev.yml down
+
+  # === Firmware (PlatformIO) ===
+
+  firmware:build:
+    desc: "Build ESP32 firmware"
+    preconditions:
+      - sh: test -f firmware/secrets.ini
+        msg: "firmware/secrets.ini missing — copy firmware/secrets.ini.example"
+    cmds:
+      - pio run -e aiolos-esp32dev
+
+  firmware:monitor:
+    desc: "Serial monitor (needs USB on host)"
+    cmds:
+      - pio device monitor
+
+  # === Infrastructure (Terraform — apply is manual, never via task) ===
+
+  infra:plan:
+    desc: "Terraform plan for prod"
+    dir: infra/prod
+    cmds:
+      - terraform plan
+
+  infra:fmt:
+    desc: "Format + validate terraform"
+    dir: infra/prod
+    cmds:
+      - terraform fmt -recursive ..
+      - terraform validate

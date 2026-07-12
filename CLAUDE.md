@@ -56,6 +56,10 @@ pio run -e aiolos-esp32dev # firmware build (needs firmware/secrets.ini)
 docker compose -f infra/docker-compose.dev.yml up --build  # full stack on :80
 ```
 
+The same commands are wrapped in the root `Taskfile.yml` (`task --list`) for
+[go-task](https://taskfile.dev) users; `task infra:*` never runs
+`terraform apply`.
+
 ## Testing
 
 - Backend: `pnpm test` (Japa; bootstrap recreates `tmp/db.sqlite3` from the
