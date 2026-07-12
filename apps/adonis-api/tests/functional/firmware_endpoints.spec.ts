@@ -1,8 +1,6 @@
-import { test } from '@japa/runner'
-import TemperatureReading from '#app/models/temperature_reading'
-import StationDiagnostic from '#app/models/station_diagnostic'
-import StationConfig from '#app/models/station_config'
-import WeatherStation from '#app/models/weather_station'
+import { test } from '@japa/runner';
+
+import { prisma } from '#services/prisma';
 
 /**
  * Firmware Critical Endpoints Test Suite
@@ -20,32 +18,34 @@ import WeatherStation from '#app/models/weather_station'
  * All tests are in a flat structure to comply with Japa/AdonisJS requirements.
  */
 test.group('Firmware Critical Endpoints', (group) => {
-  const testStationId = 'test-station-firmware'
+  const testStationId = 'test-station-firmware';
 
   group.each.setup(async () => {
     // Clean up any existing test data
-    await TemperatureReading.query().delete()
-    await StationDiagnostic.query().delete()
-    await StationConfig.query().delete()
-    await WeatherStation.query().delete()
+    await prisma.temperatureReading.deleteMany();
+    await prisma.stationDiagnostic.deleteMany();
+    await prisma.stationConfig.deleteMany();
+    await prisma.weatherStation.deleteMany();
 
     // Create the test weather station
-    await WeatherStation.create({
-      stationId: testStationId,
-      name: 'Test Station',
-      location: 'Test Environment',
-      description: 'Test station for firmware endpoints',
-      isActive: true,
-    })
-  })
+    await prisma.weatherStation.create({
+      data: {
+        stationId: testStationId,
+        name: 'Test Station',
+        location: 'Test Environment',
+        description: 'Test station for firmware endpoints',
+        isActive: true,
+      },
+    });
+  });
 
   group.each.teardown(async () => {
     // Clean up after each test
-    await TemperatureReading.query().delete()
-    await StationDiagnostic.query().delete()
-    await StationConfig.query().delete()
-    await WeatherStation.query().delete()
-  })
+    await prisma.temperatureReading.deleteMany();
+    await prisma.stationDiagnostic.deleteMany();
+    await prisma.stationConfig.deleteMany();
+    await prisma.weatherStation.deleteMany();
+  });
 
   /**
    * Wind Data Endpoint Tests
@@ -58,71 +58,154 @@ test.group('Firmware Critical Endpoints', (group) => {
       windSpeed: 12.5,
       windDirection: 270,
       timestamp: new Date().toISOString(),
-    }
+    };
 
-    const response = await client.post(`/api/stations/${testStationId}/wind`).json(windData)
+    const response = await client.post(`/api/stations/${testStationId}/wind`).json(windData);
 
-    response.assertStatus(200)
-    response.assertBody({ ok: true })
-  })
+    response.assertStatus(200);
+    response.assertBody({ ok: true });
+  });
 
   test('should reject invalid wind speed', async ({ client }) => {
     const windData = {
       windSpeed: 'invalid',
       windDirection: 270,
-    }
+    };
 
-    const response = await client.post(`/api/stations/${testStationId}/wind`).json(windData)
+    const response = await client.post(`/api/stations/${testStationId}/wind`).json(windData);
 
-    response.assertStatus(400)
-    response.assertBodyContains({ error: 'Invalid wind data' })
-  })
+    response.assertStatus(400);
+    response.assertBodyContains({ error: 'Invalid wind data' });
+  });
 
   test('should reject invalid wind direction', async ({ client }) => {
     const windData = {
       windSpeed: 12.5,
       windDirection: 'invalid',
-    }
+    };
 
-    const response = await client.post(`/api/stations/${testStationId}/wind`).json(windData)
+    const response = await client.post(`/api/stations/${testStationId}/wind`).json(windData);
 
-    response.assertStatus(400)
-    response.assertBodyContains({ error: 'Invalid wind data' })
-  })
+    response.assertStatus(400);
+    response.assertBodyContains({ error: 'Invalid wind data' });
+  });
 
   test('should reject missing wind speed', async ({ client }) => {
     const windData = {
       windDirection: 270,
-    }
+    };
 
-    const response = await client.post(`/api/stations/${testStationId}/wind`).json(windData)
+    const response = await client.post(`/api/stations/${testStationId}/wind`).json(windData);
 
-    response.assertStatus(400)
-    response.assertBodyContains({ error: 'Invalid wind data' })
-  })
+    response.assertStatus(400);
+    response.assertBodyContains({ error: 'Invalid wind data' });
+  });
 
   test('should reject missing wind direction', async ({ client }) => {
     const windData = {
       windSpeed: 12.5,
-    }
+    };
 
-    const response = await client.post(`/api/stations/${testStationId}/wind`).json(windData)
+    const response = await client.post(`/api/stations/${testStationId}/wind`).json(windData);
 
-    response.assertStatus(400)
-    response.assertBodyContains({ error: 'Invalid wind data' })
-  })
+    response.assertStatus(400);
+    response.assertBodyContains({ error: 'Invalid wind data' });
+  });
 
   test('should handle timestamp auto-generation for wind data', async ({ client }) => {
     const windData = {
       windSpeed: 15.0,
       windDirection: 90,
+    };
+
+    const response = await client.post(`/api/stations/${testStationId}/wind`).json(windData);
+
+    response.assertStatus(200);
+    response.assertBody({ ok: true });
+  });
+
+  test('should accept full wind payload with gust, lull and interval', async ({ client }) => {
+    const windData = {
+      windSpeed: 12.5,
+      windDirection: 270,
+      gustSpeed: 16.2,
+      minSpeed: 8.4,
+      intervalMs: 1000,
+      timestamp: new Date().toISOString(),
+    };
+
+    const response = await client.post(`/api/stations/${testStationId}/wind`).json(windData);
+
+    response.assertStatus(200);
+    response.assertBody({ ok: true });
+  });
+
+  // Invalid OPTIONAL fields are dropped, never reject the reading: a
+  // noise-spiked gust (sensor chatter) must not blank out valid avg/direction
+  test('should drop a non-numeric gust speed and keep the reading', async ({ client }) => {
+    const response = await client
+      .post(`/api/stations/${testStationId}/wind`)
+      .json({ windSpeed: 12.5, windDirection: 270, gustSpeed: 'invalid' });
+
+    response.assertStatus(200);
+    response.assertBody({ ok: true });
+  });
+
+  test('should drop a negative gust speed and keep the reading', async ({ client }) => {
+    const response = await client
+      .post(`/api/stations/${testStationId}/wind`)
+      .json({ windSpeed: 12.5, windDirection: 270, gustSpeed: -1 });
+
+    response.assertStatus(200);
+    response.assertBody({ ok: true });
+  });
+
+  test('should drop an out-of-range gust speed and keep the reading', async ({ client }) => {
+    const response = await client
+      .post(`/api/stations/${testStationId}/wind`)
+      .json({ windSpeed: 12.5, windDirection: 270, gustSpeed: 66.7 });
+
+    response.assertStatus(200);
+    response.assertBody({ ok: true });
+  });
+
+  test('should reject out-of-range wind speed', async ({ client }) => {
+    for (const windSpeed of [-5, 999]) {
+      const response = await client
+        .post(`/api/stations/${testStationId}/wind`)
+        .json({ windSpeed, windDirection: 270 });
+
+      response.assertStatus(400);
+      response.assertBodyContains({ error: 'Invalid wind data' });
     }
+  });
 
-    const response = await client.post(`/api/stations/${testStationId}/wind`).json(windData)
+  test('should reject out-of-range wind direction', async ({ client }) => {
+    const response = await client
+      .post(`/api/stations/${testStationId}/wind`)
+      .json({ windSpeed: 12.5, windDirection: 400 });
 
-    response.assertStatus(200)
-    response.assertBody({ ok: true })
-  })
+    response.assertStatus(400);
+    response.assertBodyContains({ error: 'Invalid wind data' });
+  });
+
+  test('should drop an out-of-range interval and keep the reading', async ({ client }) => {
+    const response = await client
+      .post(`/api/stations/${testStationId}/wind`)
+      .json({ windSpeed: 12.5, windDirection: 270, intervalMs: 100 });
+
+    response.assertStatus(200);
+    response.assertBody({ ok: true });
+  });
+
+  test('should fall back to arrival time for an invalid timestamp', async ({ client }) => {
+    const response = await client
+      .post(`/api/stations/${testStationId}/wind`)
+      .json({ windSpeed: 12.5, windDirection: 270, timestamp: 'not-a-date' });
+
+    response.assertStatus(200);
+    response.assertBody({ ok: true });
+  });
 
   /**
    * Temperature Data Endpoint Tests
@@ -132,65 +215,88 @@ test.group('Firmware Critical Endpoints', (group) => {
   test('should accept valid temperature data', async ({ client, assert }) => {
     const tempData = {
       temperature: 23.5,
-    }
+    };
 
-    const response = await client.post(`/api/stations/${testStationId}/temperature`).json(tempData)
+    const response = await client.post(`/api/stations/${testStationId}/temperature`).json(tempData);
 
-    response.assertStatus(201)
+    response.assertStatus(201);
 
-    const body = response.body()
-    assert.equal(body.temperature, 23.5)
-    assert.equal(body.type, 'temperature')
-    assert.equal(body.sensorId, testStationId)
-    assert.exists(body.createdAt)
-    assert.exists(body.updatedAt)
-  })
+    const body = response.body();
+    assert.equal(body.temperature, 23.5);
+    assert.equal(body.type, 'temperature');
+    assert.equal(body.sensorId, testStationId);
+    assert.exists(body.createdAt);
+    assert.exists(body.updatedAt);
+  });
 
   test('should reject missing temperature value', async ({ client }) => {
-    const tempData = {}
+    const tempData = {};
 
-    const response = await client.post(`/api/stations/${testStationId}/temperature`).json(tempData)
+    const response = await client.post(`/api/stations/${testStationId}/temperature`).json(tempData);
 
-    response.assertStatus(400)
-    response.assertBodyContains({ error: 'Temperature value is required' })
-  })
+    response.assertStatus(400);
+    response.assertBodyContains({ error: 'Temperature value is required' });
+  });
 
-  test('should reject invalid temperature value', async ({ client }) => {
+  // Implausible values (non-numbers, sensor-error sentinels) are silently
+  // filtered with a 201 — never a 400, so the station doesn't retry them
+  test('should filter invalid temperature value without storing it', async ({ client }) => {
     const tempData = {
       temperature: 'invalid',
-    }
+    };
 
-    const response = await client.post(`/api/stations/${testStationId}/temperature`).json(tempData)
+    const response = await client.post(`/api/stations/${testStationId}/temperature`).json(tempData);
 
-    // Note: The API currently accepts invalid temperature values and stores them
-    // This might be a validation issue that should be addressed in the controller
-    response.assertStatus(201)
-    // TODO: This should ideally return 400 with validation error
-  })
+    response.assertStatus(201);
+    response.assertBodyContains({ filtered: true });
+
+    const latest = await client.get(`/api/stations/${testStationId}/temperature/latest`);
+    latest.assertStatus(404);
+  });
+
+  test('should accept temperature payload with intervalMs', async ({ client }) => {
+    const response = await client
+      .post(`/api/stations/${testStationId}/temperature`)
+      .json({ temperature: 21.4, intervalMs: 300000 });
+
+    response.assertStatus(201);
+    response.assertBodyContains({ temperature: 21.4 });
+  });
+
+  test('should drop an out-of-range temperature interval and keep the reading', async ({
+    client,
+  }) => {
+    const response = await client
+      .post(`/api/stations/${testStationId}/temperature`)
+      .json({ temperature: 21.4, intervalMs: 100 });
+
+    response.assertStatus(201);
+    response.assertBodyContains({ temperature: 21.4 });
+  });
 
   test('should retrieve latest temperature reading', async ({ client, assert }) => {
     // First, create a temperature reading
-    await client.post(`/api/stations/${testStationId}/temperature`).json({ temperature: 25.8 })
+    await client.post(`/api/stations/${testStationId}/temperature`).json({ temperature: 25.8 });
 
     // Then retrieve it
-    const response = await client.get(`/api/stations/${testStationId}/temperature/latest`)
+    const response = await client.get(`/api/stations/${testStationId}/temperature/latest`);
 
-    response.assertStatus(200)
+    response.assertStatus(200);
 
-    const body = response.body()
-    assert.equal(body.temperature, 25.8)
-    assert.equal(body.type, 'temperature')
-    assert.equal(body.sensorId, testStationId)
-    assert.exists(body.createdAt)
-    assert.exists(body.updatedAt)
-  })
+    const body = response.body();
+    assert.equal(body.temperature, 25.8);
+    assert.equal(body.type, 'temperature');
+    assert.equal(body.sensorId, testStationId);
+    assert.exists(body.createdAt);
+    assert.exists(body.updatedAt);
+  });
 
   test('should return 404 when no temperature readings exist', async ({ client }) => {
-    const response = await client.get(`/api/stations/${testStationId}/temperature/latest`)
+    const response = await client.get(`/api/stations/${testStationId}/temperature/latest`);
 
-    response.assertStatus(404)
-    response.assertBodyContains({ message: 'No temperature readings found' })
-  })
+    response.assertStatus(404);
+    response.assertBodyContains({ message: 'No temperature readings found' });
+  });
 
   /**
    * Diagnostics Endpoint Tests
@@ -204,25 +310,61 @@ test.group('Firmware Critical Endpoints', (group) => {
       signalQuality: 85,
       uptime: 1234567,
       internalTemperature: 42.5,
-    }
+    };
 
     const response = await client
       .post(`/api/stations/${testStationId}/diagnostics`)
-      .json(diagnosticsData)
+      .json(diagnosticsData);
 
-    response.assertStatus(200)
-    response.assertBody({ ok: true })
+    response.assertStatus(200);
+    response.assertBody({ ok: true });
 
     // Verify data was stored in database
-    const stored = await StationDiagnostic.query().where('stationId', testStationId).first()
+    const stored = await prisma.stationDiagnostic.findFirst({
+      where: { stationId: testStationId },
+    });
 
-    assert.exists(stored)
-    assert.equal(stored!.batteryVoltage, 3.7)
-    assert.equal(stored!.solarVoltage, 5.2)
-    assert.equal(stored!.signalQuality, 85)
-    assert.equal(stored!.uptime, 1234567)
-    assert.equal(stored!.internalTemperature, 42.5)
-  })
+    assert.exists(stored);
+    assert.equal(stored!.batteryVoltage, 3.7);
+    assert.equal(stored!.solarVoltage, 5.2);
+    assert.equal(stored!.signalQuality, 85);
+    assert.equal(stored!.uptime, 1234567);
+    assert.equal(stored!.internalTemperature, 42.5);
+  });
+
+  test('should persist optional health fields (firmware version, heap, reset reason)', async ({
+    client,
+    assert,
+  }) => {
+    const diagnosticsData = {
+      batteryVoltage: 3.9,
+      solarVoltage: 5.5,
+      signalQuality: 90,
+      uptime: 4242,
+      firmwareVersion: '2.1.0',
+      freeHeap: 123456,
+      minFreeHeap: 98765,
+      resetReason: 'DEEPSLEEP',
+    };
+
+    const response = await client
+      .post(`/api/stations/${testStationId}/diagnostics`)
+      .json(diagnosticsData);
+
+    response.assertStatus(200);
+    response.assertBody({ ok: true });
+
+    const stored = await prisma.stationDiagnostic.findFirst({
+      where: { stationId: testStationId },
+      orderBy: { id: 'desc' },
+    });
+
+    assert.exists(stored);
+    assert.equal(stored!.firmwareVersion, '2.1.0');
+    assert.equal(stored!.freeHeap, 123456);
+    assert.equal(stored!.minFreeHeap, 98765);
+    assert.equal(stored!.resetReason, 'DEEPSLEEP');
+  });
 
   test('should accept diagnostics data without optional internal temperature', async ({
     client,
@@ -232,87 +374,87 @@ test.group('Firmware Critical Endpoints', (group) => {
       solarVoltage: 4.8,
       signalQuality: 78,
       uptime: 987654,
-    }
+    };
 
     const response = await client
       .post(`/api/stations/${testStationId}/diagnostics`)
-      .json(diagnosticsData)
+      .json(diagnosticsData);
 
-    response.assertStatus(200)
-    response.assertBody({ ok: true })
-  })
+    response.assertStatus(200);
+    response.assertBody({ ok: true });
+  });
 
   test('should reject missing battery voltage', async ({ client }) => {
     const diagnosticsData = {
       solarVoltage: 5.0,
       signalQuality: 80,
       uptime: 123456,
-    }
+    };
 
     const response = await client
       .post(`/api/stations/${testStationId}/diagnostics`)
-      .json(diagnosticsData)
+      .json(diagnosticsData);
 
-    response.assertStatus(400)
+    response.assertStatus(400);
     response.assertBodyContains({
       error:
         'Invalid diagnostics data. Required fields: batteryVoltage, solarVoltage, signalQuality, uptime',
-    })
-  })
+    });
+  });
 
   test('should reject missing solar voltage', async ({ client }) => {
     const diagnosticsData = {
       batteryVoltage: 3.7,
       signalQuality: 80,
       uptime: 123456,
-    }
+    };
 
     const response = await client
       .post(`/api/stations/${testStationId}/diagnostics`)
-      .json(diagnosticsData)
+      .json(diagnosticsData);
 
-    response.assertStatus(400)
+    response.assertStatus(400);
     response.assertBodyContains({
       error:
         'Invalid diagnostics data. Required fields: batteryVoltage, solarVoltage, signalQuality, uptime',
-    })
-  })
+    });
+  });
 
   test('should reject missing signal quality', async ({ client }) => {
     const diagnosticsData = {
       batteryVoltage: 3.7,
       solarVoltage: 5.0,
       uptime: 123456,
-    }
+    };
 
     const response = await client
       .post(`/api/stations/${testStationId}/diagnostics`)
-      .json(diagnosticsData)
+      .json(diagnosticsData);
 
-    response.assertStatus(400)
+    response.assertStatus(400);
     response.assertBodyContains({
       error:
         'Invalid diagnostics data. Required fields: batteryVoltage, solarVoltage, signalQuality, uptime',
-    })
-  })
+    });
+  });
 
   test('should reject missing uptime', async ({ client }) => {
     const diagnosticsData = {
       batteryVoltage: 3.7,
       solarVoltage: 5.0,
       signalQuality: 80,
-    }
+    };
 
     const response = await client
       .post(`/api/stations/${testStationId}/diagnostics`)
-      .json(diagnosticsData)
+      .json(diagnosticsData);
 
-    response.assertStatus(400)
+    response.assertStatus(400);
     response.assertBodyContains({
       error:
         'Invalid diagnostics data. Required fields: batteryVoltage, solarVoltage, signalQuality, uptime',
-    })
-  })
+    });
+  });
 
   test('should reject invalid data types in diagnostics', async ({ client }) => {
     const diagnosticsData = {
@@ -320,18 +462,18 @@ test.group('Firmware Critical Endpoints', (group) => {
       solarVoltage: 5.0,
       signalQuality: 80,
       uptime: 123456,
-    }
+    };
 
     const response = await client
       .post(`/api/stations/${testStationId}/diagnostics`)
-      .json(diagnosticsData)
+      .json(diagnosticsData);
 
-    response.assertStatus(400)
+    response.assertStatus(400);
     response.assertBodyContains({
       error:
         'Invalid diagnostics data. Required fields: batteryVoltage, solarVoltage, signalQuality, uptime',
-    })
-  })
+    });
+  });
 
   test('should retrieve latest diagnostics', async ({ client, assert }) => {
     // First, create diagnostics data
@@ -341,34 +483,34 @@ test.group('Firmware Critical Endpoints', (group) => {
       signalQuality: 90,
       uptime: 2345678,
       internalTemperature: 38.2,
-    }
+    };
 
-    await client.post(`/api/stations/${testStationId}/diagnostics`).json(diagnosticsData)
+    await client.post(`/api/stations/${testStationId}/diagnostics`).json(diagnosticsData);
 
     // Then retrieve it
-    const response = await client.get(`/api/stations/${testStationId}/diagnostics`)
+    const response = await client.get(`/api/stations/${testStationId}/diagnostics`);
 
-    response.assertStatus(200)
+    response.assertStatus(200);
 
-    const body = response.body()
-    assert.equal(body.batteryVoltage, 3.8)
-    assert.equal(body.solarVoltage, 5.3)
-    assert.equal(body.signalQuality, 90)
-    assert.equal(body.uptime, 2345678)
-    assert.equal(body.internalTemperature, 38.2)
-    assert.exists(body.createdAt)
-    assert.exists(body.updatedAt)
-  })
+    const body = response.body();
+    assert.equal(body.batteryVoltage, 3.8);
+    assert.equal(body.solarVoltage, 5.3);
+    assert.equal(body.signalQuality, 90);
+    assert.equal(body.uptime, 2345678);
+    assert.equal(body.internalTemperature, 38.2);
+    assert.exists(body.createdAt);
+    assert.exists(body.updatedAt);
+  });
 
   test('should return message when no diagnostics exist', async ({ client }) => {
-    const response = await client.get(`/api/stations/${testStationId}/diagnostics`)
+    const response = await client.get(`/api/stations/${testStationId}/diagnostics`);
 
-    response.assertStatus(200)
+    response.assertStatus(200);
     response.assertBodyContains({
       stationId: testStationId,
       message: 'No diagnostics found for this station',
-    })
-  })
+    });
+  });
 
   /**
    * Station Configuration Endpoint Tests
@@ -379,9 +521,9 @@ test.group('Firmware Critical Endpoints', (group) => {
     client,
     assert,
   }) => {
-    const response = await client.get(`/api/stations/${testStationId}/config`)
+    const response = await client.get(`/api/stations/${testStationId}/config`);
 
-    response.assertStatus(200)
+    response.assertStatus(200);
 
     // Validate exact JSON structure that firmware expects
     const expectedStructure = {
@@ -398,99 +540,108 @@ test.group('Firmware Critical Endpoints', (group) => {
       otaMinute: null,
       otaDuration: null,
       remoteOta: false,
+      utcOffsetMinutes: null,
+      livestreamStartHour: null,
+      lowBatteryThreshold: null,
       message: 'No configuration found for this station. Default values will be used.',
-    }
+    };
 
-    response.assertBody(expectedStructure)
+    response.assertBody(expectedStructure);
 
     // Validate data types for critical fields
-    const body = response.body()
-    assert.equal(typeof body.stationId, 'string')
-    assert.equal(typeof body.remoteOta, 'boolean')
-    assert.equal(body.tempInterval, null)
-    assert.equal(body.windSendInterval, null)
-    assert.equal(body.windSampleInterval, null)
-    assert.equal(body.diagInterval, null)
-  })
+    const body = response.body();
+    assert.equal(typeof body.stationId, 'string');
+    assert.equal(typeof body.remoteOta, 'boolean');
+    assert.equal(body.tempInterval, null);
+    assert.equal(body.windSendInterval, null);
+    assert.equal(body.windSampleInterval, null);
+    assert.equal(body.diagInterval, null);
+  });
 
   test('should return actual config when configuration exists', async ({ client, assert }) => {
     // First, create a configuration (this would normally be done via admin API)
-    await StationConfig.create({
-      stationId: testStationId,
-      tempInterval: 60,
-      windSendInterval: 30,
-      windSampleInterval: 5,
-      diagInterval: 300,
-      timeInterval: 3600,
-      restartInterval: 86400,
-      sleepStartHour: 22,
-      sleepEndHour: 6,
-      otaHour: 3,
-      otaMinute: 0,
-      otaDuration: 30,
-      remoteOta: true,
-    })
+    await prisma.stationConfig.create({
+      data: {
+        stationId: testStationId,
+        tempInterval: 60,
+        windSendInterval: 30,
+        windSampleInterval: 5,
+        diagInterval: 300,
+        timeInterval: 3600,
+        restartInterval: 86400,
+        sleepStartHour: 22,
+        sleepEndHour: 6,
+        otaHour: 3,
+        otaMinute: 0,
+        otaDuration: 30,
+        remoteOta: true,
+      },
+    });
 
-    const response = await client.get(`/api/stations/${testStationId}/config`)
+    const response = await client.get(`/api/stations/${testStationId}/config`);
 
-    response.assertStatus(200)
+    response.assertStatus(200);
 
-    const body = response.body()
-    assert.equal(body.stationId, testStationId)
-    assert.equal(body.tempInterval, 60)
-    assert.equal(body.windSendInterval, 30)
-    assert.equal(body.windSampleInterval, 5)
-    assert.equal(body.diagInterval, 300)
-    assert.equal(body.timeInterval, 3600)
-    assert.equal(body.restartInterval, 86400)
-    assert.equal(body.sleepStartHour, 22)
-    assert.equal(body.sleepEndHour, 6)
-    assert.equal(body.otaHour, 3)
-    assert.equal(body.otaMinute, 0)
-    assert.equal(body.otaDuration, 30)
-    assert.equal(body.remoteOta, true)
+    const body = response.body();
+    assert.equal(body.stationId, testStationId);
+    assert.equal(body.tempInterval, 60);
+    assert.equal(body.windSendInterval, 30);
+    assert.equal(body.windSampleInterval, 5);
+    assert.equal(body.diagInterval, 300);
+    assert.equal(body.timeInterval, 3600);
+    assert.equal(body.restartInterval, 86400);
+    assert.equal(body.sleepStartHour, 22);
+    assert.equal(body.sleepEndHour, 6);
+    assert.equal(body.otaHour, 3);
+    assert.equal(body.otaMinute, 0);
+    assert.equal(body.otaDuration, 30);
+    assert.equal(body.remoteOta, true);
 
     // Ensure required fields are present
-    assert.exists(body.createdAt)
-    assert.exists(body.updatedAt)
-  })
+    assert.exists(body.createdAt);
+    assert.exists(body.updatedAt);
+  });
 
   test('should return latest config when multiple configurations exist', async ({
     client,
     assert,
   }) => {
     // Create an older configuration
-    await StationConfig.create({
-      stationId: testStationId,
-      tempInterval: 120,
-      windSendInterval: 60,
-      windSampleInterval: 10,
-      diagInterval: 600,
-      remoteOta: false,
-    })
+    await prisma.stationConfig.create({
+      data: {
+        stationId: testStationId,
+        tempInterval: 120,
+        windSendInterval: 60,
+        windSampleInterval: 10,
+        diagInterval: 600,
+        remoteOta: false,
+      },
+    });
 
     // Create a newer configuration
-    await StationConfig.create({
-      stationId: testStationId,
-      tempInterval: 30,
-      windSendInterval: 15,
-      windSampleInterval: 2,
-      diagInterval: 150,
-      remoteOta: true,
-    })
+    await prisma.stationConfig.create({
+      data: {
+        stationId: testStationId,
+        tempInterval: 30,
+        windSendInterval: 15,
+        windSampleInterval: 2,
+        diagInterval: 150,
+        remoteOta: true,
+      },
+    });
 
-    const response = await client.get(`/api/stations/${testStationId}/config`)
+    const response = await client.get(`/api/stations/${testStationId}/config`);
 
-    response.assertStatus(200)
+    response.assertStatus(200);
 
-    const body = response.body()
+    const body = response.body();
     // Should return the newer configuration
-    assert.equal(body.tempInterval, 30)
-    assert.equal(body.windSendInterval, 15)
-    assert.equal(body.windSampleInterval, 2)
-    assert.equal(body.diagInterval, 150)
-    assert.equal(body.remoteOta, true)
-  })
+    assert.equal(body.tempInterval, 30);
+    assert.equal(body.windSendInterval, 15);
+    assert.equal(body.windSampleInterval, 2);
+    assert.equal(body.diagInterval, 150);
+    assert.equal(body.remoteOta, true);
+  });
 
   /**
    * OTA Confirmation Endpoint Tests
@@ -498,19 +649,21 @@ test.group('Firmware Critical Endpoints', (group) => {
    */
   test('should handle OTA confirmation', async ({ client }) => {
     // First, create a configuration with OTA enabled
-    await StationConfig.create({
-      stationId: testStationId,
-      remoteOta: true,
-      otaHour: 3,
-      otaMinute: 0,
-      otaDuration: 30,
-    })
+    await prisma.stationConfig.create({
+      data: {
+        stationId: testStationId,
+        remoteOta: true,
+        otaHour: 3,
+        otaMinute: 0,
+        otaDuration: 30,
+      },
+    });
 
-    const response = await client.post(`/api/stations/${testStationId}/ota-confirm`)
+    const response = await client.post(`/api/stations/${testStationId}/ota-confirm`);
 
-    response.assertStatus(200)
-    response.assertBodyContains({ ok: true, message: 'OTA confirmation received' })
-  })
+    response.assertStatus(200);
+    response.assertBodyContains({ ok: true, message: 'OTA confirmation received' });
+  });
 
   /**
    * Critical Field Validation Tests
@@ -521,38 +674,38 @@ test.group('Firmware Critical Endpoints', (group) => {
       windSpeed: 10.5,
       windDirection: 225,
       timestamp: '2025-01-01T12:00:00.000Z',
-    }
+    };
 
-    const response = await client.post(`/api/stations/${testStationId}/wind`).json(windData)
+    const response = await client.post(`/api/stations/${testStationId}/wind`).json(windData);
 
-    response.assertStatus(200)
+    response.assertStatus(200);
 
-    const body = response.body()
-    assert.property(body, 'ok')
-    assert.equal(body.ok, true)
-    assert.equal(Object.keys(body).length, 1) // Ensure no extra fields
-  })
+    const body = response.body();
+    assert.property(body, 'ok');
+    assert.equal(body.ok, true);
+    assert.equal(Object.keys(body).length, 1); // Ensure no extra fields
+  });
 
   test('temperature data response structure should remain consistent', async ({
     client,
     assert,
   }) => {
-    const tempData = { temperature: 22.3 }
+    const tempData = { temperature: 22.3 };
 
-    const response = await client.post(`/api/stations/${testStationId}/temperature`).json(tempData)
+    const response = await client.post(`/api/stations/${testStationId}/temperature`).json(tempData);
 
-    response.assertStatus(201)
+    response.assertStatus(201);
 
-    const body = response.body()
-    assert.property(body, 'id')
-    assert.property(body, 'sensorId')
-    assert.property(body, 'type')
-    assert.property(body, 'temperature')
-    assert.property(body, 'createdAt')
-    assert.property(body, 'updatedAt')
-    assert.equal(body.type, 'temperature')
-    assert.equal(body.sensorId, testStationId)
-  })
+    const body = response.body();
+    assert.property(body, 'id');
+    assert.property(body, 'sensorId');
+    assert.property(body, 'type');
+    assert.property(body, 'temperature');
+    assert.property(body, 'createdAt');
+    assert.property(body, 'updatedAt');
+    assert.equal(body.type, 'temperature');
+    assert.equal(body.sensorId, testStationId);
+  });
 
   test('diagnostics response structure should remain consistent', async ({ client, assert }) => {
     const diagnosticsData = {
@@ -560,36 +713,38 @@ test.group('Firmware Critical Endpoints', (group) => {
       solarVoltage: 5.1,
       signalQuality: 82,
       uptime: 1500000,
-    }
+    };
 
     const response = await client
       .post(`/api/stations/${testStationId}/diagnostics`)
-      .json(diagnosticsData)
+      .json(diagnosticsData);
 
-    response.assertStatus(200)
+    response.assertStatus(200);
 
-    const body = response.body()
-    assert.property(body, 'ok')
-    assert.equal(body.ok, true)
-    assert.equal(Object.keys(body).length, 1) // Ensure no extra fields
-  })
+    const body = response.body();
+    assert.property(body, 'ok');
+    assert.equal(body.ok, true);
+    assert.equal(Object.keys(body).length, 1); // Ensure no extra fields
+  });
 
   test('configuration response structure should remain consistent', async ({ client, assert }) => {
     // Create a config first
-    await StationConfig.create({
-      stationId: testStationId,
-      tempInterval: 60,
-      windSendInterval: 30,
-      windSampleInterval: 5,
-      diagInterval: 300,
-      remoteOta: true,
-    })
+    await prisma.stationConfig.create({
+      data: {
+        stationId: testStationId,
+        tempInterval: 60,
+        windSendInterval: 30,
+        windSampleInterval: 5,
+        diagInterval: 300,
+        remoteOta: true,
+      },
+    });
 
-    const response = await client.get(`/api/stations/${testStationId}/config`)
+    const response = await client.get(`/api/stations/${testStationId}/config`);
 
-    response.assertStatus(200)
+    response.assertStatus(200);
 
-    const body = response.body()
+    const body = response.body();
     // Validate all expected fields are present
     const expectedFields = [
       'stationId',
@@ -607,43 +762,143 @@ test.group('Firmware Critical Endpoints', (group) => {
       'remoteOta',
       'createdAt',
       'updatedAt',
-    ]
+    ];
 
     expectedFields.forEach((field) => {
-      assert.property(body, field)
-    })
+      assert.property(body, field);
+    });
 
     // Validate critical data types
-    assert.equal(typeof body.stationId, 'string')
+    assert.equal(typeof body.stationId, 'string');
     // remoteOta might be returned as number (0/1) due to SQLite boolean handling
-    assert.isTrue(typeof body.remoteOta === 'boolean' || typeof body.remoteOta === 'number')
-    assert.equal(typeof body.tempInterval, 'number')
-    assert.equal(typeof body.windSendInterval, 'number')
-    assert.equal(typeof body.windSampleInterval, 'number')
-    assert.equal(typeof body.diagInterval, 'number')
-  })
+    assert.isTrue(typeof body.remoteOta === 'boolean' || typeof body.remoteOta === 'number');
+    assert.equal(typeof body.tempInterval, 'number');
+    assert.equal(typeof body.windSendInterval, 'number');
+    assert.equal(typeof body.windSampleInterval, 'number');
+    assert.equal(typeof body.diagInterval, 'number');
+  });
 
   test('ota confirmation response structure should remain consistent', async ({
     client,
     assert,
   }) => {
     // First, create a configuration with OTA enabled (needed for successful confirmation)
-    await StationConfig.create({
-      stationId: testStationId,
-      remoteOta: true,
-      otaHour: 3,
-      otaMinute: 0,
-      otaDuration: 30,
-    })
+    await prisma.stationConfig.create({
+      data: {
+        stationId: testStationId,
+        remoteOta: true,
+        otaHour: 3,
+        otaMinute: 0,
+        otaDuration: 30,
+      },
+    });
 
-    const response = await client.post(`/api/stations/${testStationId}/ota-confirm`)
+    const response = await client.post(`/api/stations/${testStationId}/ota-confirm`);
 
-    response.assertStatus(200)
+    response.assertStatus(200);
 
-    const body = response.body()
-    assert.property(body, 'ok')
-    assert.property(body, 'message')
-    assert.equal(body.ok, true)
-    assert.equal(body.message, 'OTA confirmation received')
-  })
-})
+    const body = response.body();
+    assert.property(body, 'ok');
+    assert.property(body, 'message');
+    assert.equal(body.ok, true);
+    assert.equal(body.message, 'OTA confirmation received');
+  });
+});
+
+/**
+ * Station Auth Tests (X-API-Key on station ingest routes)
+ *
+ * When STATION_API_KEY is set, the station POST routes (wind, temperature,
+ * diagnostics, ota-confirm) require a matching X-API-Key header. When it is
+ * unset the routes stay open. GET /config is always open.
+ */
+test.group('Station Auth', (group) => {
+  const testStationId = 'test-station-auth';
+  const originalStationApiKey = process.env.STATION_API_KEY;
+
+  group.each.setup(async () => {
+    await prisma.temperatureReading.deleteMany();
+    await prisma.stationDiagnostic.deleteMany();
+    await prisma.stationConfig.deleteMany();
+    await prisma.weatherStation.deleteMany();
+
+    await prisma.weatherStation.create({
+      data: {
+        stationId: testStationId,
+        name: 'Test Station Auth',
+        location: 'Test Environment',
+        description: 'Test station for auth tests',
+        isActive: true,
+      },
+    });
+  });
+
+  group.each.teardown(async () => {
+    // Restore the env so other test groups are unaffected
+    if (originalStationApiKey === undefined) {
+      delete process.env.STATION_API_KEY;
+    } else {
+      process.env.STATION_API_KEY = originalStationApiKey;
+    }
+
+    await prisma.temperatureReading.deleteMany();
+    await prisma.stationDiagnostic.deleteMany();
+    await prisma.stationConfig.deleteMany();
+    await prisma.weatherStation.deleteMany();
+  });
+
+  const windData = { windSpeed: 5.5, windDirection: 180 };
+
+  test('should reject station POST without key when STATION_API_KEY is set', async ({ client }) => {
+    process.env.STATION_API_KEY = 'station-secret';
+
+    const response = await client.post(`/api/stations/${testStationId}/wind`).json(windData);
+
+    response.assertStatus(401);
+    response.assertBodyContains({ error: 'Invalid or missing API key' });
+  });
+
+  test('should reject station POST with wrong key when STATION_API_KEY is set', async ({
+    client,
+  }) => {
+    process.env.STATION_API_KEY = 'station-secret';
+
+    const response = await client
+      .post(`/api/stations/${testStationId}/diagnostics`)
+      .header('X-API-Key', 'wrong-key')
+      .json({ batteryVoltage: 3.7, solarVoltage: 5.0, signalQuality: 20, uptime: 100 });
+
+    response.assertStatus(401);
+  });
+
+  test('should accept station POST with correct key when STATION_API_KEY is set', async ({
+    client,
+  }) => {
+    process.env.STATION_API_KEY = 'station-secret';
+
+    const response = await client
+      .post(`/api/stations/${testStationId}/wind`)
+      .header('X-API-Key', 'station-secret')
+      .json(windData);
+
+    response.assertStatus(200);
+    response.assertBody({ ok: true });
+  });
+
+  test('should accept keyless station POST when STATION_API_KEY is unset', async ({ client }) => {
+    delete process.env.STATION_API_KEY;
+
+    const response = await client.post(`/api/stations/${testStationId}/wind`).json(windData);
+
+    response.assertStatus(200);
+    response.assertBody({ ok: true });
+  });
+
+  test('config fetch should stay open even when STATION_API_KEY is set', async ({ client }) => {
+    process.env.STATION_API_KEY = 'station-secret';
+
+    const response = await client.get(`/api/stations/${testStationId}/config`);
+
+    response.assertStatus(200);
+  });
+});

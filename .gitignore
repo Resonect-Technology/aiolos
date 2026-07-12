@@ -1,154 +1,69 @@
-# Node / Package Manager
-# ----------------------
+# Node / package manager
 node_modules/
-.pnpm/
 .pnpm-store/
 
 # Logs
-# ----
 logs/
 *.log
-npm-debug.log*
 
-# PlatformIO Secrets
-# -----------------
-firmware/secrets.ini
-!firmware/secrets.ini.example
-yarn-debug.log*
-yarn-error.log*
-
-# Environment Variables
-# ---------------------
+# Environment
 .env
+.env.*
+!.env.example
 
-# Build & Output Artifacts
-# ------------------------
-# General build outputs (will apply to root and any subdirectory)
-build/
+# Build outputs
 dist/
+build/
 out/
+coverage/
+*.tsbuildinfo
 
 # Turborepo
-# ---------
 .turbo/
-
-# Application Specific
-# --------------------
 
 # AdonisJS (apps/adonis-api)
 apps/adonis-api/tmp/
-apps/adonis-api/ace-manifest.json
-# Development databases for Adonis (if not intended to be committed)
-# Ensure these are not your production database files if they are named differently.
-apps/adonis-api/*.sqlite
-apps/adonis-api/*.sqlite3
-
-# Dependencies and AdonisJS build
-node_modules
-build
-tmp
-
-# Secrets
-.env
-.env.local
-.env.production.local
-.env.development.local
-
-# Frontend assets compiled code
-public/assets
-
-# Build tools specific
-npm-debug.log
-yarn-error.log
-
-# Editors specific
-.fleet
-.idea
-.vscode
-
-# Platform specific
-.DS_Store
-
+apps/adonis-api/generated/
+apps/adonis-api/.adonisjs/
+*.sqlite
+*.sqlite3
 
 # Vite (apps/react-frontend)
 apps/react-frontend/.vite/
-# Note: apps/react-frontend/dist/ is covered by the general 'dist/' pattern above.
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-node_modules
-dist
-dist-ssr
 *.local
 
-# Editor directories and files
+# PlatformIO
+.pio/
+firmware/secrets.ini
+!firmware/secrets.ini.example
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+terraform.tfvars
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Editors
+.idea/
+.fleet/
 .vscode/*
+!.vscode/settings.json
 !.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-# CoAP Proxy (apps/coap-proxy)
-# Add any specific build outputs or temp files for coap-proxy if they exist
-# and are not covered by general patterns (e.g., custom log locations).
-
-# Test & Coverage Reports
-# -----------------------
-coverage/
-*.lcov
-
-# IDE / Editor
-# ------------
-.vscode/ # User-specific VSCode settings. Consider if all team members should share some settings.
-
-# OS Specific
-# -----------
-.DS_Store
-Thumbs.db
-
-# Other Temporary Files
-# ---------------------
-*.swp
-*.swo
-
-
-# Platformio
-.pio
 .vscode/.browse.c_cpp.db*
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
 
-# Terraform
-# Ignore Terraform variable files with secrets
-terraform.tfvars
-
-# Local .terraform directories
-.terraform/
-
-# Terraform state files
-*.tfstate
-*.tfstate.*
-
-# Crash log files
-crash.log
-
-# Exclude override files as they are usually for local config
-override.tf
-override.tf.json
-*_override.tf
-*_override.tf.json
-
-# Exclude CLI configuration files
-.terraformrc
-terraform.rc
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.playwright-mcp/

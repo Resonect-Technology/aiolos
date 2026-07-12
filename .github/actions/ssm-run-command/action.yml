@@ -1,0 +1,120 @@
+name: SSM Run Command
+description: Executes shell commands on an EC2 instance via AWS SSM Run Command with polling and error handling
+
+inputs:
+  instance-id:
+    description: "EC2 instance ID to target"
+    required: true
+  commands:
+    description: "Shell commands to execute (multi-line string)"
+    required: true
+  s3-bucket:
+    description: "S3 bucket used to stage the command script"
+    required: true
+  comment:
+    description: "Description for the command (appears in SSM console)"
+    required: false
+    default: "GitHub Actions deployment"
+  timeout-seconds:
+    description: "Command timeout in seconds"
+    required: false
+    default: "600"
+
+runs:
+  using: composite
+  steps:
+    - name: Execute SSM Run Command
+      shell: bash
+      env:
+        SSM_INSTANCE_ID: ${{ inputs.instance-id }}
+        SSM_COMMANDS: ${{ inputs.commands }}
+        SSM_COMMENT: ${{ inputs.comment }}
+        SSM_TIMEOUT: ${{ inputs.timeout-seconds }}
+        SSM_S3_BUCKET: ${{ inputs.s3-bucket }}
+      run: |
+        echo "::group::SSM Run Command - $SSM_COMMENT"
+
+        # Write commands to a temp script file to avoid JSON escaping issues
+        SCRIPT_FILE=$(mktemp /tmp/ssm-script-XXXXXX.sh)
+        echo "$SSM_COMMANDS" > "$SCRIPT_FILE"
+
+        # Upload script to S3 deploy config bucket and execute via SSM
+        # This avoids all escaping issues with complex shell scripts in JSON arrays
+        S3_SCRIPT_PATH="s3://$SSM_S3_BUCKET/scripts/$(date +%s)-$RANDOM.sh"
+        aws s3 cp "$SCRIPT_FILE" "$S3_SCRIPT_PATH" --quiet
+        rm -f "$SCRIPT_FILE"
+
+        # Ensure S3 script is cleaned up on any exit (success, failure, timeout, signal)
+        trap 'aws s3 rm "$S3_SCRIPT_PATH" --quiet 2>/dev/null || true' EXIT
+
+        # Send command via SSM - download script from S3 and execute
+        COMMAND_ID=$(aws ssm send-command \
+          --instance-ids "$SSM_INSTANCE_ID" \
+          --document-name "AWS-RunShellScript" \
+          --comment "$SSM_COMMENT" \
+          --timeout-seconds "$SSM_TIMEOUT" \
+          --parameters "commands=[\"aws s3 cp $S3_SCRIPT_PATH /tmp/ssm-deploy.sh --quiet && chmod +x /tmp/ssm-deploy.sh && /tmp/ssm-deploy.sh\"]" \
+          --output text \
+          --query "Command.CommandId")
+
+        if [ -z "$COMMAND_ID" ]; then
+          echo "::error::Failed to send SSM command"
+          exit 1
+        fi
+
+        echo "Command ID: $COMMAND_ID"
+        echo "Waiting for command to complete..."
+
+        # Poll for completion
+        ELAPSED=0
+        POLL_INTERVAL=5
+
+        while true; do
+          RESULT=$(aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$SSM_INSTANCE_ID" \
+            --output json 2>/dev/null || echo '{"Status":"Pending"}')
+
+          STATUS=$(echo "$RESULT" | jq -r '.Status')
+
+          case "$STATUS" in
+            Success)
+              echo ""
+              echo "--- Command Output ---"
+              echo "$RESULT" | jq -r '.StandardOutputContent // empty'
+              echo "--- End Output ---"
+              echo ""
+              echo "SSM command completed successfully"
+              break
+              ;;
+            Failed|TimedOut|Cancelled|DeliveryTimedOut)
+              echo ""
+              echo "::error::SSM command ${STATUS}"
+              echo "--- stdout ---"
+              echo "$RESULT" | jq -r '.StandardOutputContent // empty'
+              echo "--- stderr ---"
+              echo "$RESULT" | jq -r '.StandardErrorContent // empty' >&2
+              echo "---"
+              exit 1
+              ;;
+            InProgress|Pending|Delayed)
+              ELAPSED=$((ELAPSED + POLL_INTERVAL))
+              if [ "$ELAPSED" -ge "$SSM_TIMEOUT" ]; then
+                echo "::error::Timed out waiting for SSM command after ${ELAPSED}s"
+                  exit 1
+              fi
+              # Print progress every 30 seconds
+              if [ $((ELAPSED % 30)) -eq 0 ]; then
+                echo "Still running... (${ELAPSED}s elapsed)"
+              fi
+              sleep "$POLL_INTERVAL"
+              ;;
+            *)
+              echo "Unknown status: $STATUS, waiting..."
+              sleep "$POLL_INTERVAL"
+              ELAPSED=$((ELAPSED + POLL_INTERVAL))
+              ;;
+          esac
+        done
+
+        echo "::endgroup::"

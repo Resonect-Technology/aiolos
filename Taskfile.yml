@@ -1,0 +1,83 @@
+version: "3"
+
+includes:
+  firmware:
+    taskfile: firmware/Taskfile.yml
+    # pio needs the root platformio.ini, so firmware tasks run from the repo root
+    dir: .
+
+tasks:
+  default:
+    desc: "Show available tasks"
+    cmds:
+      - task --list
+
+  setup:
+    desc: "Setup development environment (corepack pnpm, deps, git hooks)"
+    cmds:
+      - corepack enable pnpm
+      - pnpm install --frozen-lockfile
+
+  dev:
+    desc: "Start API (:8080) + dashboard (:5173) with HMR"
+    cmds:
+      - pnpm dev
+
+  dev:start:
+    desc: "Run the full prod-like stack on :80 (Caddy + API + nginx frontend)"
+    cmds:
+      - docker compose -f infra/docker-compose.dev.yml up --build -d
+
+  dev:stop:
+    desc: "Stop and remove the full stack"
+    cmds:
+      - docker compose -f infra/docker-compose.dev.yml down
+
+  build:
+    desc: "Build all apps"
+    cmds:
+      - pnpm build
+
+  test:
+    desc: "Run all tests: backend Japa suite + firmware native tests"
+    cmds:
+      - pnpm test
+      - task: firmware:test
+
+  check:
+    desc: "Full pre-PR gate: format, lint, types, tests"
+    cmds:
+      - pnpm format:check
+      - pnpm exec turbo run lint check-types test
+
+  lint:
+    desc: "Lint + type-check all packages (mirrors the CI 'Lint and Type Check' job)"
+    cmds:
+      - pnpm exec turbo run lint check-types
+
+  format:
+    desc: "Format the repo with oxfmt"
+    cmds:
+      - pnpm format
+
+  login:prod:
+    desc: "AWS SSO login for the prod account (resource provider)"
+    cmds:
+      - aws sso login --profile resonect-prod --use-device-code
+
+  login:master:
+    desc: "AWS SSO login for the master account (Terraform S3 state backend)"
+    cmds:
+      - aws sso login --profile resonect-master --use-device-code
+
+  db:migrate:
+    desc: "Create/apply a dev migration (usage: task db:migrate -- --name add_x)"
+    dir: apps/adonis-api
+    cmds:
+      - pnpm exec prisma migrate dev {{.CLI_ARGS}}
+
+  db:seed:
+    desc: "Run idempotent seeds"
+    dir: apps/adonis-api
+    cmds:
+      - pnpm run seed

@@ -1,7 +1,8 @@
-import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { ThemeToggle } from "../../atoms/controls/theme-toggle";
-import { Wind } from "lucide-react";
+import { Separator } from '@/components/ui/separator';
+import { SidebarTrigger } from '@/components/ui/sidebar';
+import { Wind } from 'lucide-react';
+
+import { ThemeToggle } from '../../atoms/controls/theme-toggle';
 
 export function SiteHeader() {
   return (
@@ -10,7 +11,7 @@ export function SiteHeader() {
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-4" />
         <div className="flex items-center gap-2">
-          <Wind className="h-4 w-4 text-primary" />
+          <Wind className="text-primary h-4 w-4" />
           <h1 className="text-base font-medium">Vasiliki Station</h1>
         </div>
         <div className="ml-auto flex items-center gap-2">

@@ -1,0 +1,4 @@
+# Commitlint hook for validating commit messages
+# Runs on every commit to enforce Conventional Commits format
+
+pnpm exec commitlint --edit $1

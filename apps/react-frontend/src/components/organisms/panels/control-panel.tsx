@@ -1,8 +1,7 @@
-import { memo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 import {
   Settings,
   Clock,
@@ -12,7 +11,8 @@ import {
   Trash2,
   CheckCircle,
   AlertTriangle,
-} from "lucide-react";
+} from 'lucide-react';
+import { memo } from 'react';
 
 interface WindData {
   windSpeed: number;
@@ -41,39 +41,39 @@ export const ControlPanel = memo(function ControlPanel({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Settings className="h-5 w-5 text-primary" />
+          <Settings className="text-primary h-5 w-5" />
           Dashboard Controls
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="flex flex-col lg:flex-row justify-between items-center space-y-6 lg:space-y-0 lg:space-x-6">
+        <div className="flex flex-col items-center justify-between space-y-6 lg:flex-row lg:space-y-0 lg:space-x-6">
           {/* Status Information */}
           <div className="flex-1 text-center lg:text-left">
             {windData ? (
               <div className="space-y-2">
-                <div className="flex items-center gap-2 justify-center lg:justify-start">
+                <div className="flex items-center justify-center gap-2 lg:justify-start">
                   <CheckCircle className="h-4 w-4 text-green-600" />
-                  <span className="text-sm font-medium text-muted-foreground">
+                  <span className="text-muted-foreground text-sm font-medium">
                     Last Data Received
                   </span>
                 </div>
                 <Badge variant="outline" className="text-sm">
-                  <Clock className="h-3 w-3 mr-1" />
+                  <Clock className="mr-1 h-3 w-3" />
                   {formatTimestamp(windData.timestamp)}
                 </Badge>
               </div>
             ) : (
               <div className="space-y-2">
-                <div className="flex items-center gap-2 justify-center lg:justify-start">
+                <div className="flex items-center justify-center gap-2 lg:justify-start">
                   <AlertTriangle className="h-4 w-4 text-amber-600" />
-                  <span className="text-sm font-medium text-muted-foreground">Status</span>
+                  <span className="text-muted-foreground text-sm font-medium">Status</span>
                 </div>
                 <Badge variant="secondary">Waiting for wind data...</Badge>
               </div>
             )}
           </div>
 
-          <Separator orientation="vertical" className="hidden lg:block h-16" />
+          <Separator orientation="vertical" className="hidden h-16 lg:block" />
           <Separator className="lg:hidden" />
 
           {/* Control Buttons */}

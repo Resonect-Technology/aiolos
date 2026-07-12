@@ -35,53 +35,83 @@ public:
     bool init(ModemManager &modemManager, const char *serverAddress, uint16_t serverPort);
 
     /**
+     * @brief Diagnostics data sent to the server
+     */
+    struct DiagnosticsPayload
+    {
+        float batteryVoltage = 0.0f;       // Volts
+        float solarVoltage = 0.0f;         // Volts
+        float internalTemperature = -127.0f; // Celsius (-127 = unavailable)
+        int signalQuality = 0;             // CSQ
+        unsigned long uptime = 0;          // Seconds
+        const char *firmwareVersion = nullptr;
+        uint32_t freeHeap = 0;    // Bytes
+        uint32_t minFreeHeap = 0; // Bytes (lowest since boot)
+        const char *resetReason = nullptr;
+    };
+
+    /**
      * @brief Send diagnostics data to the server
      *
      * @param stationId Station identifier
-     * @param batteryVoltage Battery voltage in volts
-     * @param solarVoltage Solar panel voltage in volts
-     * @param internalTemp Internal temperature in Celsius
-     * @param signalQuality Signal quality in dBm
-     * @param uptime System uptime in seconds
+     * @param payload Diagnostics values to send
      * @return true if successful
      * @return false if failed
      */
-    bool sendDiagnostics(const char *stationId, float batteryVoltage, float solarVoltage, float internalTemp, int signalQuality, unsigned long uptime);
+    bool sendDiagnostics(const char *stationId, const DiagnosticsPayload &payload);
 
     /**
      * @brief Send wind data to the server
      *
      * @param stationId Station identifier
-     * @param windSpeed Wind speed in m/s
+     * @param windSpeed Wind speed in m/s (3 s rolling mean in livestream mode,
+     *                  period mean in averaged mode)
      * @param windDirection Wind direction in degrees (0-360)
+     * @param gustSpeed Max 3 s mean in m/s (trailing 60 s / sampling period)
+     * @param minSpeed Min 3 s mean in m/s (trailing 60 s / sampling period)
+     * @param intervalMs Effective send interval the reading was produced under
      * @return true if successful
      * @return false if failed
      */
-    bool sendWindData(const char *stationId, float windSpeed, float windDirection);
+    bool sendWindData(const char *stationId, float windSpeed, float windDirection,
+                      float gustSpeed, float minSpeed, unsigned long intervalMs);
+
+    /**
+     * @brief Remote station configuration
+     *
+     * Initialize fields with the currently-active values before calling
+     * fetchConfiguration() - only fields present (non-null) in the server
+     * response are overwritten.
+     */
+    struct StationConfigData
+    {
+        unsigned long tempInterval = 0;       // ms
+        unsigned long windSendInterval = 0;   // ms
+        unsigned long windSampleInterval = 0; // ms
+        unsigned long diagInterval = 0;       // ms
+        unsigned long timeInterval = 0;       // ms
+        unsigned long restartInterval = 0;    // seconds (0 = keep current)
+        int sleepStartHour = -1;
+        int sleepEndHour = -1;
+        int otaHour = -1;
+        int otaMinute = -1;
+        int otaDuration = 0;             // minutes
+        bool remoteOta = false;
+        int utcOffsetMinutes = 0;        // Station-local offset from UTC
+        int livestreamStartHour = -1;    // -1 = morning slow mode disabled
+        float lowBatteryThreshold = 0.0f; // Volts; <= 0 disables the battery gate
+    };
 
     /**
      * @brief Fetch configuration from the server
      *
      * @param stationId Station identifier
-     * @param tempInterval Pointer to store retrieved temperature interval
-     * @param windInterval Pointer to store retrieved wind interval
-     * @param diagInterval Pointer to store retrieved diagnostics interval
-     * @param timeInterval Pointer to store retrieved time sync interval
-     * @param restartInterval Pointer to store retrieved restart interval
-     * @param sleepStartHour Pointer to store retrieved sleep start hour
-     * @param sleepEndHour Pointer to store retrieved sleep end hour
-     * @param otaHour Pointer to store retrieved OTA hour
-     * @param otaMinute Pointer to store retrieved OTA minute
-     * @param otaDuration Pointer to store retrieved OTA duration in minutes
-     * @param remoteOta Pointer to store retrieved remote OTA flag
+     * @param config In/out configuration; fields absent from the server
+     *               response keep the values they were initialized with
      * @return true if successful
      * @return false if failed
      */
-    bool fetchConfiguration(const char *stationId, unsigned long *tempInterval, unsigned long *windInterval,
-                            unsigned long *windSampleInterval, unsigned long *diagInterval, unsigned long *timeInterval = nullptr,
-                            unsigned long *restartInterval = nullptr, int *sleepStartHour = nullptr,
-                            int *sleepEndHour = nullptr, int *otaHour = nullptr,
-                            int *otaMinute = nullptr, int *otaDuration = nullptr, bool *remoteOta = nullptr);
+    bool fetchConfiguration(const char *stationId, StationConfigData &config);
 
     /**
      * @brief Checks if the HTTP client is currently in a backoff period.
@@ -100,12 +130,12 @@ public:
      * @brief Send temperature data to the server
      *
      * @param stationId Station identifier
-     * @param internalTemp Internal temperature in Celsius (kept for backward compatibility)
      * @param externalTemp External temperature in Celsius
+     * @param intervalMs Effective send interval in milliseconds
      * @return true if successful
      * @return false if failed
      */
-    bool sendTemperatureData(const char *stationId, float internalTemp, float externalTemp);
+    bool sendTemperatureData(const char *stationId, float externalTemp, unsigned long intervalMs);
 
     /**
      * @brief Confirms to the server that OTA has been initiated
@@ -126,9 +156,6 @@ public:
     String getLocalIP();
 
 private:
-    // Response buffer size for the HTTP client
-    static const int RESPONSE_BUFFER_SIZE = 1024;
-
     // URL path buffer size
     static const size_t URL_PATH_SIZE = 64;
 

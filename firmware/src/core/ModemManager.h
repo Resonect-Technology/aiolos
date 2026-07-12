@@ -10,8 +10,8 @@
 
 #include <Arduino.h>
 #include <driver/gpio.h>
-#include <esp_task_wdt.h>
 #include "../config/Config.h"
+#include "Watchdog.h"
 
 // Define these before including TinyGSM library
 #define TINY_GSM_MODEM_SIM7000
@@ -71,6 +71,18 @@ public:
      * @return false if failed
      */
     bool powerOff();
+
+    /**
+     * @brief Best-effort modem power-off before init(), for boot-time hibernation
+     *
+     * After a software/panic/watchdog/brownout reset the modem is usually
+     * still powered; hibernating without shutting it down would drain the
+     * exact battery the critical-battery guard protects. Brings up the UART,
+     * probes AT, and shuts down responsive modems in software. The PWRKEY
+     * pulse is a toggle (it would power ON an off modem), so the hardware
+     * fallback only runs for reset reasons where the modem is likely on.
+     */
+    void emergencyPowerOff();
 
     /**
      * @brief Check if the modem is connected to the network
@@ -161,7 +173,7 @@ public:
     /**
      * @brief Get the signal quality
      *
-     * @return int Signal quality in dBm
+     * @return int Signal quality as CSQ (0-31; 99 "unknown" is mapped to 0)
      */
     int getSignalQuality();
 
@@ -247,6 +259,8 @@ private:
     static const unsigned long UNRESPONSIVE_TIMEOUT = 180000; // 3 minutes of unresponsiveness
 
     bool _initHardware();     // Declaration for the private hardware init function
+    void _softPowerOff();     // AT+CPOWD software shutdown (modem responsive)
+    void _hardPowerOffPulse(); // PWRKEY power-off pulse (modem on but unresponsive)
     SimStatus getSimStatus(); // Declaration for getSimStatus
 
     // Connection management methods
@@ -257,21 +271,20 @@ private:
     void _updateResponsiveTime();
 
     /**
-     * @brief Temporarily disable the watchdog for long modem operations
+     * @brief Temporarily relax the watchdog for long modem operations
      *
-     * @param disable true to disable, false to re-enable
+     * @param disable true to relax (5x timeout), false to restore
      */
     void _setWatchdog(bool disable)
     {
 #ifdef DISABLE_WDT_FOR_MODEM
         if (disable)
         {
-            esp_task_wdt_reset();
-            esp_task_wdt_init(WDT_TIMEOUT * 2, false);
+            watchdogExtend();
         }
         else
         {
-            esp_task_wdt_init(WDT_TIMEOUT, true);
+            watchdogRestore();
         }
 #endif
     }

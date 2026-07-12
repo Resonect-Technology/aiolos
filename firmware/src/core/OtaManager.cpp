@@ -4,7 +4,6 @@
  */
 
 #include "OtaManager.h"
-#include <esp_adc_cal.h>
 
 // Define the instance of OtaManager that will be used globally
 OtaManager otaManager;

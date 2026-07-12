@@ -1,122 +1,87 @@
-import { useState, useEffect, useRef } from "react";
-import { Transmit } from "@adonisjs/transmit-client";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Thermometer } from "lucide-react";
-import { formatLastUpdated } from "../../../lib/time-utils";
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Thermometer } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { z } from 'zod';
 
-interface TemperatureData {
-  temperature: number;
-  timestamp: string;
-}
+import { temperatureLivePayloadSchema, type TemperatureLivePayload } from '@repo/schemas';
+
+import { useNow } from '../../../hooks/use-now';
+import { useTransmitSubscription } from '../../../hooks/use-transmit-subscription';
+import { formatLastUpdated, staleThresholdMs } from '../../../lib/time-utils';
+
+// GET /temperature/latest response (legacy SensorReading shape)
+const latestTemperatureResponseSchema = z.looseObject({
+  temperature: z.number(),
+  lastUpdated: z.string().optional(),
+  createdAt: z.string().optional(),
+});
 
 interface TemperatureDisplayProps {
   stationId: string;
 }
 
 export function TemperatureDisplay({ stationId }: TemperatureDisplayProps) {
-  const [temperatureData, setTemperatureData] = useState<TemperatureData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [temperatureData, setTemperatureData] = useState<TemperatureLivePayload | null>(null);
 
-  const transmitInstanceRef = useRef<Transmit | null>(null);
-  const subscriptionRef = useRef<any | null>(null);
+  const { connected, error } = useTransmitSubscription(
+    `temperature/live/${stationId}`,
+    temperatureLivePayloadSchema,
+    setTemperatureData,
+  );
 
+  // Seed from the REST endpoint so the card isn't empty until the next SSE
+  // message (the server's replay cache is in-memory and can be cold), but
+  // never clobber a fresher SSE reading
   useEffect(() => {
-    // Clear any previous connection state
-    setError(null);
-    setLoading(true);
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch(`/api/stations/${stationId}/temperature/latest`);
+        if (!response.ok || cancelled) {
+          return;
+        }
 
-    // Initialize Transmit instance if it doesn't exist
-    if (!transmitInstanceRef.current) {
-      console.log("Creating new Transmit instance for temperature");
-      transmitInstanceRef.current = new Transmit({
-        baseUrl: window.location.origin,
-      });
-    }
-
-    const transmit = transmitInstanceRef.current;
-    const channelName = `temperature/live/${stationId}`;
-
-    const newSubscription = transmit.subscription(channelName);
-    subscriptionRef.current = newSubscription;
-
-    newSubscription
-      .create()
-      .then(() => {
-        setLoading(false);
-        setError(null);
-        console.log(`Connected to temperature channel: ${channelName}`);
-
-        newSubscription.onMessage((data: TemperatureData) => {
-          console.log("Temperature data received:", data);
-          if (data && typeof data.temperature === "number") {
-            setTemperatureData(data);
-          } else {
-            // Handle wrapped message format
-            const messagePayload = (data as any).data;
-            if (messagePayload && typeof messagePayload.temperature === "number") {
-              setTemperatureData(messagePayload);
-            } else {
-              console.warn("Received temperature message in unexpected format:", data);
-            }
-          }
-        });
-      })
-      .catch(err => {
-        console.error("Failed to connect to temperature channel:", err);
-        setError(`Failed to connect: ${err.message || "Unknown error"}`);
-        setLoading(false);
-
-        // Fallback to API polling if SSE fails
-        fetchTemperatureFromAPI();
-      });
-
-    return () => {
-      if (subscriptionRef.current) {
-        subscriptionRef.current
-          .delete()
-          .catch((err: Error) => console.error(`Failed to unsubscribe from ${channelName}:`, err));
-        subscriptionRef.current = null;
+        const parsed = latestTemperatureResponseSchema.safeParse(await response.json());
+        if (parsed.success && !cancelled) {
+          const next: TemperatureLivePayload = {
+            temperature: parsed.data.temperature,
+            timestamp: parsed.data.lastUpdated || parsed.data.createdAt || new Date().toISOString(),
+          };
+          setTemperatureData((prev) =>
+            prev && new Date(prev.timestamp) >= new Date(next.timestamp) ? prev : next,
+          );
+        }
+      } catch (err) {
+        console.error('Error fetching temperature from API:', err);
       }
+    })();
+    return () => {
+      cancelled = true;
     };
   }, [stationId]);
 
-  // Fallback function for API polling
-  const fetchTemperatureFromAPI = async () => {
-    try {
-      console.log(`Fetching temperature from API for station: ${stationId}`);
-      const url = `/api/stations/${stationId}/temperature/latest`;
-      const response = await fetch(url);
+  const loading = !connected && !error;
 
-      if (!response.ok) {
-        console.log(`API Error (${response.status}): Could not fetch temperature data`);
-        return;
-      }
+  // Ticks so the "ago" badge and staleness check stay honest when the
+  // stream stops delivering messages
+  const now = useNow();
 
-      const data = await response.json();
-      console.log("Temperature data from API:", data);
-
-      // Convert API response to expected format
-      if (data.temperature !== undefined) {
-        setTemperatureData({
-          temperature: data.temperature,
-          timestamp: data.lastUpdated || data.createdAt || new Date().toISOString(),
-        });
-      }
-    } catch (err) {
-      console.error("Error fetching temperature from API:", err);
-    }
-  };
+  // Stale when older than 3x the station's reported send interval
+  // (fallback 15 min — tolerates the 10-minute slow mode)
+  const stale =
+    temperatureData !== null &&
+    now - new Date(temperatureData.timestamp).getTime() >
+      staleThresholdMs(temperatureData.intervalMs);
 
   return (
-    <div className="text-center space-y-2">
+    <div className="space-y-2 text-center">
       <div className="flex items-center justify-center gap-2">
-        <Thermometer className="h-4 w-4 card-foreground" />
-        <h3 className="text-2xl font-bold card-foreground">Current Temperature</h3>
+        <Thermometer className="card-foreground h-4 w-4" />
+        <h3 className="card-foreground text-2xl font-bold">Current Temperature</h3>
       </div>
 
-      <div className="flex justify-center items-center min-h-[60px]">
+      <div className="flex min-h-[60px] items-center justify-center">
         {loading ? (
           <div className="space-y-2">
             <Skeleton className="h-8 w-20" />
@@ -125,7 +90,9 @@ export function TemperatureDisplay({ stationId }: TemperatureDisplayProps) {
         ) : error ? (
           <Badge variant="destructive">Error</Badge>
         ) : (
-          <div className="text-5xl font-bold text-center text-primary">
+          <div
+            className={`text-primary text-center text-5xl font-bold ${stale ? 'opacity-50' : ''}`}
+          >
             {temperatureData?.temperature !== null && temperatureData?.temperature !== undefined ? (
               <>
                 {temperatureData.temperature.toFixed(1)}
@@ -140,8 +107,12 @@ export function TemperatureDisplay({ stationId }: TemperatureDisplayProps) {
 
       {temperatureData?.timestamp && (
         <div className="text-center">
-          <Badge variant="outline" className="text-xs">
-            {formatLastUpdated(temperatureData.timestamp)}
+          <Badge
+            variant="outline"
+            className={`text-xs ${stale ? 'border-orange-500 text-orange-500 dark:text-orange-400' : ''}`}
+          >
+            Last updated: {formatLastUpdated(temperatureData.timestamp)}
+            {stale && ' (stale)'}
           </Badge>
         </div>
       )}

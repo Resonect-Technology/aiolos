@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
-import { HardHat } from "lucide-react";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { getSystemConfig, parseBooleanConfig } from "../../../lib/api/system-config";
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { HardHat } from 'lucide-react';
+import { useEffect, useState } from 'react';
+
+import { getSystemConfig, parseBooleanConfig } from '../../../lib/api/system-config';
 
 export function ConstructionModeAlert() {
   const [isConstructionMode, setIsConstructionMode] = useState(false);
@@ -14,11 +15,11 @@ export function ConstructionModeAlert() {
         setIsLoading(true);
         setError(null);
 
-        const config = await getSystemConfig("construction_mode");
+        const config = await getSystemConfig('construction_mode');
         setIsConstructionMode(parseBooleanConfig(config.value));
       } catch (err) {
-        console.error("Failed to check construction mode:", err);
-        setError("Failed to check site status");
+        console.error('Failed to check construction mode:', err);
+        setError('Failed to check site status');
       } finally {
         setIsLoading(false);
       }
@@ -48,7 +49,7 @@ export function ConstructionModeAlert() {
   return (
     <Alert
       variant="destructive"
-      className="mb-6 p-5 text-base border-amber-200 bg-amber-50 text-amber-800"
+      className="mb-6 border-amber-200 bg-amber-50 p-5 text-base text-amber-800"
     >
       <HardHat />
       <AlertTitle className="text-lg font-bold">Site Under Construction</AlertTitle>

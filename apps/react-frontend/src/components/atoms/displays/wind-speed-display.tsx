@@ -1,22 +1,23 @@
-import { useMemo } from "react";
-import GaugeComponent from "react-gauge-component";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Info } from "lucide-react";
-import { Wind } from "lucide-react";
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Info } from 'lucide-react';
+import { Wind } from 'lucide-react';
+import { useMemo } from 'react';
+// Named import: the package's `module` field points at a CJS file, so the
+// default import resolves to the module object under Vite/Rolldown.
+import { GaugeComponent } from 'react-gauge-component';
+
+import { useNow } from '../../../hooks/use-now';
+import { formatLastUpdated, staleThresholdMs } from '../../../lib/time-utils';
 import {
   convertWindSpeed,
+  WIND_SPEED_RANGES,
   WIND_UNIT_LABELS,
   getGaugeMinValue,
   getGaugeMaxValue,
-} from "../../../lib/wind-utils";
-import { formatLastUpdated } from "../../../lib/time-utils";
-
-interface WindData {
-  windSpeed: number;
-  windDirection: number;
-  timestamp: string;
-}
+  getWindSpeedColor,
+} from '../../../lib/wind-utils';
+import type { WindData } from '../../../types/wind';
 
 interface WindSpeedDisplayProps {
   windData: WindData | null;
@@ -40,15 +41,25 @@ interface GaugeTick {
 }
 
 export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayProps) {
+  // Ticks so the "ago" badge and staleness check stay honest when the
+  // stream stops delivering messages
+  const now = useNow();
+
+  // Stale when older than 3x the station's reported send interval
+  // (fallback 15 min — tolerates the 10-minute slow mode)
+  const stale =
+    windData !== null &&
+    now - new Date(windData.timestamp).getTime() > staleThresholdMs(windData.intervalMs);
+
   // Get the unit label for display
   const currentUnitLabel = useMemo((): string => {
-    return WIND_UNIT_LABELS[selectedUnit] || "m/s";
+    return WIND_UNIT_LABELS[selectedUnit] || 'm/s';
   }, [selectedUnit]);
 
   // Convert wind speed to selected unit
   const convertedValue = useMemo(
     () => convertWindSpeed(windData?.windSpeed || 0, selectedUnit),
-    [windData, selectedUnit]
+    [windData, selectedUnit],
   );
 
   // Format the value for display
@@ -57,155 +68,37 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
       return `0 ${currentUnitLabel}`;
     }
 
-    if (selectedUnit === "beaufort") {
+    if (selectedUnit === 'beaufort') {
       return `${Math.round(value)} ${currentUnitLabel}`;
     } else {
       return `${value.toFixed(1)} ${currentUnitLabel}`;
     }
-  };  // Configure gauge arcs based on selected unit using theme colors
+  };
+
+  // Gauge bands are generated from the shared 9-bin ranges and palette, so a
+  // color on the gauge means the same wind strength as on the wind rose,
+  // legend and trend chart.
   const gaugeSubArcs = useMemo((): GaugeArc[] => {
     const arcs: GaugeArc[] = [];
-    // Theme colors: light to dark green progression for better visual distribution
-    const themeColors = ["#22c55e", "#10b981", "#059669", "#047857", "#065f46"];
-
-    switch (selectedUnit) {
-      case "m/s":
-        arcs.push(
-          {
-            limit: 3,
-            color: themeColors[0], // Calm/Light air (0-3 m/s)
-            tooltip: { text: "Calm to Light air" },
-            showTick: true,
-          },
-          {
-            limit: 7,
-            color: themeColors[1], // Light/Gentle breeze (3-7 m/s)
-            tooltip: { text: "Light to Gentle breeze" },
-            showTick: true,
-          },
-          {
-            limit: 12,
-            color: themeColors[2], // Moderate/Fresh breeze (7-12 m/s)
-            tooltip: { text: "Moderate to Fresh breeze" },
-            showTick: true,
-          },
-          {
-            limit: 18,
-            color: themeColors[3], // Strong breeze/Near gale (12-18 m/s)
-            tooltip: { text: "Strong breeze to Near gale" },
-            showTick: true,
-          },
-          {
-            color: themeColors[4], // Gale and above (18+ m/s)
-            tooltip: { text: "Gale or stronger" }
-          }
-        );
-        break;
-      case "km/h":
-        arcs.push(
-          {
-            limit: 11,
-            color: themeColors[0], // Calm/Light air (0-11 km/h)
-            tooltip: { text: "Calm to Light air" },
-            showTick: true,
-          },
-          {
-            limit: 25,
-            color: themeColors[1], // Light/Gentle breeze (11-25 km/h)
-            tooltip: { text: "Light to Gentle breeze" },
-            showTick: true,
-          },
-          {
-            limit: 43,
-            color: themeColors[2], // Moderate/Fresh breeze (25-43 km/h)
-            tooltip: { text: "Moderate to Fresh breeze" },
-            showTick: true,
-          },
-          {
-            limit: 65,
-            color: themeColors[3], // Strong breeze/Near gale (43-65 km/h)
-            tooltip: { text: "Strong breeze to Near gale" },
-            showTick: true,
-          },
-          {
-            color: themeColors[4], // Gale and above (65+ km/h)
-            tooltip: { text: "Gale or stronger" }
-          }
-        );
-        break;
-      case "knots":
-        arcs.push(
-          {
-            limit: 6,
-            color: themeColors[0], // Calm/Light air (0-6 knots)
-            tooltip: { text: "Calm to Light air" },
-            showTick: true,
-          },
-          {
-            limit: 13,
-            color: themeColors[1], // Light/Gentle breeze (6-13 knots)
-            tooltip: { text: "Light to Gentle breeze" },
-            showTick: true,
-          },
-          {
-            limit: 23,
-            color: themeColors[2], // Moderate/Fresh breeze (13-23 knots)
-            tooltip: { text: "Moderate to Fresh breeze" },
-            showTick: true,
-          },
-          {
-            limit: 35,
-            color: themeColors[3], // Strong breeze/Near gale (23-35 knots)
-            tooltip: { text: "Strong breeze to Near gale" },
-            showTick: true,
-          },
-          {
-            color: themeColors[4], // Gale and above (35+ knots)
-            tooltip: { text: "Gale or stronger" }
-          }
-        );
-        break;
-      case "beaufort":
-        arcs.push(
-          {
-            limit: 2,
-            color: themeColors[0], // Beaufort 0-2 (Calm to Light breeze)
-            tooltip: { text: "Calm to Light breeze" },
-            showTick: true,
-          },
-          {
-            limit: 4,
-            color: themeColors[1], // Beaufort 3-4 (Gentle to Moderate breeze)
-            tooltip: { text: "Gentle to Moderate breeze" },
-            showTick: true,
-          },
-          {
-            limit: 6,
-            color: themeColors[2], // Beaufort 5-6 (Fresh to Strong breeze)
-            tooltip: { text: "Fresh to Strong breeze" },
-            showTick: true,
-          },
-          {
-            limit: 8,
-            color: themeColors[3], // Beaufort 7-8 (Near gale to Gale)
-            tooltip: { text: "Near gale to Gale" },
-            showTick: true,
-          },
-          {
-            color: themeColors[4], // Beaufort 9+ (Strong gale and above)
-            tooltip: { text: "Strong gale or stronger" }
-          }
-        );
-        break;
-      default:
-        arcs.push(
-          { limit: 5, color: themeColors[0], tooltip: { text: "Too slow" }, showTick: true },
-          { limit: 10, color: themeColors[1], tooltip: { text: "Getting there" }, showTick: true },
-          { limit: 15, color: themeColors[2], tooltip: { text: "Good conditions" }, showTick: true },
-          { limit: 20, color: themeColors[3], tooltip: { text: "Strong winds" }, showTick: true },
-          { color: themeColors[4], tooltip: { text: "Very strong" } }
-        );
-    }
+    let previousLimit = 0;
+    WIND_SPEED_RANGES.forEach((range, index) => {
+      const color = getWindSpeedColor(index);
+      if (range.max === Infinity) {
+        arcs.push({ color, tooltip: { text: range.description } });
+        return;
+      }
+      // Convert just below the bin edge so Beaufort (a step scale) lands in
+      // the force the bin actually ends in
+      const converted = convertWindSpeed(range.max - 0.01, selectedUnit);
+      const limit = selectedUnit === 'beaufort' ? converted : Math.round(converted * 10) / 10;
+      // Neighbouring bins can collapse to the same Beaufort force — merge
+      // them instead of emitting a zero-width arc
+      if (limit <= previousLimit) {
+        return;
+      }
+      previousLimit = limit;
+      arcs.push({ limit, color, tooltip: { text: range.description } });
+    });
     return arcs;
   }, [selectedUnit]);
 
@@ -217,44 +110,49 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
   const gaugeTicks = useMemo((): GaugeTick[] => {
     let values: number[] = [];
     switch (selectedUnit) {
-      case "m/s":
+      case 'm/s':
         values = [0, 5, 10, 15, 20, 25, 30];
         break;
-      case "km/h":
+      case 'km/h':
         values = [0, 20, 40, 60, 80, 100, 120];
         break;
-      case "knots":
+      case 'knots':
         values = [0, 10, 20, 30, 40, 50, 60];
         break;
-      case "beaufort":
+      case 'beaufort':
         values = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
         break;
       default:
         values = [0, 5, 10, 15, 20, 25, 30];
     }
-    return values.map(v => ({ value: v }));
+    return values.map((v) => ({ value: v }));
   }, [selectedUnit]);
 
   return (
-    <div className="text-center space-y-4">
+    <div className="space-y-4 text-center">
       <div className="flex items-center justify-center gap-2">
-        <Wind className="h-5 w-5 card-foreground" />
-        <h3 className="text-2xl font-bold card-foreground">Current Wind Speed</h3>
+        <Wind className="card-foreground h-5 w-5" />
+        <h3 className="card-foreground text-2xl font-bold">Current Wind Speed</h3>
       </div>
 
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription className="text-sm">
-          For good Vasiliki day the wind speed should be between 8 and 15 m/s
+          For a good Vasiliki day the wind speed should be between{' '}
+          {formatDisplayValue(convertWindSpeed(8, selectedUnit)).replace(
+            ` ${currentUnitLabel}`,
+            '',
+          )}{' '}
+          and {formatDisplayValue(convertWindSpeed(15, selectedUnit))}
         </AlertDescription>
       </Alert>
 
-      <div className="flex justify-center px-2">
+      <div className={`flex justify-center px-2 ${stale ? 'opacity-50' : ''}`}>
         <div className="w-full max-w-xs lg:max-w-md xl:max-w-lg">
           <GaugeComponent
             id="wind-speed-gauge"
             type="radial"
-            style={{ width: "100%", height: "100%" }}
+            style={{ width: '100%', height: '100%' }}
             arc={{
               width: 0.2,
               padding: 0.005,
@@ -262,7 +160,7 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
               subArcs: gaugeSubArcs,
             }}
             pointer={{
-              color: "hsl(var(--foreground))",
+              color: 'var(--foreground)',
               length: 0.8,
               width: 18,
               elastic: true,
@@ -272,14 +170,14 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
                 hide: true,
               },
               tickLabels: {
-                type: "outer",
+                type: 'outer',
                 ticks: gaugeTicks,
                 defaultTickValueConfig: {
                   hide: false,
                   style: {
-                    fontSize: "12px",
-                    fontWeight: "500",
-                    fill: "hsl(var(--muted-foreground))",
+                    fontSize: '12px',
+                    fontWeight: '500',
+                    fill: 'var(--muted-foreground)',
                   },
                 },
               },
@@ -291,16 +189,25 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
         </div>
       </div>
 
-      <div className="text-center">
-        <div className="text-5xl font-bold text-primary">
-          {formatDisplayValue(convertedValue)}
-        </div>
+      <div className={`text-center ${stale ? 'opacity-50' : ''}`}>
+        <div className="text-primary text-5xl font-bold">{formatDisplayValue(convertedValue)}</div>
+        {windData?.gustSpeed !== undefined && (
+          <div className="text-muted-foreground mt-1 text-lg">
+            Gusts {formatDisplayValue(convertWindSpeed(windData.gustSpeed, selectedUnit))}
+            {windData.minSpeed !== undefined &&
+              ` · Lulls ${formatDisplayValue(convertWindSpeed(windData.minSpeed, selectedUnit))}`}
+          </div>
+        )}
       </div>
 
       {windData?.timestamp && (
-        <div className="text-center px-2">
-          <Badge variant="outline" className="text-xs">
+        <div className="px-2 text-center">
+          <Badge
+            variant="outline"
+            className={`text-xs ${stale ? 'border-orange-500 text-orange-500 dark:text-orange-400' : ''}`}
+          >
             Last updated: {formatLastUpdated(windData.timestamp)}
+            {stale && ' (stale)'}
           </Badge>
         </div>
       )}

@@ -1,19 +1,28 @@
-import { defineConfig } from '@adonisjs/core/app'
+import { indexEntities } from '@adonisjs/core';
+import { defineConfig } from '@adonisjs/core/app';
 
 export default defineConfig({
   /*
   |--------------------------------------------------------------------------
-  | Experimental flags
+  | Meta Files
   |--------------------------------------------------------------------------
   |
-  | The following features will be enabled by default in the next major release
-  | of AdonisJS. You can opt into them today to avoid any breaking changes
-  | during upgrade.
+  | Prisma schema + migrations are copied into build/ so the production
+  | entrypoint can run `prisma migrate deploy` from the build output.
   |
   */
-  experimental: {
-    mergeMultipartFieldsAndFiles: true,
-    shutdownInReverseOrder: true,
+  metaFiles: [{ pattern: 'prisma/**', reloadServer: false }],
+
+  /*
+  |--------------------------------------------------------------------------
+  | Hooks
+  |--------------------------------------------------------------------------
+  |
+  | Hooks are executed during various lifecycle events.
+  |
+  */
+  hooks: {
+    init: [indexEntities()],
   },
 
   /*
@@ -25,7 +34,7 @@ export default defineConfig({
   | will be scanned automatically from the "./commands" directory.
   |
   */
-  commands: [() => import('@adonisjs/core/commands'), () => import('@adonisjs/lucid/commands')],
+  commands: [() => import('@adonisjs/core/commands')],
 
   /*
   |--------------------------------------------------------------------------
@@ -43,9 +52,8 @@ export default defineConfig({
       file: () => import('@adonisjs/core/providers/repl_provider'),
       environment: ['repl', 'test'],
     },
-    () => import('@adonisjs/core/providers/vinejs_provider'),
     () => import('@adonisjs/cors/cors_provider'),
-    () => import('@adonisjs/lucid/database_provider'),
+    () => import('#providers/prisma_provider'),
     () => import('@adonisjs/transmit/transmit_provider'),
   ],
 
@@ -75,16 +83,16 @@ export default defineConfig({
   tests: {
     suites: [
       {
-        files: ['tests/unit/**/*.spec(.ts|.js)'],
+        files: ['tests/unit/**/*.spec.{ts,js}'],
         name: 'unit',
         timeout: 2000,
       },
       {
-        files: ['tests/functional/**/*.spec(.ts|.js)'],
+        files: ['tests/functional/**/*.spec.{ts,js}'],
         name: 'functional',
         timeout: 30000,
       },
     ],
     forceExit: false,
   },
-})
+});

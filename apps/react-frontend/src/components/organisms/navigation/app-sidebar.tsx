@@ -1,9 +1,4 @@
-import * as React from "react";
-import { Github, Home } from "lucide-react";
-import { IconWind } from "@tabler/icons-react";
-import { useLocation, useNavigate } from "react-router-dom";
-
-import { NavMain } from "./nav-main";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import {
   Sidebar,
   SidebarContent,
@@ -12,29 +7,35 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/components/ui/dropdown-menu";
+} from '@/components/ui/sidebar';
+import { IconWind } from '@tabler/icons-react';
+import { Github, Home, Settings } from 'lucide-react';
+import * as React from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+
+import { NavMain } from './nav-main';
 
 const data = {
   user: {
-    name: "Aiolos",
-    email: "wind@vasiliki.gr",
-    avatar: "/avatars/wind.jpg",
+    name: 'Aiolos',
+    email: 'wind@vasiliki.gr',
+    avatar: '/avatars/wind.jpg',
   },
   navMain: [
     {
-      title: "Overview",
-      url: "/",
+      title: 'Overview',
+      url: '/',
       icon: Home,
     },
     {
-      title: "Live Wind Dashboard",
-      url: "/dashboard",
+      title: 'Live Wind Dashboard',
+      url: '/dashboard',
       icon: IconWind,
+    },
+    {
+      title: 'Admin',
+      url: '/admin',
+      icon: Settings,
     },
   ],
 };
@@ -48,8 +49,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" onClick={() => navigate("/")}>
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <SidebarMenuButton size="lg" onClick={() => navigate('/')}>
+              <div className="bg-primary text-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
                 <IconWind className="size-4" />
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
@@ -71,7 +72,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 href="https://github.com/Resonect-Technology/aiolos"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 w-full"
+                className="flex w-full items-center gap-2"
               >
                 <SidebarMenuButton>
                   <Github className="h-4 w-4" />

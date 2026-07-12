@@ -5,8 +5,43 @@
 
 #include "DiagnosticsManager.h"
 #include "../config/Config.h"
+#include "Watchdog.h"
+
+#include <esp_system.h>
 
 #define LOG_TAG_DIAG "DIAG"
+
+/**
+ * @brief Map the ESP-IDF reset reason to a short stable string for the server
+ */
+static const char *resetReasonToString(esp_reset_reason_t reason)
+{
+    switch (reason)
+    {
+    case ESP_RST_POWERON:
+        return "POWERON";
+    case ESP_RST_EXT:
+        return "EXT";
+    case ESP_RST_SW:
+        return "SW";
+    case ESP_RST_PANIC:
+        return "PANIC";
+    case ESP_RST_INT_WDT:
+        return "INT_WDT";
+    case ESP_RST_TASK_WDT:
+        return "TASK_WDT";
+    case ESP_RST_WDT:
+        return "WDT";
+    case ESP_RST_DEEPSLEEP:
+        return "DEEPSLEEP";
+    case ESP_RST_BROWNOUT:
+        return "BROWNOUT";
+    case ESP_RST_SDIO:
+        return "SDIO";
+    default:
+        return "UNKNOWN";
+    }
+}
 
 // Global instance
 DiagnosticsManager diagnosticsManager;
@@ -20,7 +55,6 @@ bool DiagnosticsManager::init(ModemManager &modemManager, AiolosHttpClient &http
     _httpClient = &httpClient;
     _interval = interval;
     _internalTempAvailable = false;
-    _externalTempAvailable = false;
 
     // Initialize internal temperature sensor
     if (_internalTempSensor.init(TEMP_BUS_INT, "internal"))
@@ -34,27 +68,12 @@ bool DiagnosticsManager::init(ModemManager &modemManager, AiolosHttpClient &http
         // Don't fail initialization - we can still send other diagnostics
     }
 
-    // Initialize external temperature sensor
-    if (_externalTempSensor.init(TEMP_BUS_EXT, "external"))
-    {
-        _externalTempAvailable = true;
-        Logger.info(LOG_TAG_DIAG, "External temperature sensor initialized successfully");
-    }
-    else
-    {
-        Logger.warn(LOG_TAG_DIAG, "Failed to initialize external temperature sensor (optional)");
-        // Continue initialization even if external sensor fails
-    }
-
     // Configure ADC for solar voltage reading once
     configureSolarAdc();
 
     _initialized = true;
 
     Logger.info(LOG_TAG_DIAG, "Diagnostics manager initialized with interval of %lu ms", _interval);
-    Logger.info(LOG_TAG_DIAG, "Temperature sensors - Internal: %s, External: %s",
-                _internalTempAvailable ? "available" : "unavailable",
-                _externalTempAvailable ? "available" : "unavailable");
 
     return true;
 }
@@ -71,7 +90,7 @@ void DiagnosticsManager::setInterval(unsigned long interval)
 /**
  * @brief Send current diagnostics data to the server
  */
-bool DiagnosticsManager::sendDiagnostics()
+bool DiagnosticsManager::sendDiagnostics(float internalTemp)
 {
     if (!_initialized || !_modemManager || !_httpClient)
     {
@@ -79,64 +98,39 @@ bool DiagnosticsManager::sendDiagnostics()
         return false;
     }
 
-    // Read internal temperature if available
-    float internalTemp = _internalTempAvailable ? readInternalTemperature() : -127.0f;
-
-    // Read external temperature if available
-    float externalTemp = _externalTempAvailable ? readExternalTemperature() : -127.0f;
-
-    return sendDiagnosticsInternal(internalTemp, externalTemp);
-}
-
-/**
- * @brief Send diagnostics with external temperature readings
- */
-bool DiagnosticsManager::sendDiagnostics(float internalTemp, float externalTemp)
-{
-    if (!_initialized || !_modemManager || !_httpClient)
-    {
-        Logger.error(LOG_TAG_DIAG, "Diagnostics manager not initialized");
-        return false;
-    }
-
-    return sendDiagnosticsInternal(internalTemp, externalTemp);
-}
-
-/**
- * @brief Internal method to send diagnostics data
- */
-bool DiagnosticsManager::sendDiagnosticsInternal(float internalTemp, float externalTemp)
-{
     Logger.info(LOG_TAG_DIAG, "Collecting and sending diagnostics data...");
 
-    // Get signal quality
-    int signalQuality = _modemManager->getSignalQuality();
+    // Reset reason never changes during a boot - compute once
+    static const char *resetReason = resetReasonToString(esp_reset_reason());
 
-    // Read voltage values
-    float batteryVoltage = readBatteryVoltage();
-    float solarVoltage = readSolarVoltage();
-
-    // Get system uptime in seconds
-    unsigned long uptime = getSystemUptime();
+    AiolosHttpClient::DiagnosticsPayload payload;
+    payload.batteryVoltage = readBatteryVoltage();
+    payload.solarVoltage = readSolarVoltage();
+    payload.internalTemperature = internalTemp;
+    payload.signalQuality = _modemManager->getSignalQuality();
+    payload.uptime = getSystemUptime();
+    payload.firmwareVersion = FIRMWARE_VERSION;
+    payload.freeHeap = esp_get_free_heap_size();
+    payload.minFreeHeap = esp_get_minimum_free_heap_size();
+    payload.resetReason = resetReason;
 
     // Log diagnostic values before sending
-    Logger.info(LOG_TAG_DIAG, "Diagnostics - Battery: %.2fV, Solar: %.2fV, Signal: %d, Uptime: %lus",
-                batteryVoltage, solarVoltage, signalQuality, uptime);
-    Logger.info(LOG_TAG_DIAG, "Diagnostics - Internal temp: %.1f°C, External temp: %.1f°C",
-                internalTemp, externalTemp);
+    Logger.info(LOG_TAG_DIAG, "Diagnostics - Battery: %.2fV, Solar: %.2fV, Signal: %d, Uptime: %lus, Internal temp: %.1f°C",
+                payload.batteryVoltage, payload.solarVoltage, payload.signalQuality, payload.uptime, internalTemp);
+    Logger.info(LOG_TAG_DIAG, "Health - FW: %s, Heap: %lu B (min %lu B), Reset: %s",
+                FIRMWARE_VERSION, (unsigned long)payload.freeHeap, (unsigned long)payload.minFreeHeap, resetReason);
 
 #ifdef DISABLE_WDT_FOR_MODEM
-    Logger.debug(LOG_TAG_DIAG, "Disabling watchdog for diagnostics");
-    esp_task_wdt_deinit();
+    Logger.debug(LOG_TAG_DIAG, "Relaxing watchdog for diagnostics");
+    watchdogExtend();
 #endif
 
     // Send data to server
-    bool success = _httpClient->sendDiagnostics(DEVICE_ID, batteryVoltage, solarVoltage, internalTemp, signalQuality, uptime);
+    bool success = _httpClient->sendDiagnostics(DEVICE_ID, payload);
 
 #ifdef DISABLE_WDT_FOR_MODEM
-    Logger.debug(LOG_TAG_DIAG, "Re-enabling watchdog after diagnostics");
-    esp_task_wdt_init(WDT_TIMEOUT / 1000, true);
-    esp_task_wdt_add(NULL);
+    Logger.debug(LOG_TAG_DIAG, "Restoring watchdog after diagnostics");
+    watchdogRestore();
 #endif
 
     if (success)
@@ -209,6 +203,7 @@ void DiagnosticsManager::configureSolarAdc()
     {
         // Configure ADC
         analogSetWidth(12);                               // Set ADC resolution to 12 bits
+        analogRead(ADC_SOLAR_PIN);                        // Core 3.x: pin must be read once before per-pin attenuation applies
         analogSetPinAttenuation(ADC_SOLAR_PIN, ADC_11db); // Set attenuation for higher voltage range
 
         adcConfigured = true;
@@ -251,35 +246,5 @@ float DiagnosticsManager::readInternalTemperature()
     }
 
     Logger.debug(LOG_TAG_DIAG, "Internal temperature: %.2f°C", temp);
-    return temp;
-}
-
-/**
- * @brief Read the external temperature sensor
- */
-float DiagnosticsManager::readExternalTemperature()
-{
-    if (!_externalTempAvailable)
-    {
-        Logger.debug(LOG_TAG_DIAG, "External temperature sensor not available");
-        return -127.0;
-    }
-
-    float temp = _externalTempSensor.readTemperature();
-
-    if (temp == DEVICE_DISCONNECTED_C)
-    {
-        Logger.debug(LOG_TAG_DIAG, "External temperature sensor disconnected");
-        return -127.0;
-    }
-
-    // Validate temperature reading is within reasonable range
-    if (temp < -40.0 || temp > 85.0)
-    {
-        Logger.warn(LOG_TAG_DIAG, "External temperature reading out of range: %.2f°C", temp);
-        return -127.0;
-    }
-
-    Logger.debug(LOG_TAG_DIAG, "External temperature: %.2f°C", temp);
     return temp;
 }

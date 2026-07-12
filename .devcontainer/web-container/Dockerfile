@@ -1,20 +1,13 @@
-FROM mcr.microsoft.com/devcontainers/base:jammy
+FROM node:24-bookworm
 
-RUN apt update && apt install -y \
-    wget \
-    curl \
-    git
+# Basic tooling for development inside the container
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git gh sqlite3 less procps sudo jq nano vim \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install Node.js (LTS) and pnpm
-RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
-    apt-get install -y nodejs && \
-    npm install -g pnpm
+# pnpm via corepack, pinned to the workspace's packageManager version
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable && corepack prepare pnpm@11.1.2 --activate
 
-# Set up PNPM storage to behave like on a local computer
-ENV PNPM_HOME="/pnpm-store"
-RUN mkdir -p $PNPM_HOME && \
-    chown -R vscode:vscode $PNPM_HOME && \
-    echo "export PNPM_HOME=$PNPM_HOME" >> /home/vscode/.bashrc && \
-    echo "export PATH=\$PNPM_HOME:\$PATH" >> /home/vscode/.bashrc
-
-CMD ["bash"]
+# Allow the node user to sudo (devcontainer convenience)
+RUN echo "node ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/node

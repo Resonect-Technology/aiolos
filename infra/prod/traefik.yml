@@ -1,0 +1,39 @@
+# Traefik static configuration for Aiolos production.
+#
+# NO global web->websecure redirect: ESP32 stations POST plain HTTP to the
+# reserved Elastic IP on :80 (raw IP, no hostname) and must never be redirected.
+# Browser HTTP->HTTPS redirect is handled per-router in docker-compose.prod.yml
+# (frontend router only; the host-agnostic /api ingest router wins on priority).
+#
+# No dashboard: this box is public (hastr staging's insecure dashboard sits
+# behind a VPN we deliberately don't have).
+
+entryPoints:
+  web:
+    address: ":80"
+  websecure:
+    address: ":443"
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    watch: true
+    network: aiolos-network
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: support@resonect.cz
+      storage: /acme/acme.json
+      # DNS-01: required behind the Cloudflare proxy (HTTP-01/TLS-ALPN break)
+      dnsChallenge:
+        provider: cloudflare
+        delayBeforeCheck: 0
+
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+log:
+  level: INFO

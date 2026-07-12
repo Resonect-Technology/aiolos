@@ -1,19 +1,28 @@
 ---
-applyTo: "**/firmware/**"
+applyTo: '**/firmware/**'
 ---
 
 # Aiolos Weather Station Firmware Documentation
 
 ## Overview
 
-This document provides comprehensive documentation for the Aiolos Weather Station firmware. The firmware powers a solar/battery-operated weather station based on the LilyGO T-SIM7000G board (ESP32 + SIM7000G cellular modem). The station collects environmental data (temperature, wind speed/direction) and transmits it to a backend server using HTTP POST requests. The system is designed for remote deployment with power efficiency and reliability as key concerns.
+This document provides comprehensive documentation for the Aiolos Weather
+Station firmware. The firmware powers a solar/battery-operated weather station
+based on the LilyGO T-SIM7000G board (ESP32 + SIM7000G cellular modem). The
+station collects environmental data (temperature, wind speed/direction) and
+transmits it to a backend server using HTTP POST requests. The system is
+designed for remote deployment with power efficiency and reliability as key
+concerns.
 
-The firmware represents a complete redesign of an older MQTT-based weather station firmware, transitioning to a simple HTTP protocol for improved compatibility and easier backend integration. This redesign emphasizes modularity, clear separation of concerns, and robust error handling to ensure the station can operate autonomously for extended periods in remote locations.
+The firmware represents a complete redesign of an older MQTT-based weather
+station firmware, transitioning to a simple HTTP protocol for improved
+compatibility and easier backend integration. This redesign emphasizes
+modularity, clear separation of concerns, and robust error handling to ensure
+the station can operate autonomously for extended periods in remote locations.
 
 ## Hardware Platform
 
 - **Main Board**: LilyGO T-SIM7000G (ESP32 + SIM7000G modem)
-
   - ESP32 microcontroller with WiFi/BLE capabilities
   - SIM7000G cellular modem supporting 2G/NB-IoT connectivity
   - Solar charging circuit with battery management
@@ -21,7 +30,6 @@ The firmware represents a complete redesign of an older MQTT-based weather stati
   - GPIO pins for sensor connectivity
 
 - **Sensors**:
-
   - 2× DS18B20 temperature sensors:
     - Internal temperature sensor (mounted inside enclosure)
     - External temperature sensor (weather-proofed for outdoor use)
@@ -42,7 +50,6 @@ The firmware represents a complete redesign of an older MQTT-based weather stati
 ## Communication Architecture
 
 - **Protocol**: HTTP over cellular connection
-
   - Simple, widely supported protocol for IoT/constrained devices
   - Uses HTTP POST requests to send JSON payloads to the backend
   - Backend is an AdonisJS REST API
@@ -51,14 +58,12 @@ The firmware represents a complete redesign of an older MQTT-based weather stati
   - Time synchronization via cellular network
 
 - **HTTP Client Library**: Custom HttpClient (firmware/core/HttpClient.cpp)
-
   - Designed for ESP32 with Arduino framework
   - Uses TinyGSM for modem control and network stack
   - Simple API for message creation and sending
   - Handles connection, retries, and error reporting
 
 - **Data Format**: JSON payloads
-
   - Human-readable format for easier debugging and interoperability
   - Standardized field names and structure
   - Compact formatting to minimize payload size
@@ -72,12 +77,13 @@ The firmware represents a complete redesign of an older MQTT-based weather stati
 
 ## Note
 
-All previous references to CoAP, UDP, or MQTT (including any CoAP proxy) have been replaced with HTTP POST for simplicity and compatibility with modern web backends.
+All previous references to CoAP, UDP, or MQTT (including any CoAP proxy) have
+been replaced with HTTP POST for simplicity and compatibility with modern web
+backends.
 
 ## Key Features
 
 1. **Environmental Monitoring**:
-
    - Internal and external temperature readings
      - DS18B20 digital temperature sensors
      - Configurable reading interval (default: 5 minutes)
@@ -95,7 +101,6 @@ All previous references to CoAP, UDP, or MQTT (including any CoAP proxy) have be
      - Reliable delivery with retransmission
 
 2. **Power Management**:
-
    - Deep sleep during night hours (22:00-09:00)
      - Time-based sleep schedule using RTC memory
      - Configurable sleep/wake hours
@@ -115,7 +120,6 @@ All previous references to CoAP, UDP, or MQTT (including any CoAP proxy) have be
      - Prioritizes critical readings when power is limited
 
 3. **Reliability**:
-
    - Consider watchdog timer implementation
    - Robust reconnection logic for network issues
    - Error reporting via diagnostics messages
@@ -153,7 +157,11 @@ The `secrets.ini` file contains sensitive configuration values such as:
 - Server URLs and API keys
 - Other sensitive parameters
 
-**IMPORTANT**: Always keep `secrets.ini` and `secrets.ini.example` in sync. When adding or modifying any secret value in `secrets.ini`, make sure to update the example file with the same structure but with placeholder values. This ensures that new developers can quickly set up their environment without missing any required secret values.
+**IMPORTANT**: Always keep `secrets.ini` and `secrets.ini.example` in sync. When
+adding or modifying any secret value in `secrets.ini`, make sure to update the
+example file with the same structure but with placeholder values. This ensures
+that new developers can quickly set up their environment without missing any
+required secret values.
 
 Example workflow:
 
@@ -161,7 +169,8 @@ Example workflow:
 2. In `secrets.ini`: Add the actual value
 3. In `secrets.ini.example`: Add a placeholder with clear instructions
 
-This approach maintains security while providing clear documentation of what secret values are needed.
+This approach maintains security while providing clear documentation of what
+secret values are needed.
 
 ### Project Structure
 
@@ -183,30 +192,35 @@ This approach maintains security while providing clear documentation of what sec
 
 ### Environment Configuration
 
-The project uses PlatformIO's build system to handle sensitive configuration values through environment variables:
+The project uses PlatformIO's build system to handle sensitive configuration
+values through environment variables:
 
 1. **Configuration Files**:
-
-   - `firmware/secrets.ini` - Contains sensitive configuration values (not committed to version control)
-   - `firmware/secrets.ini.example` - Template file showing the structure (committed to version control)
+   - `firmware/secrets.ini` - Contains sensitive configuration values (not
+     committed to version control)
+   - `firmware/secrets.ini.example` - Template file showing the structure
+     (committed to version control)
 
 2. **Important Note on Synchronization**:
-
-   - **Always keep the structure of both files in sync**. When adding new configuration variables to `secrets.ini`,
-     make sure to update `secrets.ini.example` with the same variable (with a default or placeholder value).
-   - This ensures that new team members or deployments can easily create a complete `secrets.ini` file from the example.
+   - **Always keep the structure of both files in sync**. When adding new
+     configuration variables to `secrets.ini`, make sure to update
+     `secrets.ini.example` with the same variable (with a default or placeholder
+     value).
+   - This ensures that new team members or deployments can easily create a
+     complete `secrets.ini` file from the example.
    - The variable names and sections must match exactly between the two files.
 
 3. **Usage**:
    - Values from `secrets.ini` are passed to the build via `platformio.ini`
    - `Config.h` uses preprocessor directives to incorporate these values
-   - This approach keeps sensitive information out of source control while maintaining configurability
+   - This approach keeps sensitive information out of source control while
+     maintaining configurability
 
 ### Core Modules
 
 1. **ModemManager**:
-
-   - Handles cellular modem initialization, power cycling, network and GPRS connections, and time synchronization
+   - Handles cellular modem initialization, power cycling, network and GPRS
+     connections, and time synchronization
    - Implements power-efficient modem control sequences
    - Manages AT command communication with proper error handling
    - Monitors network status and signal quality
@@ -216,7 +230,6 @@ The project uses PlatformIO's build system to handle sensitive configuration val
    - Exposes a TinyGsmClient instance for HTTP communication
 
 2. **HttpClient**:
-
    - Manages HTTP communication for sensor data transmission
    - Implements message formatting and parsing
    - Handles connection, retries, and error reporting
@@ -224,7 +237,6 @@ The project uses PlatformIO's build system to handle sensitive configuration val
    - Processes incoming HTTP responses
 
 3. **TemperatureSensor**:
-
    - Controls both internal and external temperature sensors on separate buses
    - Handles sensor discovery and addressing
    - Implements reading with proper timing
@@ -234,7 +246,6 @@ The project uses PlatformIO's build system to handle sensitive configuration val
    - Handles unit conversion if needed
 
 4. **WindSensor**:
-
    - Manages anemometer with interrupt-based pulse counting
    - Implements debouncing for reliable pulse detection
    - Handles wind vane analog reading with proper scaling
@@ -245,7 +256,6 @@ The project uses PlatformIO's build system to handle sensitive configuration val
    - Detects and reports sensor anomalies
 
 5. **PowerManager**:
-
    - Monitors battery and solar voltages with ADC calibration
    - Manages deep sleep cycles with RTC wake-up
    - Implements adaptive transmission rates based on power availability
@@ -256,7 +266,6 @@ The project uses PlatformIO's build system to handle sensitive configuration val
    - Tracks power metrics for diagnostics
 
 6. **OtaManager**:
-
    - Handles WiFi initialization in AP mode
    - Implements web server for firmware uploads
    - Manages ArduinoOTA for IDE-based updates
@@ -278,7 +287,6 @@ The project uses PlatformIO's build system to handle sensitive configuration val
 ### Main Operation Flow
 
 1. **Startup Phase**:
-
    - Initialize serial communications (115200 baud)
    - Configure GPIO pins for LED, modem power, sensors
    - Setup hardware watchdog timer
@@ -286,7 +294,6 @@ The project uses PlatformIO's build system to handle sensitive configuration val
    - Perform basic hardware self-test
 
 2. **Network Connection**:
-
    - Power on cellular modem with correct timing sequence
    - Initialize AT command interface
    - Wait for network registration (with timeout)
@@ -294,7 +301,6 @@ The project uses PlatformIO's build system to handle sensitive configuration val
    - Synchronize system time from cellular network
 
 3. **Power Management Check**:
-
    - Read battery and solar voltage levels
    - Check current time against sleep schedule
    - If night hours (22:00-09:00) or battery critically low:
@@ -304,7 +310,6 @@ The project uses PlatformIO's build system to handle sensitive configuration val
      - Enter ESP32 deep sleep mode
 
 4. **OTA Check**:
-
    - If current time matches OTA window (default 10:00 AM)
    - And battery level is sufficient
    - Then:
@@ -314,14 +319,12 @@ The project uses PlatformIO's build system to handle sensitive configuration val
      - Set timeout for automatic WiFi shutdown
 
 5. **Sensor Initialization**:
-
    - Configure temperature sensors on separate buses
    - Setup anemometer interrupt with debouncing
    - Configure ADC for wind vane and voltage readings
    - Initialize any other sensors
 
 6. **Main Loop Operation**:
-
    - Reset watchdog timer
    - Process any incoming HTTP messages
    - Check network connectivity and reconnect if needed
@@ -334,7 +337,6 @@ The project uses PlatformIO's build system to handle sensitive configuration val
    - Implement short delay (100ms) between iterations
 
 7. **Error Handling**:
-
    - Detect and report sensor failures
    - Manage network disconnections
    - Handle modem errors with appropriate recovery
@@ -424,36 +426,32 @@ The project uses PlatformIO's build system to handle sensitive configuration val
 
 ## Development Approach
 
-- **Reliability First**: The system prioritizes reliable operation over feature richness
-
+- **Reliability First**: The system prioritizes reliable operation over feature
+  richness
   - Robust error handling with recovery mechanisms
   - Graceful degradation when components fail
   - Conservative power management
   - Hardware watchdog and periodic restart safeguards
 
 - **Modular Architecture**: Clean separation of concerns for easier maintenance
-
   - Each module has well-defined responsibilities
   - Minimal interdependencies between components
   - Consistent interface patterns
   - Unit-testable where possible
 
 - **Power Efficiency**: Designed for solar/battery operation
-
   - Smart sleep scheduling based on time and power availability
   - Adaptive behavior based on battery levels
   - Efficient use of cellular connectivity
   - Explicit control of power-hungry components
 
 - **Configurable Design**: Easy to adjust without code changes
-
   - Centralized configuration in Config.h
   - Remote configuration capabilities
   - Well-documented parameters
   - Sensible defaults with override capability
 
 - **Maintainable Code**: Focus on readability and consistency
-
   - Consistent naming conventions
   - Comprehensive inline documentation
   - Clear error reporting
@@ -468,7 +466,6 @@ The project uses PlatformIO's build system to handle sensitive configuration val
 ## Implementation Timeline
 
 1. **Phase 1: Core Infrastructure**
-
    - Setup project structure and PlatformIO configuration
    - Implement Config.h with all parameters
    - Create Logger module with different verbosity levels
@@ -477,7 +474,6 @@ The project uses PlatformIO's build system to handle sensitive configuration val
    - Test basic modem operation and connectivity
 
 2. **Phase 2: Sensor Implementation**
-
    - Develop TemperatureSensor module for both sensors
    - Implement WindSensor for anemometer and wind vane
    - Create ADC calibration for battery and solar monitoring
@@ -486,7 +482,6 @@ The project uses PlatformIO's build system to handle sensitive configuration val
    - Validate sensor accuracy and reliability
 
 3. **Phase 3: HTTP Integration**
-
    - Implement HttpClient for HTTP communication
    - Create message formatting functions
    - Setup REST API endpoints
@@ -495,7 +490,6 @@ The project uses PlatformIO's build system to handle sensitive configuration val
    - Validate data transmission reliability
 
 4. **Phase 4: Power Management and OTA**
-
    - Implement PowerManager with sleep/wake logic
    - Add battery monitoring and protection
    - Create adaptive transmission rate logic
@@ -584,7 +578,6 @@ The project uses PlatformIO's build system to handle sensitive configuration val
 ### Performance Considerations
 
 - **Timing**:
-
   - Loop cycle: ~100ms typical
   - Sensor read time: 1-2s (temperature sensors require conversion time)
   - Network transmission: 2-5s per message

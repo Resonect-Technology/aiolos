@@ -3,7 +3,7 @@
 // Atoms - Basic building blocks
 export * from './atoms';
 
-// Molecules - Simple component combinations  
+// Molecules - Simple component combinations
 export * from './molecules';
 
 // Organisms - Complex component combinations

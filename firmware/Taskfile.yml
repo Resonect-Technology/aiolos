@@ -1,0 +1,31 @@
+version: "3"
+
+# Included from the root Taskfile under the `firmware:` namespace with dir set
+# to the repo root — platformio.ini lives there, so pio must run from the root.
+
+tasks:
+  build:
+    desc: "Build ESP32 firmware (all envs)"
+    preconditions:
+      - sh: test -f firmware/secrets.ini
+        msg: "firmware/secrets.ini missing — copy firmware/secrets.ini.example"
+    cmds:
+      - pio run
+
+  test:
+    desc: "Run native firmware unit tests (host, no hardware needed)"
+    cmds:
+      - pio test -e native
+
+  flash:
+    desc: "Build and flash the debug env over USB"
+    preconditions:
+      - sh: test -f firmware/secrets.ini
+        msg: "firmware/secrets.ini missing — copy firmware/secrets.ini.example"
+    cmds:
+      - pio run -e aiolos-esp32dev-debug -t upload
+
+  monitor:
+    desc: "Serial monitor with exception decoding, mirrored to a log file"
+    cmds:
+      - pio device monitor -f default -f esp32_exception_decoder -f log2file

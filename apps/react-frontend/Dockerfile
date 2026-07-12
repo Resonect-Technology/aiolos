@@ -1,47 +1,36 @@
-# Build-only Dockerfile for static frontend assets
-FROM node:22-slim AS build
-
-# Set up PNPM
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
-# Set working directory
+# Turborepo Docker build for the Aiolos dashboard (React + Vite, served by nginx)
+# Build from the monorepo root:
+#   docker build -f apps/react-frontend/Dockerfile -t aiolos-frontend .
+FROM node:24-alpine AS base
+RUN apk add --no-cache --no-scripts libc6-compat
 WORKDIR /app
+RUN npm install -g pnpm@11.1.2 turbo
 
-# Copy workspace config files
-COPY pnpm-workspace.yaml ./pnpm-workspace.yaml
-COPY pnpm-lock.yaml ./pnpm-lock.yaml
-COPY package.json ./package.json
-COPY turbo.json ./turbo.json
+# 1) Create a pruned workspace for the frontend only
+FROM base AS builder
+COPY . .
+RUN turbo prune react-frontend --docker
 
-# Copy the frontend package.json
-COPY apps/react-frontend/package.json ./apps/react-frontend/package.json
+# 2) Install deps using the pruned lockfile, then copy sources
+FROM base AS installer
+WORKDIR /app
+COPY --from=builder /app/out/json/ .
+RUN pnpm install --frozen-lockfile --ignore-scripts
+COPY --from=builder /app/out/full/ .
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
-# Install dependencies (including devDependencies needed for build)
-RUN pnpm install --no-frozen-lockfile
+# 3) Build the frontend bundle (tsc -b && vite build)
+RUN turbo build --filter=react-frontend
 
-# Copy the frontend code
-COPY apps/react-frontend ./apps/react-frontend
+# 4) Production image with nginx serving static files
+FROM nginx:alpine AS production
 
-# Build the static assets
-WORKDIR /app/apps/react-frontend
-RUN pnpm run build
+COPY --from=installer /app/apps/react-frontend/dist /usr/share/nginx/html
+COPY apps/react-frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
-# Final stage with minimal Alpine for static files
-FROM alpine:latest
+EXPOSE 80
 
-# Install a simple static file server if needed
-RUN apk add --no-cache busybox-extras
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
 
-# Copy the built files from the build stage
-COPY --from=build /app/apps/react-frontend/dist /app/dist
-
-# Create entrypoint script to copy files to volume mount
-RUN echo '#!/bin/sh' > /entrypoint.sh && \
-    echo 'echo "Copying frontend build to volume..."' >> /entrypoint.sh && \
-    echo 'cp -r /app/dist/* /dist/' >> /entrypoint.sh && \
-    echo 'echo "Frontend files copied successfully"' >> /entrypoint.sh && \
-    echo 'tail -f /dev/null' >> /entrypoint.sh && \
-    chmod +x /entrypoint.sh
-
-# Command that copies files to volume and keeps container running
-CMD ["/entrypoint.sh"]
+CMD ["nginx", "-g", "daemon off;"]

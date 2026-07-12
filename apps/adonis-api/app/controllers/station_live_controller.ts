@@ -1,15 +1,19 @@
-import type { HttpContext } from '@adonisjs/core/http'
-import transmit from '@adonisjs/transmit/services/main'
-import { stationDataCache } from '#app/services/station_data_cache'
-import { windAggregationService } from '#app/services/wind_aggregation_service'
+import type { HttpContext } from '@adonisjs/core/http';
+import transmit from '@adonisjs/transmit/services/main';
+
+import type { WindLivePayload } from '@repo/schemas';
+
+import { stationDataCache } from '#app/services/station_data_cache';
+import { windAggregationService } from '#app/services/wind_aggregation_service';
+import { windIngestSchema } from '#validators/station_wind';
 
 // In-memory interval map for dev-only mock streaming
 interface MockStationData {
-  intervalId: NodeJS.Timeout
-  lastWindSpeed: number
-  lastWindDirection: number
+  intervalId: NodeJS.Timeout;
+  lastWindSpeed: number;
+  lastWindDirection: number;
 }
-const mockStationStates: Record<string, MockStationData> = {}
+const mockStationStates: Record<string, MockStationData> = {};
 
 export default class StationLiveController {
   /**
@@ -24,43 +28,64 @@ export default class StationLiveController {
    * - Development and testing purposes
    * - IoT/CoAP proxy integration
    *
-   * Body: { windSpeed: number, windDirection: number, timestamp?: string }
+   * Body: { windSpeed: number, windDirection: number, gustSpeed?: number,
+   *         minSpeed?: number, intervalMs?: number, timestamp?: string }
+   *
+   * gustSpeed/minSpeed are the firmware's max/min 3 s rolling means;
+   * intervalMs is the effective send interval the reading was produced under
+   * (pass-through to SSE only — lets the dashboard derive staleness at any
+   * configured cadence).
    */
   async wind({ params, request, response }: HttpContext) {
     // Capture arrival timestamp immediately for accuracy
-    const arrivalTimestamp = new Date().toISOString()
+    const arrivalTimestamp = new Date().toISOString();
 
-    const { station_id } = params
-    const { windSpeed, windDirection, timestamp } = request.only([
-      'windSpeed',
-      'windDirection',
-      'timestamp',
-    ])
-    if (typeof windSpeed !== 'number' || typeof windDirection !== 'number') {
-      return response.badRequest({ error: 'Invalid wind data' })
+    const { station_id } = params;
+    // request.all() reads the same merged qs+body request.only() did; the
+    // schema strips unknown keys and rejects any out-of-bounds field
+    const parsed = windIngestSchema.safeParse(request.all());
+    if (!parsed.success) {
+      return response.badRequest({ error: 'Invalid wind data' });
     }
+    const { windSpeed, windDirection, gustSpeed, minSpeed, intervalMs, timestamp } = parsed.data;
 
-    // Use station-provided timestamp if available, otherwise use server arrival time
-    const windTimestamp = timestamp || arrivalTimestamp
+    // Use station-provided timestamp if valid, otherwise use server arrival time
+    const windTimestamp =
+      timestamp !== undefined && !Number.isNaN(Date.parse(timestamp))
+        ? timestamp
+        : arrivalTimestamp;
 
     // Cache the latest wind data using the shared cache service
     stationDataCache.setWindData(station_id, {
       windSpeed,
       windDirection,
+      ...(gustSpeed !== undefined && { gustSpeed }),
+      ...(minSpeed !== undefined && { minSpeed }),
+      ...(intervalMs !== undefined && { intervalMs }),
       timestamp: windTimestamp,
-    })
+    });
 
     // Process data for 1-minute aggregation
-    await windAggregationService.processWindData(station_id, windSpeed, windDirection, windTimestamp)
+    await windAggregationService.processWindData(
+      station_id,
+      windSpeed,
+      windDirection,
+      windTimestamp,
+      gustSpeed,
+      minSpeed,
+    );
 
     // Broadcast to SSE subscribers
     await transmit.broadcast(`wind/live/${station_id}`, {
       windSpeed,
       windDirection,
+      ...(gustSpeed !== undefined && { gustSpeed }),
+      ...(minSpeed !== undefined && { minSpeed }),
+      ...(intervalMs !== undefined && { intervalMs }),
       timestamp: windTimestamp,
-    })
+    } satisfies WindLivePayload);
 
-    return { ok: true }
+    return { ok: true };
   }
 
   /**
@@ -75,24 +100,24 @@ export default class StationLiveController {
    */
   async mockWind({ params, request }: HttpContext) {
     // Capture arrival timestamp immediately for accuracy
-    const arrivalTimestamp = new Date().toISOString()
+    const arrivalTimestamp = new Date().toISOString();
 
-    const { station_id } = params
+    const { station_id } = params;
     let { windSpeed, windDirection, timestamp } = request.only([
       'windSpeed',
       'windDirection',
       'timestamp',
-    ])
+    ]);
     // Generate random values if not provided
     if (typeof windSpeed !== 'number') {
-      windSpeed = Math.round((Math.random() * 20 + 1) * 10) / 10 // 1.0 - 21.0 m/s
+      windSpeed = Math.round((Math.random() * 20 + 1) * 10) / 10; // 1.0 - 21.0 m/s
     }
     if (typeof windDirection !== 'number') {
-      windDirection = Math.floor(Math.random() * 360) // 0 - 359 degrees
+      windDirection = Math.floor(Math.random() * 360); // 0 - 359 degrees
     }
     // Use provided timestamp or server arrival time
     if (!timestamp) {
-      timestamp = arrivalTimestamp
+      timestamp = arrivalTimestamp;
     }
 
     // Cache the mock wind data using the shared cache service
@@ -100,17 +125,17 @@ export default class StationLiveController {
       windSpeed,
       windDirection,
       timestamp,
-    })
+    });
 
     // Process mock data for 1-minute aggregation
-    await windAggregationService.processWindData(station_id, windSpeed, windDirection, timestamp)
+    await windAggregationService.processWindData(station_id, windSpeed, windDirection, timestamp);
 
     await transmit.broadcast(`wind/live/${station_id}`, {
       windSpeed,
       windDirection,
       timestamp,
-    })
-    return { ok: true, windSpeed, windDirection, timestamp }
+    });
+    return { ok: true, windSpeed, windDirection, timestamp };
   }
 
   /**
@@ -118,57 +143,57 @@ export default class StationLiveController {
    * POST /stations/:station_id/live/wind/mock/start
    */
   async startMockWind({ params, response }: HttpContext) {
-    const { station_id } = params
+    const { station_id } = params;
     if (mockStationStates[station_id]) {
-      return response.conflict({ error: 'Mock already running' })
+      return response.conflict({ error: 'Mock already running' });
     }
 
-    console.log(`Starting smoother mock wind data for station: ${station_id}`)
+    console.log(`Starting smoother mock wind data for station: ${station_id}`);
 
     // Initial random values
-    let currentWindSpeed = Math.round((Math.random() * 15 + 5) * 10) / 10 // Start between 5 and 20 m/s
-    let currentWindDirection = Math.floor(Math.random() * 360)
+    let currentWindSpeed = Math.round((Math.random() * 15 + 5) * 10) / 10; // Start between 5 and 20 m/s
+    let currentWindDirection = Math.floor(Math.random() * 360);
 
     const sendData = async (speed: number, direction: number) => {
-      const timestamp = new Date().toISOString()
-      const data = { windSpeed: speed, windDirection: direction, timestamp }
-      console.log(`Broadcasting wind data for ${station_id}:`, data)
-      await transmit.broadcast(`wind/live/${station_id}`, data)
-      return data
-    }
+      const timestamp = new Date().toISOString();
+      const data = { windSpeed: speed, windDirection: direction, timestamp };
+      console.log(`Broadcasting wind data for ${station_id}:`, data);
+      await transmit.broadcast(`wind/live/${station_id}`, data);
+      return data;
+    };
 
     // Send initial data immediately
-    await sendData(currentWindSpeed, currentWindDirection)
+    await sendData(currentWindSpeed, currentWindDirection);
 
     const intervalId = setInterval(async () => {
       // Generate small changes
-      const speedChange = (Math.random() - 0.5) * 2 // -1 to +1 m/s change
-      const directionChange = Math.floor((Math.random() - 0.5) * 30) // -15 to +15 degrees change
+      const speedChange = (Math.random() - 0.5) * 2; // -1 to +1 m/s change
+      const directionChange = Math.floor((Math.random() - 0.5) * 30); // -15 to +15 degrees change
 
-      currentWindSpeed += speedChange
-      currentWindDirection += directionChange
+      currentWindSpeed += speedChange;
+      currentWindDirection += directionChange;
 
       // Clamp values to reasonable ranges
-      currentWindSpeed = Math.max(0, Math.min(25, currentWindSpeed)) // 0-25 m/s
-      currentWindSpeed = Math.round(currentWindSpeed * 10) / 10 // Round to 1 decimal place
+      currentWindSpeed = Math.max(0, Math.min(25, currentWindSpeed)); // 0-25 m/s
+      currentWindSpeed = Math.round(currentWindSpeed * 10) / 10; // Round to 1 decimal place
 
-      currentWindDirection = (currentWindDirection + 360) % 360 // Keep direction 0-359
-      currentWindDirection = Math.floor(currentWindDirection)
+      currentWindDirection = (currentWindDirection + 360) % 360; // Keep direction 0-359
+      currentWindDirection = Math.floor(currentWindDirection);
 
       // Update state for next iteration (though not strictly needed here as vars are in closure)
-      mockStationStates[station_id].lastWindSpeed = currentWindSpeed
-      mockStationStates[station_id].lastWindDirection = currentWindDirection
+      mockStationStates[station_id].lastWindSpeed = currentWindSpeed;
+      mockStationStates[station_id].lastWindDirection = currentWindDirection;
 
-      await sendData(currentWindSpeed, currentWindDirection)
-    }, 1000)
+      await sendData(currentWindSpeed, currentWindDirection);
+    }, 1000);
 
     mockStationStates[station_id] = {
       intervalId,
       lastWindSpeed: currentWindSpeed,
       lastWindDirection: currentWindDirection,
-    }
+    };
 
-    return { ok: true, message: `Smoother mock wind started for ${station_id}` }
+    return { ok: true, message: `Smoother mock wind started for ${station_id}` };
   }
 
   /**
@@ -176,13 +201,13 @@ export default class StationLiveController {
    * POST /stations/:station_id/live/wind/mock/stop
    */
   async stopMockWind({ params, response }: HttpContext) {
-    const { station_id } = params
+    const { station_id } = params;
     if (mockStationStates[station_id]) {
-      clearInterval(mockStationStates[station_id].intervalId)
-      delete mockStationStates[station_id]
-      console.log(`Mock wind stopped for station: ${station_id}`)
-      return { ok: true, message: `Mock wind stopped for ${station_id}` }
+      clearInterval(mockStationStates[station_id].intervalId);
+      delete mockStationStates[station_id];
+      console.log(`Mock wind stopped for station: ${station_id}`);
+      return { ok: true, message: `Mock wind stopped for ${station_id}` };
     }
-    return response.notFound({ error: 'No mock running for this station' })
+    return response.notFound({ error: 'No mock running for this station' });
   }
 }

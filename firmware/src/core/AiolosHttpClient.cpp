@@ -8,6 +8,7 @@
 #include <ArduinoJson.h> // Use ArduinoJson for robust parsing
 #include "esp_task_wdt.h"
 #include "core/ModemManager.h"
+#include "logic/HttpLogic.h"
 
 #define LOG_TAG_HTTP "HTTP"
 
@@ -76,9 +77,13 @@ bool AiolosHttpClient::isConnectionThrottled()
     unsigned long elapsedTime = millis() - _lastAttemptTime;
     if (elapsedTime < _backoffDelay)
     {
-        // To avoid spamming the log, we could log this less frequently,
-        // but for now, this is useful for debugging.
-        Logger.debug(LOG_TAG_HTTP, "Connection is throttled. Time remaining: %lu ms", _backoffDelay - elapsedTime);
+        // Called twice per loop pass - rate-limit the log to avoid flooding
+        static unsigned long lastThrottleLog = 0;
+        if (millis() - lastThrottleLog >= 10000)
+        {
+            lastThrottleLog = millis();
+            Logger.debug(LOG_TAG_HTTP, "Connection is throttled. Time remaining: %lu ms", _backoffDelay - elapsedTime);
+        }
         return true;
     }
 
@@ -151,6 +156,10 @@ int AiolosHttpClient::_performRequest(const char *method, const char *path, cons
         return 0; // Throttled, do not attempt
     }
 
+    // A single request is bounded well under the loop watchdog timeout, but a
+    // loop pass chaining several requests is not - feed it per request
+    esp_task_wdt_reset();
+
     if (!_modemManager)
     {
         Logger.error(LOG_TAG_HTTP, "HTTP client not initialized");
@@ -165,16 +174,34 @@ int AiolosHttpClient::_performRequest(const char *method, const char *path, cons
 
     Logger.debug(LOG_TAG_HTTP, "Sending %s request to %s", method, path);
 
+    // Build the request manually so we can attach the X-API-Key header
+    // (the library's convenience post()/get() cannot add headers)
+    _arduinoClient->beginRequest();
     int err = 0;
     if (strcmp(method, "POST") == 0)
     {
         const char *requestBody = (body != nullptr) ? body : "";
-        err = _arduinoClient->post(path, "application/json", requestBody);
+        err = _arduinoClient->post(path);
+        if (err == 0)
+        {
+            _arduinoClient->sendHeader("Content-Type", "application/json");
+            _arduinoClient->sendHeader("Content-Length", strlen(requestBody));
+            _arduinoClient->sendHeader("X-API-Key", STATION_API_KEY);
+            _arduinoClient->sendHeader("Connection", "close");
+            _arduinoClient->beginBody();
+            _arduinoClient->print(requestBody);
+        }
     }
     else
     {
         err = _arduinoClient->get(path);
+        if (err == 0)
+        {
+            _arduinoClient->sendHeader("X-API-Key", STATION_API_KEY);
+            _arduinoClient->sendHeader("Connection", "close");
+        }
     }
+    _arduinoClient->endRequest();
 
     if (err != 0)
     {
@@ -217,6 +244,11 @@ int AiolosHttpClient::_performRequest(const char *method, const char *path, cons
             responseBody += c;
             lastRead = millis(); // Reset timeout timer with each byte received
         }
+        if (contentLength >= 0 && (int)responseBody.length() >= contentLength)
+        {
+            break; // Full body received - don't idle-wait on a keep-alive socket
+        }
+        delay(1); // Yield instead of busy-spinning the core
     }
 
     // It's important to stop the client after each request to close the connection
@@ -227,19 +259,28 @@ int AiolosHttpClient::_performRequest(const char *method, const char *path, cons
         Logger.debug(LOG_TAG_HTTP, "Response Body: %s", responseBody.c_str());
     }
 
-    if (statusCode >= 200 && statusCode < 300)
+    switch (HttpLogic::classify(statusCode))
     {
+    case HttpLogic::Outcome::Ok:
         _resetBackoff();
-    }
-    else
-    {
-        // If the status code is not successful, handle the failure.
+        break;
+    case HttpLogic::Outcome::RejectedNoBackoff:
+        // Delivered but rejected - connectivity is fine, don't throttle
+        _resetBackoff();
+        Logger.error(LOG_TAG_HTTP, "HTTP request delivered but rejected (%d)", statusCode);
+        if (responseBody.length() > 0)
+        {
+            Logger.error(LOG_TAG_HTTP, "Response: %s", responseBody.c_str());
+        }
+        break;
+    case HttpLogic::Outcome::Backoff:
         _handleHttpFailure();
         Logger.error(LOG_TAG_HTTP, "HTTP request failed with status code: %d", statusCode);
         if (responseBody.length() > 0)
         {
             Logger.error(LOG_TAG_HTTP, "Response: %s", responseBody.c_str());
         }
+        break;
     }
 
     return statusCode;
@@ -259,6 +300,10 @@ int AiolosHttpClient::_performLightweightPost(const char *path, const char *body
         return 0; // Throttled, do not attempt
     }
 
+    // A single request is bounded well under the loop watchdog timeout, but a
+    // loop pass chaining several requests is not - feed it per request
+    esp_task_wdt_reset();
+
     if (!_modemManager)
     {
         Logger.error(LOG_TAG_HTTP, "HTTP client not initialized");
@@ -273,8 +318,20 @@ int AiolosHttpClient::_performLightweightPost(const char *path, const char *body
 
     Logger.debug(LOG_TAG_HTTP, "Sending lightweight POST request to %s", path);
 
+    // Build the request manually so we can attach the X-API-Key header
     const char *requestBody = (body != nullptr) ? body : "";
-    int err = _arduinoClient->post(path, "application/json", requestBody);
+    _arduinoClient->beginRequest();
+    int err = _arduinoClient->post(path);
+    if (err == 0)
+    {
+        _arduinoClient->sendHeader("Content-Type", "application/json");
+        _arduinoClient->sendHeader("Content-Length", strlen(requestBody));
+        _arduinoClient->sendHeader("X-API-Key", STATION_API_KEY);
+        _arduinoClient->sendHeader("Connection", "close");
+        _arduinoClient->beginBody();
+        _arduinoClient->print(requestBody);
+    }
+    _arduinoClient->endRequest();
 
     if (err != 0)
     {
@@ -290,14 +347,20 @@ int AiolosHttpClient::_performLightweightPost(const char *path, const char *body
     // Important: stop the client immediately to close the connection
     _arduinoClient->stop();
 
-    if (statusCode >= 200 && statusCode < 300)
+    switch (HttpLogic::classify(statusCode))
     {
+    case HttpLogic::Outcome::Ok:
         _resetBackoff();
-    }
-    else
-    {
+        break;
+    case HttpLogic::Outcome::RejectedNoBackoff:
+        // Delivered but rejected - connectivity is fine, don't throttle
+        _resetBackoff();
+        Logger.error(LOG_TAG_HTTP, "HTTP request delivered but rejected (%d)", statusCode);
+        break;
+    case HttpLogic::Outcome::Backoff:
         _handleHttpFailure();
         Logger.error(LOG_TAG_HTTP, "HTTP request failed with status code: %d", statusCode);
+        break;
     }
 
     return statusCode;
@@ -306,18 +369,31 @@ int AiolosHttpClient::_performLightweightPost(const char *path, const char *body
 /**
  * @brief Send diagnostics data to the server
  */
-bool AiolosHttpClient::sendDiagnostics(const char *stationId, float batteryVoltage, float solarVoltage, float internalTemp, int signalQuality, unsigned long uptime)
+bool AiolosHttpClient::sendDiagnostics(const char *stationId, const DiagnosticsPayload &payload)
 {
     Logger.info(LOG_TAG_HTTP, "Sending diagnostics data for station %s", stationId);
 
     // Create JSON payload using ArduinoJson with fixed-size document
     JsonDocument doc;
     doc.to<JsonObject>(); // Ensure it's an object
-    doc["batteryVoltage"] = batteryVoltage;
-    doc["solarVoltage"] = solarVoltage;
-    doc["internalTemperature"] = internalTemp;
-    doc["signalQuality"] = signalQuality;
-    doc["uptime"] = uptime;
+    doc["batteryVoltage"] = payload.batteryVoltage;
+    doc["solarVoltage"] = payload.solarVoltage;
+    doc["internalTemperature"] = payload.internalTemperature;
+    doc["signalQuality"] = payload.signalQuality;
+    doc["uptime"] = payload.uptime;
+    if (payload.firmwareVersion != nullptr)
+    {
+        doc["firmwareVersion"] = payload.firmwareVersion;
+    }
+    if (payload.freeHeap > 0)
+    {
+        doc["freeHeap"] = payload.freeHeap;
+        doc["minFreeHeap"] = payload.minFreeHeap;
+    }
+    if (payload.resetReason != nullptr)
+    {
+        doc["resetReason"] = payload.resetReason;
+    }
 
     String jsonBuffer;
     serializeJson(doc, jsonBuffer);
@@ -344,10 +420,7 @@ bool AiolosHttpClient::sendDiagnostics(const char *stationId, float batteryVolta
 /**
  * @brief Fetch configuration from the server
  */
-bool AiolosHttpClient::fetchConfiguration(const char *stationId, unsigned long *tempInterval, unsigned long *windInterval,
-                                          unsigned long *windSampleInterval, unsigned long *diagInterval, unsigned long *timeInterval,
-                                          unsigned long *restartInterval, int *sleepStartHour, int *sleepEndHour,
-                                          int *otaHour, int *otaMinute, int *otaDuration, bool *remoteOta)
+bool AiolosHttpClient::fetchConfiguration(const char *stationId, StationConfigData &config)
 {
     Logger.info(LOG_TAG_HTTP, "Fetching configuration for station %s", stationId);
 
@@ -358,96 +431,99 @@ bool AiolosHttpClient::fetchConfiguration(const char *stationId, unsigned long *
     String responseBody;
     int statusCode = _performRequest("GET", urlPath, nullptr, responseBody);
 
-    if (statusCode >= 200 && statusCode < 300)
-    {
-        Logger.info(LOG_TAG_HTTP, "Configuration data received.");
-
-        // Use a JsonDocument for configuration data
-        JsonDocument doc;
-        Logger.debug(LOG_TAG_HTTP, "About to parse JSON with length: %d", responseBody.length());
-        DeserializationError error = deserializeJson(doc, responseBody);
-
-        if (error)
-        {
-            Logger.error(LOG_TAG_HTTP, "Failed to parse JSON configuration: %s", error.c_str());
-            Logger.error(LOG_TAG_HTTP, "JSON was: %s", responseBody.c_str());
-            _handleHttpFailure(); // Treat parsing error as a failure for backoff
-            return false;
-        }
-
-        Logger.debug(LOG_TAG_HTTP, "JSON parsed successfully");
-
-        // Safely extract values using the parsed JSON document
-        if (!doc["tempInterval"].isNull())
-        {
-            unsigned long value = doc["tempInterval"].as<unsigned long>();
-            Logger.debug(LOG_TAG_HTTP, "tempInterval from JSON: %lu", value);
-            *tempInterval = value;
-        }
-        if (!doc["windSendInterval"].isNull())
-        {
-            unsigned long value = doc["windSendInterval"].as<unsigned long>();
-            Logger.debug(LOG_TAG_HTTP, "windSendInterval from JSON: %lu", value);
-            *windInterval = value;
-        }
-        if (windSampleInterval && !doc["windSampleInterval"].isNull())
-        {
-            unsigned long value = doc["windSampleInterval"].as<unsigned long>();
-            Logger.debug(LOG_TAG_HTTP, "windSampleInterval from JSON: %lu", value);
-            *windSampleInterval = value;
-        }
-        if (!doc["diagInterval"].isNull())
-        {
-            unsigned long value = doc["diagInterval"].as<unsigned long>();
-            Logger.debug(LOG_TAG_HTTP, "diagInterval from JSON: %lu", value);
-            *diagInterval = value;
-        }
-        if (timeInterval && !doc["timeInterval"].isNull())
-        {
-            *timeInterval = doc["timeInterval"].as<unsigned long>();
-        }
-        if (restartInterval && !doc["restartInterval"].isNull())
-        {
-            *restartInterval = doc["restartInterval"].as<unsigned long>();
-        }
-        if (sleepStartHour && !doc["sleepStartHour"].isNull())
-        {
-            *sleepStartHour = doc["sleepStartHour"].as<int>();
-        }
-        if (sleepEndHour && !doc["sleepEndHour"].isNull())
-        {
-            *sleepEndHour = doc["sleepEndHour"].as<int>();
-        }
-        if (otaHour && !doc["otaHour"].isNull())
-        {
-            *otaHour = doc["otaHour"].as<int>();
-        }
-        if (otaMinute && !doc["otaMinute"].isNull())
-        {
-            *otaMinute = doc["otaMinute"].as<int>();
-        }
-        if (otaDuration && !doc["otaDuration"].isNull())
-        {
-            *otaDuration = doc["otaDuration"].as<int>();
-        }
-        if (remoteOta && !doc["remoteOta"].isNull())
-        {
-            *remoteOta = doc["remoteOta"].as<bool>();
-        }
-
-        return true;
-    }
-    else
+    if (statusCode < 200 || statusCode >= 300)
     {
         Logger.error(LOG_TAG_HTTP, "Failed to fetch configuration.");
         return false;
     }
+
+    Logger.info(LOG_TAG_HTTP, "Configuration data received.");
+
+    // Use a JsonDocument for configuration data
+    JsonDocument doc;
+    Logger.debug(LOG_TAG_HTTP, "About to parse JSON with length: %d", responseBody.length());
+    DeserializationError error = deserializeJson(doc, responseBody);
+
+    if (error)
+    {
+        Logger.error(LOG_TAG_HTTP, "Failed to parse JSON configuration: %s", error.c_str());
+        Logger.error(LOG_TAG_HTTP, "JSON was: %s", responseBody.c_str());
+        _handleHttpFailure(); // Treat parsing error as a failure for backoff
+        return false;
+    }
+
+    Logger.debug(LOG_TAG_HTTP, "JSON parsed successfully");
+
+    // Overwrite only the fields present in the response
+    if (!doc["tempInterval"].isNull())
+    {
+        config.tempInterval = doc["tempInterval"].as<unsigned long>();
+    }
+    if (!doc["windSendInterval"].isNull())
+    {
+        config.windSendInterval = doc["windSendInterval"].as<unsigned long>();
+    }
+    if (!doc["windSampleInterval"].isNull())
+    {
+        config.windSampleInterval = doc["windSampleInterval"].as<unsigned long>();
+    }
+    if (!doc["diagInterval"].isNull())
+    {
+        config.diagInterval = doc["diagInterval"].as<unsigned long>();
+    }
+    if (!doc["timeInterval"].isNull())
+    {
+        config.timeInterval = doc["timeInterval"].as<unsigned long>();
+    }
+    if (!doc["restartInterval"].isNull())
+    {
+        config.restartInterval = doc["restartInterval"].as<unsigned long>();
+    }
+    if (!doc["sleepStartHour"].isNull())
+    {
+        config.sleepStartHour = doc["sleepStartHour"].as<int>();
+    }
+    if (!doc["sleepEndHour"].isNull())
+    {
+        config.sleepEndHour = doc["sleepEndHour"].as<int>();
+    }
+    if (!doc["otaHour"].isNull())
+    {
+        config.otaHour = doc["otaHour"].as<int>();
+    }
+    if (!doc["otaMinute"].isNull())
+    {
+        config.otaMinute = doc["otaMinute"].as<int>();
+    }
+    if (!doc["otaDuration"].isNull())
+    {
+        config.otaDuration = doc["otaDuration"].as<int>();
+    }
+    if (!doc["remoteOta"].isNull())
+    {
+        config.remoteOta = doc["remoteOta"].as<bool>();
+    }
+    if (!doc["utcOffsetMinutes"].isNull())
+    {
+        config.utcOffsetMinutes = doc["utcOffsetMinutes"].as<int>();
+    }
+    if (!doc["livestreamStartHour"].isNull())
+    {
+        config.livestreamStartHour = doc["livestreamStartHour"].as<int>();
+    }
+    if (!doc["lowBatteryThreshold"].isNull())
+    {
+        config.lowBatteryThreshold = doc["lowBatteryThreshold"].as<float>();
+    }
+
+    return true;
 }
 
 /**
  * @brief Send wind data to the server (optimized for high-frequency sending)
  */
-bool AiolosHttpClient::sendWindData(const char *stationId, float windSpeed, float windDirection)
+bool AiolosHttpClient::sendWindData(const char *stationId, float windSpeed, float windDirection,
+                                    float gustSpeed, float minSpeed, unsigned long intervalMs)
 {
     Logger.info(LOG_TAG_HTTP, "Sending wind data for station %s", stationId);
 
@@ -456,6 +532,9 @@ bool AiolosHttpClient::sendWindData(const char *stationId, float windSpeed, floa
     doc.to<JsonObject>(); // Ensure it's an object
     doc["windSpeed"] = windSpeed;
     doc["windDirection"] = windDirection;
+    doc["gustSpeed"] = gustSpeed;
+    doc["minSpeed"] = minSpeed;
+    doc["intervalMs"] = intervalMs;
 
     String jsonBuffer;
     serializeJson(doc, jsonBuffer);
@@ -482,7 +561,7 @@ bool AiolosHttpClient::sendWindData(const char *stationId, float windSpeed, floa
 /**
  * @brief Send temperature data to the server (optimized for high-frequency sending)
  */
-bool AiolosHttpClient::sendTemperatureData(const char *stationId, float internalTemp, float externalTemp)
+bool AiolosHttpClient::sendTemperatureData(const char *stationId, float externalTemp, unsigned long intervalMs)
 {
     Logger.info(LOG_TAG_HTTP, "Sending temperature data for station %s", stationId);
 
@@ -490,6 +569,7 @@ bool AiolosHttpClient::sendTemperatureData(const char *stationId, float internal
     JsonDocument doc;
     doc.to<JsonObject>(); // Ensure it's an object
     doc["temperature"] = externalTemp;
+    doc["intervalMs"] = intervalMs;
 
     String jsonBuffer;
     serializeJson(doc, jsonBuffer);

@@ -1,0 +1,3 @@
+# Optional overrides. Real values live in terraform.tfvars (gitignored).
+# The stack has sane defaults; nothing here is required.
+instance_type = "t4g.micro"

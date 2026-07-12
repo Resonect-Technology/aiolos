@@ -1,11 +1,16 @@
-import { assert } from '@japa/assert'
-import { apiClient } from '@japa/api-client'
-import app from '@adonisjs/core/services/app'
-import type { Config } from '@japa/runner/types'
-import { pluginAdonisJS } from '@japa/plugin-adonisjs'
-import testUtils from '@adonisjs/core/services/test_utils'
-import { unlink } from 'node:fs/promises'
-import { windAggregationService } from '#app/services/wind_aggregation_service'
+import { execFileSync } from 'node:child_process';
+import { unlink } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+
+import app from '@adonisjs/core/services/app';
+import testUtils from '@adonisjs/core/services/test_utils';
+import { apiClient } from '@japa/api-client';
+import { assert } from '@japa/assert';
+import { pluginAdonisJS } from '@japa/plugin-adonisjs';
+import type { Config } from '@japa/runner/types';
+
+import { windAggregationService } from '#app/services/wind_aggregation_service';
+import { prisma } from '#services/prisma';
 
 /**
  * This file is imported by the "bin/test.ts" entrypoint file
@@ -15,7 +20,7 @@ import { windAggregationService } from '#app/services/wind_aggregation_service'
  * Configure Japa plugins in the plugins array.
  * Learn more - https://japa.dev/docs/runner-config#plugins-optional
  */
-export const plugins: Config['plugins'] = [assert(), apiClient(), pluginAdonisJS(app)]
+export const plugins: Config['plugins'] = [assert(), apiClient(), pluginAdonisJS(app)];
 
 /**
  * Configure lifecycle function to run before and after all the
@@ -29,22 +34,28 @@ export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
     async () => {
       // Delete the database file to start completely fresh
       try {
-        await unlink(app.tmpPath('db.sqlite3'))
-      } catch (error) {
+        await unlink(app.tmpPath('db.sqlite3'));
+      } catch {
         // File doesn't exist, that's fine
       }
 
-      // Run migrations on fresh database
-      await testUtils.db().migrate()
-    }
+      // Run Prisma migrations on the fresh database
+      const packageRoot = fileURLToPath(new URL('../', import.meta.url));
+      execFileSync('node', ['node_modules/prisma/build/index.js', 'migrate', 'deploy'], {
+        cwd: packageRoot,
+        env: { ...process.env, DATABASE_URL: `file:${app.tmpPath('db.sqlite3')}` },
+        stdio: 'inherit',
+      });
+    },
   ],
   teardown: [
     async () => {
       // Stop the wind aggregation timer to prevent hanging
-      windAggregationService.stopFlushTimer()
-    }
+      windAggregationService.stopFlushTimer();
+      await prisma.$disconnect();
+    },
   ],
-}
+};
 
 /**
  * Configure suites by tapping into the test suite instance.
@@ -52,6 +63,6 @@ export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
  */
 export const configureSuite: Config['configureSuite'] = (suite) => {
   if (['browser', 'functional', 'e2e'].includes(suite.name)) {
-    return suite.setup(() => testUtils.httpServer().start())
+    return suite.setup(() => testUtils.httpServer().start());
   }
-}
+};

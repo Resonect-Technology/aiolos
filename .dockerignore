@@ -1,0 +1,42 @@
+# Build context is the monorepo root (turbo prune needs the full workspace)
+.git
+node_modules
+**/node_modules
+.pnpm-store
+.turbo
+**/.turbo
+
+# Build outputs
+**/dist
+**/build
+**/coverage
+**/.adonisjs
+apps/adonis-api/generated
+apps/adonis-api/tmp
+
+# Secrets / env
+.env
+.env.*
+**/.env
+**/.env.*
+!**/.env.example
+
+# Non-app directories
+firmware
+hardware
+infra
+docs
+.pio
+.devcontainer
+.vscode
+.github
+.claude
+.husky
+
+# Databases
+*.sqlite
+*.sqlite3
+
+# Misc
+*.log
+.DS_Store

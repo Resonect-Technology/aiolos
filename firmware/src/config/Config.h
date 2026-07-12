@@ -88,14 +88,14 @@
 #ifdef CONFIG_OTA_PASSWORD
 #define OTA_PASSWORD CONFIG_OTA_PASSWORD
 #else
-#define OTA_PASSWORD "password"
+#error "CONFIG_OTA_PASSWORD is not defined - set OTA_PASSWORD in firmware/secrets.ini"
 #endif
 
 // OTA Update Password (separate from WiFi AP password)
 #ifdef CONFIG_OTA_UPDATE_PASSWORD
 #define OTA_UPDATE_PASSWORD CONFIG_OTA_UPDATE_PASSWORD
 #else
-#define OTA_UPDATE_PASSWORD "update123"
+#error "CONFIG_OTA_UPDATE_PASSWORD is not defined - set OTA_UPDATE_PASSWORD in firmware/secrets.ini"
 #endif
 
 #ifdef CONFIG_OTA_MIN_BATTERY_VOLTAGE
@@ -105,11 +105,7 @@
 #endif
 
 // Remote OTA activation
-#define REMOTE_OTA_DURATION 15           // Minutes to keep WiFi active for remote-triggered OTA
-#define REMOTE_OTA_FLAG_KEY "remote_ota" // Key for remote OTA flag in configuration
-
-// Power management
-#define LOW_BATTERY_THRESHOLD 3.7 // Volts
+#define REMOTE_OTA_DURATION 15 // Minutes to keep WiFi active for remote-triggered OTA
 
 #ifdef CONFIG_SLEEP_START_HOUR
 #define DEFAULT_SLEEP_START_HOUR CONFIG_SLEEP_START_HOUR
@@ -139,10 +135,33 @@
 
 // Wind sensor specific settings
 #define WIND_AVERAGING_SAMPLE_INTERVAL_MS 10000 // (10s) Interval for samples within a larger averaging period
+#define LIVESTREAM_THRESHOLD_MS 5000UL          // Wind send intervals <= this use instantaneous (livestream) mode
+#define WIND_TICK_INTERVAL_MS 1000UL            // Per-second pulse snapshot cadence (WindSensor::service)
+#define WIND_GUST_WINDOW_MS 3000UL              // WMO 3 s gust window; also the reported live speed window
+#define WIND_LIVE_STATS_WINDOW_MS 60000UL       // Trailing window for live gust/lull
+
+// Power-aware scheduling (remote-configurable; see SchedLogic.h)
+#define DEFAULT_UTC_OFFSET_MINUTES 180      // Station-local offset from UTC in minutes (Greece summer time)
+#define DEFAULT_LIVESTREAM_START_HOUR -1    // Local hour to start live wind cadence; -1 = morning slow mode disabled
+#define DEFAULT_LOW_BATTERY_THRESHOLD 4.0f  // Volts; battery gate forces slow mode below this
+#define BATTERY_GATE_HYSTERESIS_V 0.1f      // Gate enters below (threshold - hysteresis), exits at >= threshold
+#define SLOW_MODE_WIND_INTERVAL_MS 600000UL     // (10min) Wind send interval floor while in slow mode
+#define SLOW_MODE_TEMPDIAG_INTERVAL_MS 600000UL // (10min) Temp/diag interval floor while battery gate active
+
+// Critical-battery hibernation (compile-time on purpose - a hard safety floor
+// must not be remotely mis-configurable). Single Li-ion 18650: 3.5 V is
+// ~10-15% charge. Entry reads happen under modem load (sagged); the boot-time
+// recovery read is unloaded (modem off), so 3.6 V unloaded sits comfortably
+// above 3.5 V loaded while still letting a battery resting at 3.6-3.7 V exit
+// hibernation without waiting for strong solar input.
+#define CRITICAL_BATTERY_VOLTAGE 3.5f        // Volts; hibernate below this
+#define CRITICAL_BATTERY_RECOVERY_V 3.6f     // Resume at >= this (unloaded boot read)
+#define CRITICAL_BATTERY_CONSECUTIVE_READS 3 // Minute-spaced low reads required to hibernate
+#define CRITICAL_SLEEP_DURATION_S 3600       // Hibernation cycle length (1h) between battery re-checks
 
 // Watchdog settings
-#define WDT_TIMEOUT 120000 // Watchdog timeout in ms (120 seconds), was 30000
-// Define this to enable temporary watchdog disabling during modem operations
+#define WDT_TIMEOUT_S 120 // Watchdog timeout in seconds
+// Define this to enable temporary watchdog relaxing during modem operations
 #define DISABLE_WDT_FOR_MODEM
 
 // Safety mechanism settings
@@ -158,7 +177,7 @@
 #else
 #define DEVICE_ID "Aiolos"
 #endif
-#define FIRMWARE_VERSION "2.0.0"
+#define FIRMWARE_VERSION "2.2.0"
 
 // Server settings
 #ifdef CONFIG_SERVER_HOST
@@ -171,4 +190,12 @@
 #define SERVER_PORT (uint16_t)CONFIG_SERVER_PORT
 #else
 #define SERVER_PORT (uint16_t)80
+#endif
+
+// Station API key sent as X-API-Key on every request (must match the
+// server's STATION_API_KEY env; server ignores it while that env is unset)
+#ifdef CONFIG_STATION_API_KEY
+#define STATION_API_KEY CONFIG_STATION_API_KEY
+#else
+#error "CONFIG_STATION_API_KEY is not defined - set STATION_API_KEY in firmware/secrets.ini"
 #endif

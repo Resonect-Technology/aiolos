@@ -1,0 +1,60 @@
+name: Fetch SSM Secrets
+description: Fetches secrets from AWS SSM Parameter Store and exports them as environment variables
+
+inputs:
+  parameters:
+    description: "Space or newline separated list of SSM parameter paths to fetch"
+    required: true
+  prefix:
+    description: "Prefix to strip from parameter names when creating env var names"
+    required: false
+    default: "/aiolos/prod/"
+
+runs:
+  using: composite
+  steps:
+    - name: Fetch parameters from SSM
+      shell: bash
+      env:
+        # Pass parameters via environment variable to avoid shell line length limits
+        SSM_PARAMETERS: ${{ inputs.parameters }}
+        SSM_PREFIX: ${{ inputs.prefix }}
+      run: |
+        echo "::group::Fetching SSM Parameters"
+
+        # Write parameters to temp file (handles both space and newline separated)
+        PARAMS_FILE=$(mktemp)
+        echo "$SSM_PARAMETERS" | tr ' ' '\n' | grep -v '^$' > "$PARAMS_FILE"
+
+        # Read parameters from file to avoid shell line length issues
+        while IFS= read -r param; do
+          # Get value from SSM with decryption
+          value=$(aws ssm get-parameter --name "$param" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null)
+
+          if [ $? -ne 0 ]; then
+            echo "::error::Failed to fetch parameter: $param"
+            rm -f "$PARAMS_FILE"
+            exit 1
+          fi
+
+          # Mask the value in logs (mask each line for multi-line values)
+          while IFS= read -r line; do
+            echo "::add-mask::$line"
+          done <<< "$value"
+
+          # Convert path to env var name
+          # Example: /aiolos/prod/backend/app-key -> BACKEND_APP_KEY
+          stripped="${param#$SSM_PREFIX}"
+          var_name=$(echo "$stripped" | tr '/-' '_' | tr '[:lower:]' '[:upper:]')
+
+          # Export to environment (use heredoc for multi-line values)
+          {
+            echo "${var_name}<<EOFSSM"
+            echo "$value"
+            echo "EOFSSM"
+          } >> $GITHUB_ENV
+          echo "✓ Loaded ${var_name}"
+        done < "$PARAMS_FILE"
+
+        rm -f "$PARAMS_FILE"
+        echo "::endgroup::"

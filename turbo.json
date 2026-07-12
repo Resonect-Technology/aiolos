@@ -1,27 +1,35 @@
 {
-    "$schema": "https://turbo.build/schema.json",
-    "globalDependencies": [],
-    "pipeline": {
-        "dev": {
-            "dependsOn": [
-                "^dev"
-            ],
-            "cache": false,
-            "persistent": true
-        },
-        "build": {
-            "dependsOn": [
-                "^build"
-            ],
-            "outputs": [
-                "dist/**"
-            ]
-        },
-        "format": {
-            "cache": false
-        },
-        "format:check": {
-            "cache": false
-        }
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "tui",
+  "cacheDir": ".turbo",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": ["dist/**", "build/**"],
+      "cache": true
+    },
+    "lint": {
+      "dependsOn": ["^build"],
+      "cache": true
+    },
+    "check-types": {
+      "dependsOn": ["^build"],
+      "cache": true
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "passThroughEnv": ["NODE_ENV", "TZ", "PORT", "HOST", "LOG_LEVEL", "APP_KEY"],
+      "outputs": ["coverage/**"],
+      "cache": true
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "start": {
+      "cache": false,
+      "persistent": true
     }
+  }
 }

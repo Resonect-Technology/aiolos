@@ -1,9 +1,0 @@
-node_modules
-dist
-.env
-*.log
-Dockerfile
-docker-compose.yml
-*.md
-.vscode/
-.git/

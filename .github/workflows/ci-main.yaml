@@ -1,0 +1,45 @@
+name: CI - Main Branch
+
+# Lightweight validation gate for main. Tests already ran in the PR;
+# deploy.yml builds its own artifacts.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-main-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-commit:
+    name: Validate Commit Message
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Setup Node and PNPM
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Validate latest commit
+        run: pnpm exec commitlint --last --verbose
+
+  lint-and-typecheck:
+    name: Lint and Type Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node and PNPM
+        uses: ./.github/actions/setup-node-pnpm
+
+      - name: Check Formatting
+        run: pnpm format:check
+
+      - name: Lint and Type Check
+        run: pnpm exec turbo run lint check-types

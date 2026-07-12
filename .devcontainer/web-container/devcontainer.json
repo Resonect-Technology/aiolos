@@ -1,21 +1,33 @@
 {
-	"name": "Aiolos Web Devcontainer",
-	"build": {
-		"dockerfile": "Dockerfile"
-	},
-	"postCreateCommand": "pnpm i",
-	"customizations": {
-		"vscode": {
-			"settings": {
-				"terminal.integrated.defaultProfile.linux": "bash"
-			},
-			"extensions": [
-				"github.vscode-pull-request-github",
-				"github.vscode-github-actions",
-				"ms-azuretools.vscode-docker",
-				"esbenp.prettier-vscode",
-				"bradlc.vscode-tailwindcss"
-			]
-		}
-	}
+  "name": "Aiolos Web Devcontainer",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "remoteUser": "node",
+  "postCreateCommand": "pnpm install",
+  "forwardPorts": [3333, 5173, 8080],
+  "mounts": [
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.claude,target=/home/node/.claude,type=bind,consistency=cached",
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.config/gh,target=/home/node/.config/gh,type=bind,consistency=cached"
+  ],
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "oxc.oxc-vscode",
+        "editor.codeActionsOnSave": {
+          "source.fixAll.oxc": "explicit"
+        }
+      },
+      "extensions": [
+        "anthropic.claude-code",
+        "oxc.oxc-vscode",
+        "bradlc.vscode-tailwindcss",
+        "github.vscode-pull-request-github",
+        "github.vscode-github-actions",
+        "ms-azuretools.vscode-docker"
+      ]
+    }
+  }
 }

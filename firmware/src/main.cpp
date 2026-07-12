@@ -5,12 +5,16 @@
  * This is the entry point for the Aiolos Weather Station.
  * It initializes all components and manages the main operation loop.
  *
- * @version 1.0.0
- * @date 2025-06-25
+ * @version FIRMWARE_VERSION (see config/Config.h)
  */
 
 #include <Arduino.h>
 #include <esp_task_wdt.h>
+
+#include "core/Watchdog.h"
+#include "logic/ConfigLogic.h"
+#include "logic/SchedLogic.h"
+#include "logic/TimeLogic.h"
 #include <math.h> // For isnan()
 #include "config/Config.h"
 #include "core/Logger.h"
@@ -34,6 +38,7 @@ unsigned long lastHeartbeatTime = 0;
 unsigned long lastConfigFetchTime = 0;
 int currentHour = 0, currentMinute = 0, currentSecond = 0;
 unsigned long lastNetworkTimeUpdate = 0; // Track when we last got network time
+long syncedSecondsOfDay = 0;             // Station-local seconds-of-day at the last network sync
 bool otaActive = false;
 unsigned long lastOtaCheck = 0;
 bool isSamplingWind = false; // For wind data averaging
@@ -66,6 +71,31 @@ int dynamicSleepEndHour = DEFAULT_SLEEP_END_HOUR;
 int dynamicOtaHour = DEFAULT_OTA_HOUR;
 int dynamicOtaMinute = DEFAULT_OTA_MINUTE;
 int dynamicOtaDuration = DEFAULT_OTA_DURATION;
+unsigned long dynamicRestartIntervalMs = UPTIME_RESTART_INTERVAL;
+int dynamicUtcOffsetMinutes = DEFAULT_UTC_OFFSET_MINUTES;
+int dynamicLivestreamStartHour = DEFAULT_LIVESTREAM_START_HOUR;
+float dynamicLowBatteryThreshold = DEFAULT_LOW_BATTERY_THRESHOLD;
+
+// Power-aware scheduling state (see SchedLogic.h)
+bool batteryGateActive = false;
+bool morningSlowActive = false;
+unsigned long lastSlowModeCheck = 0;
+
+// Critical-battery hibernation state - survives deep sleep and software
+// resets; zeroed on power-on reset (battery swap / hard power cycle)
+RTC_DATA_ATTR bool rtcCriticalSleepActive = false;
+RTC_DATA_ATTR uint16_t rtcCriticalSleepCycles = 0;
+
+// Last-known remote sleep window + UTC offset, so the pre-config sleep check
+// in setup() honors the server config instead of the compile-time defaults
+// (a configured wake at 6 would otherwise re-sleep until the default 9).
+// The magic marks the values as written: power-on zeroes RTC RAM and an
+// all-zero window would pass range checks while disabling night sleep.
+constexpr uint32_t RTC_CONFIG_MAGIC = 0xA105C0F6; // "AIOLOS CONFIG"
+RTC_DATA_ATTR uint32_t rtcConfigMagic = 0;
+RTC_DATA_ATTR int rtcSleepStartHour = -1;
+RTC_DATA_ATTR int rtcSleepEndHour = -1;
+RTC_DATA_ATTR int rtcUtcOffsetMinutes = 0;
 
 // Calibration mode - can be enabled via build flags
 #ifdef CALIBRATION_MODE
@@ -84,7 +114,10 @@ const unsigned long CALIBRATION_TIME = 30000; // 30 seconds default
 void setupWatchdog();
 void resetWatchdog();
 bool isSleepTime();
+bool updateLocalTime();
+void refreshLocalClock();
 void enterDeepSleepUntil(int hour, int minute);
+void enterCriticalSleep(bool sendFinalDiagnostics);
 void testModemConnectivity();
 bool checkAndInitOta();
 bool checkAndInitRemoteOta();
@@ -124,6 +157,64 @@ void setup()
     // Initialize battery reading utility
     BatteryUtils::init();
 
+#ifndef DEBUG_MODE
+    // Critical-battery guard: check BEFORE powering the modem - its inrush on
+    // a dying battery can brownout-loop the board and deep-discharge the pack.
+    // Deliberately not gated on ESP_RST_DEEPSLEEP so uptime restarts and
+    // brownout resets are covered too.
+    {
+        // Debounced 3-read decision: a false entry is NOT "one cycle at most"
+        // (recovery needs +0.1 V, so one noisy low read would latch a healthy
+        // pack into hourly hibernation), and a false exit powers the modem on
+        // a dying pack. Normal boots pay only the first ~20 ms read.
+        float bootReads[3];
+        bootReads[0] = BatteryUtils::readBatteryVoltage();
+        bool needsDebounce = rtcCriticalSleepActive || bootReads[0] < CRITICAL_BATTERY_VOLTAGE;
+        if (needsDebounce)
+        {
+            for (int i = 1; i < 3; i++)
+            {
+                delay(200);
+                bootReads[i] = BatteryUtils::readBatteryVoltage();
+            }
+        }
+        float bootVoltage = bootReads[0];
+        if (needsDebounce &&
+            SchedLogic::criticalAtBoot(rtcCriticalSleepActive, bootReads, 3,
+                                       CRITICAL_BATTERY_VOLTAGE, CRITICAL_BATTERY_RECOVERY_V))
+        {
+            rtcCriticalSleepActive = true;
+            rtcCriticalSleepCycles++;
+            Logger.error(LOG_TAG_SYSTEM, "Battery critical at boot (%.2f V), hibernating %d s (cycle %u)",
+                         bootVoltage, CRITICAL_SLEEP_DURATION_S, rtcCriticalSleepCycles);
+            // On non-deep-sleep resets the modem may still be powered - shut
+            // it down or the hibernation drains the pack it protects
+            modemManager.emergencyPowerOff();
+            esp_sleep_enable_timer_wakeup((uint64_t)CRITICAL_SLEEP_DURATION_S * 1000000ULL);
+            esp_deep_sleep_start();
+        }
+        if (rtcCriticalSleepActive)
+        {
+            Logger.info(LOG_TAG_SYSTEM, "Battery recovered (%.2f V) after %u hibernation cycles",
+                        bootVoltage, rtcCriticalSleepCycles);
+            rtcCriticalSleepActive = false;
+            rtcCriticalSleepCycles = 0;
+        }
+    }
+#endif
+
+    // Restore the last-known remote sleep window + UTC offset so the
+    // pre-config sleep check below uses server values, not compiled defaults
+    if (rtcConfigMagic == RTC_CONFIG_MAGIC &&
+        ConfigLogic::validSleepConfig(rtcSleepStartHour, rtcSleepEndHour, rtcUtcOffsetMinutes))
+    {
+        dynamicSleepStartHour = rtcSleepStartHour;
+        dynamicSleepEndHour = rtcSleepEndHour;
+        dynamicUtcOffsetMinutes = rtcUtcOffsetMinutes;
+        Logger.info(LOG_TAG_SYSTEM, "Restored sleep window %02d:00-%02d:00 (UTC%+d min) from RTC memory",
+                    dynamicSleepStartHour, dynamicSleepEndHour, dynamicUtcOffsetMinutes);
+    }
+
     // Set up LED
     pinMode(LED_PIN, OUTPUT);
     digitalWrite(LED_PIN, HIGH);
@@ -131,7 +222,7 @@ void setup()
     // Initialize watchdog but disable it during modem initialization
     setupWatchdog();
     Logger.debug(LOG_TAG_SYSTEM, "Temporarily disabling watchdog for modem initialization");
-    esp_task_wdt_deinit();
+    watchdogDisable();
 
     // Initialize modem and network
     if (!modemManager.init())
@@ -158,23 +249,12 @@ void setup()
     // Run modem connectivity test
     testModemConnectivity();
 
-    // Get network time
-    int year, month, day;
-    float timezone;
-    bool networkTimeObtained = false;
-    if (modemManager.getNetworkTime(&year, &month, &day, &currentHour, &currentMinute, &currentSecond, &timezone))
+    // Get network time (station-local, derived from modem UTC + configured offset)
+    bool networkTimeObtained = updateLocalTime();
+    if (networkTimeObtained)
     {
-        // Update logger with real time
-        Logger.setRealTime(currentHour, currentMinute, currentSecond);
-
-        // Record when we got network time
-        lastNetworkTimeUpdate = millis();
-
-        Logger.info(LOG_TAG_SYSTEM, "Network time obtained: %04d-%02d-%02d %02d:%02d:%02d (TZ: %.1f)",
-                    year, month, day, currentHour, currentMinute, currentSecond, timezone);
         Logger.info(LOG_TAG_SYSTEM, "Sleep window: %02d:00 to %02d:00 (current: %02d:%02d)",
                     dynamicSleepStartHour, dynamicSleepEndHour, currentHour, currentMinute);
-        networkTimeObtained = true;
     }
     else
     {
@@ -216,14 +296,8 @@ void setup()
         // Only proceed with network operations if GPRS is connected and not in backoff
         if (modemManager.isGprsConnected() && !httpClient.isConnectionThrottled())
         {
-            // Send initial diagnostics data with minimal temperature reading
-            float internalTemp = diagnosticsManager.readInternalTemperature();
-            float externalTemp = externalTempSensor.readTemperature();
-            if (externalTemp == DEVICE_DISCONNECTED_C)
-            {
-                externalTemp = -127.0f;
-            }
-            diagnosticsManager.sendDiagnostics(internalTemp, externalTemp);
+            // Send initial diagnostics data
+            diagnosticsManager.sendDiagnostics(diagnosticsManager.readInternalTemperature());
 
             // Initialize configuration update time
             lastConfigUpdate = millis();
@@ -262,7 +336,7 @@ void setup()
         {
             Logger.info(LOG_TAG_SYSTEM, "Starting wind vane calibration mode");
             // Temporarily disable watchdog during calibration
-            esp_task_wdt_deinit();
+            watchdogDisable();
             windSensor.calibrateWindVane(CALIBRATION_TIME);
             // Re-enable watchdog after calibration
             setupWatchdog();
@@ -271,8 +345,8 @@ void setup()
         // Just print a single wind reading at initialization
         windSensor.printWindReading();
 
-        // Start initial wind sampling period
-        windSensor.startSamplingPeriod();
+        // No sampling period here — the averaged branch in loop() starts one
+        // when needed; live statistics warm up automatically via service()
     }
     else
     {
@@ -318,8 +392,38 @@ void loop()
     // Get current time
     unsigned long currentMillis = millis();
 
-    // Check for uptime-based restart (4 hours of continuous operation)
-    if (currentMillis >= UPTIME_RESTART_INTERVAL)
+    // Keep the station-local clock ticking between network time syncs
+    refreshLocalClock();
+
+    // Wind measurement tick (1 Hz pulse snapshot) — runs regardless of
+    // connectivity so live statistics stay warm through outages
+    windSensor.service(currentMillis);
+
+#ifndef DEBUG_MODE
+    // Critical-battery check - runs even while offline (unlike the slow-mode
+    // gate below, which only refreshes when online); the modem is the dominant
+    // consumer, so a dying station must hibernate regardless of connectivity
+    static unsigned long lastCriticalCheck = 0;
+    static int criticalLowReads = 0;
+    if (lastCriticalCheck == 0 || currentMillis - lastCriticalCheck >= 60000)
+    {
+        lastCriticalCheck = currentMillis;
+
+        float criticalCheckVoltage = BatteryUtils::readBatteryVoltage();
+        if (SchedLogic::updateCriticalBattery(false, criticalCheckVoltage,
+                                              CRITICAL_BATTERY_VOLTAGE, CRITICAL_BATTERY_RECOVERY_V,
+                                              criticalLowReads, CRITICAL_BATTERY_CONSECUTIVE_READS))
+        {
+            Logger.error(LOG_TAG_SYSTEM, "Battery critically low (%.2f V, %d consecutive reads)",
+                         criticalCheckVoltage, criticalLowReads);
+            enterCriticalSleep(true);
+            return; // Not reached - deep sleep
+        }
+    }
+#endif
+
+    // Check for uptime-based restart (default 4 hours, adjustable via remote config)
+    if (currentMillis >= dynamicRestartIntervalMs)
     {
         Logger.info(LOG_TAG_SYSTEM, "Uptime restart: Device has been running for %.1f hours, restarting for maintenance",
                     currentMillis / 3600000.0);
@@ -353,20 +457,7 @@ void loop()
     {
         lastTimeUpdate = currentMillis;
 
-        int year, month, day;
-        float timezone;
-        if (modemManager.getNetworkTime(&year, &month, &day, &currentHour, &currentMinute, &currentSecond, &timezone))
-        {
-            // Update logger with real time
-            Logger.setRealTime(currentHour, currentMinute, currentSecond);
-
-            // Record when we got network time
-            lastNetworkTimeUpdate = millis();
-
-            Logger.info(LOG_TAG_SYSTEM, "Time updated: %04d-%02d-%02d %02d:%02d:%02d (TZ: %.1f)",
-                        year, month, day, currentHour, currentMinute, currentSecond, timezone);
-        }
-        else
+        if (!updateLocalTime())
         {
             Logger.warn(LOG_TAG_SYSTEM, "Failed to update time from network");
         }
@@ -437,8 +528,15 @@ void loop()
             else
             {
                 // Skip connection attempts during recovery, but don't block
-                Logger.debug(LOG_TAG_SYSTEM, "EMERGENCY: In recovery mode, skipping connection attempts");
-                return; // Skip this loop iteration without blocking
+                static unsigned long lastRecoveryLog = 0;
+                if (currentMillis - lastRecoveryLog >= 30000)
+                {
+                    lastRecoveryLog = currentMillis;
+                    Logger.debug(LOG_TAG_SYSTEM, "EMERGENCY: In recovery mode, skipping connection attempts (%.1f min left)",
+                                 (EMERGENCY_RECOVERY_DURATION - (currentMillis - emergencyRecoveryStartTime)) / 60000.0);
+                }
+                delay(100); // This return bypasses the loop-end delay - don't busy-spin
+                return;     // Skip this loop iteration without blocking
             }
         }
     }
@@ -459,8 +557,11 @@ void loop()
         }
     }
 
-    // Track connection failures
-    if (!connectionSuccess && connectionFailureCount < MAX_CONNECTION_FAILURES)
+    // Track connection failures. Debounced to one per 30s: the loop passes here every
+    // ~100ms while the modem sits in its own backoff, and those passes are not new
+    // failures - without the debounce a single outage escalated to emergency mode in ~20s.
+    if (!connectionSuccess && connectionFailureCount < MAX_CONNECTION_FAILURES &&
+        (lastConnectionFailureTime == 0 || currentMillis - lastConnectionFailureTime >= 30000))
     {
         connectionFailureCount++;
         lastConnectionFailureTime = currentMillis;
@@ -486,40 +587,14 @@ void loop()
     // Only proceed with network operations if GPRS is connected and not in backoff
     if (connectionSuccess && !httpClient.isConnectionThrottled())
     {
-        // Send diagnostics data periodically
-        if (currentMillis - lastDiagnosticsUpdate >= dynamicDiagInterval)
+        // Send diagnostics data periodically (stretched while the battery gate is active)
+        if (currentMillis - lastDiagnosticsUpdate >=
+            SchedLogic::effectiveIntervalMs(batteryGateActive, dynamicDiagInterval, SLOW_MODE_TEMPDIAG_INTERVAL_MS))
         {
             lastDiagnosticsUpdate = currentMillis;
 
-            // Get temperature readings from main loop sensors to avoid conflicts
-            float internalTemp = -127.0f; // Default to "no reading"
-            float externalTemp = -127.0f; // Default to "no reading"
-
-            // Try to get current temperature readings without blocking
-            if (tempConversionStarted)
-            {
-                // If conversion is in progress, try to get non-blocking result
-                externalTemp = externalTempSensor.getTemperatureNonBlocking();
-                if (isnan(externalTemp))
-                {
-                    externalTemp = -127.0f; // Conversion still in progress
-                }
-            }
-            else
-            {
-                // No conversion in progress, use last known values or start new reading
-                externalTemp = externalTempSensor.readTemperature();
-                if (externalTemp == DEVICE_DISCONNECTED_C)
-                {
-                    externalTemp = -127.0f;
-                }
-            }
-
-            // Get internal temperature (this uses a different bus, so should be safe)
-            internalTemp = diagnosticsManager.readInternalTemperature();
-
-            // Send diagnostics with temperature readings to avoid sensor conflicts
-            diagnosticsManager.sendDiagnostics(internalTemp, externalTemp);
+            // Internal temperature is on its own bus; external temp is sent by the temperature task
+            diagnosticsManager.sendDiagnostics(diagnosticsManager.readInternalTemperature());
         }
 
         // Fetch remote configuration periodically
@@ -530,23 +605,64 @@ void loop()
         }
 
         // --- Wind Data Task (Dual Mode: Livestream vs. Averaged) ---
-        const unsigned long LIVESTREAM_THRESHOLD_MS = 5000;
 
-        if (dynamicWindInterval <= LIVESTREAM_THRESHOLD_MS)
+        // Power-aware scheduling: refresh the slow-mode inputs once a minute
+        if (lastSlowModeCheck == 0 || currentMillis - lastSlowModeCheck >= 60000)
+        {
+            lastSlowModeCheck = currentMillis;
+
+            float batteryVoltage = BatteryUtils::readBatteryVoltage();
+            bool gate = SchedLogic::updateBatteryGate(batteryGateActive, batteryVoltage,
+                                                      dynamicLowBatteryThreshold, BATTERY_GATE_HYSTERESIS_V);
+            if (gate != batteryGateActive)
+            {
+                batteryGateActive = gate;
+                Logger.info(LOG_TAG_SYSTEM, "Battery gate %s (%.2f V, threshold %.2f V)",
+                            gate ? "ACTIVE - wind cadence slowed to save power" : "cleared - battery recovered",
+                            batteryVoltage, dynamicLowBatteryThreshold);
+            }
+
+            // Morning slow mode needs valid station-local time
+            bool morning = lastNetworkTimeUpdate > 0 &&
+                           SchedLogic::isMorningSlow(currentHour, dynamicLivestreamStartHour);
+            if (morning != morningSlowActive)
+            {
+                morningSlowActive = morning;
+                Logger.info(LOG_TAG_SYSTEM, "Morning slow mode %s (local hour %d, livestream starts at %d)",
+                            morning ? "ACTIVE" : "ended", currentHour, dynamicLivestreamStartHour);
+            }
+        }
+
+        bool slowMode = morningSlowActive || batteryGateActive;
+        unsigned long effectiveWindInterval =
+            SchedLogic::effectiveIntervalMs(slowMode, dynamicWindInterval, SLOW_MODE_WIND_INTERVAL_MS);
+
+        if (effectiveWindInterval <= LIVESTREAM_THRESHOLD_MS)
         {
             // --- LIVESTREAM MODE ---
-            if (currentMillis - lastWindUpdate >= dynamicWindInterval)
+            if (isSamplingWind)
+            {
+                // Slow mode ended mid-period; discard the partial average
+                windSensor.abandonSamplingPeriod();
+                isSamplingWind = false;
+            }
+
+            if (currentMillis - lastWindUpdate >= effectiveWindInterval)
             {
                 lastWindUpdate = currentMillis;
 
-                // Get instantaneous wind data
-                float windSpeed = windSensor.getWindSpeed();
+                // 3 s rolling mean plus gust/lull over the trailing 60 s
+                float windSpeed = windSensor.getLiveSpeed();
                 float windDirection = windSensor.getWindDirection();
+                float gustSpeed = windSensor.getLiveGust();
+                float minSpeed = windSensor.getLiveLull();
 
-                Logger.info(LOG_TAG_SYSTEM, "Livestream Wind: %.1f m/s at %.0f°", windSpeed, windDirection);
+                Logger.info(LOG_TAG_SYSTEM, "Livestream Wind: %.1f m/s (gust %.1f) at %.0f°",
+                            windSpeed, gustSpeed, windDirection);
 
                 // Send wind data to server
-                if (httpClient.sendWindData(DEVICE_ID, windSpeed, windDirection))
+                if (httpClient.sendWindData(DEVICE_ID, windSpeed, windDirection, gustSpeed, minSpeed,
+                                            effectiveWindInterval))
                 {
                     Logger.info(LOG_TAG_SYSTEM, "Livestream wind data sent successfully");
                 }
@@ -562,20 +678,22 @@ void loop()
             if (!isSamplingWind)
             {
                 // Start a new sampling period if one isn't running
-                Logger.info(LOG_TAG_SYSTEM, "Starting %lu-second wind sampling period.", dynamicWindInterval / 1000);
+                Logger.info(LOG_TAG_SYSTEM, "Starting %lu-second wind sampling period.", effectiveWindInterval / 1000);
                 windSensor.startSamplingPeriod();
                 isSamplingWind = true;
             }
 
             // Check if the sampling period is complete.
             // getAveragedWindData is non-blocking and returns true only when data is ready.
-            float avgSpeed, avgDirection;
-            if (windSensor.getAveragedWindData(dynamicWindInterval, avgSpeed, avgDirection))
+            float avgSpeed, avgDirection, gustSpeed, minSpeed;
+            if (windSensor.getAveragedWindData(effectiveWindInterval, avgSpeed, avgDirection, gustSpeed, minSpeed))
             {
-                Logger.info(LOG_TAG_SYSTEM, "Averaged Wind: %.1f m/s at %.0f°", avgSpeed, avgDirection);
+                Logger.info(LOG_TAG_SYSTEM, "Averaged Wind: %.1f m/s (gust %.1f) at %.0f°",
+                            avgSpeed, gustSpeed, avgDirection);
 
                 // Send the averaged data to the server
-                if (httpClient.sendWindData(DEVICE_ID, avgSpeed, avgDirection))
+                if (httpClient.sendWindData(DEVICE_ID, avgSpeed, avgDirection, gustSpeed, minSpeed,
+                                            effectiveWindInterval))
                 {
                     Logger.info(LOG_TAG_SYSTEM, "Averaged wind data sent successfully");
                 }
@@ -589,8 +707,10 @@ void loop()
             }
         }
 
-        // Measure and send temperature data periodically
-        if (currentMillis - lastTemperatureUpdate >= dynamicTempInterval)
+        // Measure and send temperature data periodically (stretched while the battery gate is active)
+        unsigned long effectiveTempInterval =
+            SchedLogic::effectiveIntervalMs(batteryGateActive, dynamicTempInterval, SLOW_MODE_TEMPDIAG_INTERVAL_MS);
+        if (currentMillis - lastTemperatureUpdate >= effectiveTempInterval)
         {
             // Check if we need to start a new temperature conversion
             if (!tempConversionStarted)
@@ -608,20 +728,16 @@ void loop()
                     Logger.warn(LOG_TAG_SYSTEM, "Non-blocking temperature conversion failed, using blocking read");
                     float externalTemp = externalTempSensor.readTemperature();
 
-                    // Get internal temperature from diagnostics manager
-                    float internalTemp = diagnosticsManager.readInternalTemperature();
-
                     if (externalTemp == DEVICE_DISCONNECTED_C)
                     {
                         externalTemp = -127.0; // Use -127 as an indicator of no reading
                         Logger.warn(LOG_TAG_SYSTEM, "Failed to read external temperature");
                     }
 
-                    Logger.info(LOG_TAG_SYSTEM, "Temperature readings - Internal: %.2f°C, External: %.2f°C",
-                                internalTemp, externalTemp);
+                    Logger.info(LOG_TAG_SYSTEM, "External temperature: %.2f°C", externalTemp);
 
                     // Send external temperature data to server (internal temp is sent in diagnostics)
-                    if (httpClient.sendTemperatureData(DEVICE_ID, internalTemp, externalTemp))
+                    if (httpClient.sendTemperatureData(DEVICE_ID, externalTemp, effectiveTempInterval))
                     {
                         Logger.info(LOG_TAG_SYSTEM, "Temperature data sent successfully");
                     }
@@ -646,20 +762,16 @@ void loop()
                 tempConversionStarted = false;
                 lastTemperatureUpdate = currentMillis;
 
-                // Get internal temperature from diagnostics manager
-                float internalTemp = diagnosticsManager.readInternalTemperature();
-
                 if (externalTemp == DEVICE_DISCONNECTED_C)
                 {
                     externalTemp = -127.0; // Use -127 as an indicator of no reading
                     Logger.warn(LOG_TAG_SYSTEM, "Failed to read external temperature");
                 }
 
-                Logger.info(LOG_TAG_SYSTEM, "Temperature readings - Internal: %.2f°C, External: %.2f°C",
-                            internalTemp, externalTemp);
+                Logger.info(LOG_TAG_SYSTEM, "External temperature: %.2f°C", externalTemp);
 
                 // Send external temperature data to server (internal temp is sent in diagnostics)
-                if (httpClient.sendTemperatureData(DEVICE_ID, internalTemp, externalTemp))
+                if (httpClient.sendTemperatureData(DEVICE_ID, externalTemp, effectiveTempInterval))
                 {
                     Logger.info(LOG_TAG_SYSTEM, "Temperature data sent successfully");
                 }
@@ -796,102 +908,130 @@ void handleRemoteConfiguration()
 {
     Logger.info(LOG_TAG_SYSTEM, "Fetching remote configuration...");
 
-    // Initialize variables with current values to detect if they were updated
-    unsigned long tempInterval = dynamicTempInterval;
-    unsigned long windInterval = dynamicWindInterval;
-    unsigned long windSampleInterval = dynamicWindSampleInterval;
-    unsigned long diagInterval = dynamicDiagInterval;
-    unsigned long timeInterval = dynamicTimeInterval;
-    unsigned long restartInterval = 0; // We ignore this value but keep it for API compatibility
-    int sleepStartHour = dynamicSleepStartHour;
-    int sleepEndHour = dynamicSleepEndHour;
-    int otaHour = dynamicOtaHour;
-    int otaMinute = dynamicOtaMinute;
-    int otaDuration = dynamicOtaDuration;
-    bool remoteOtaRequested = false; // Flag to check for remote OTA
+    // Initialize with current values - fields absent from the response keep them
+    AiolosHttpClient::StationConfigData config;
+    config.tempInterval = dynamicTempInterval;
+    config.windSendInterval = dynamicWindInterval;
+    config.windSampleInterval = dynamicWindSampleInterval;
+    config.diagInterval = dynamicDiagInterval;
+    config.timeInterval = dynamicTimeInterval;
+    config.restartInterval = 0; // Seconds from server; 0 = keep current
+    config.sleepStartHour = dynamicSleepStartHour;
+    config.sleepEndHour = dynamicSleepEndHour;
+    config.otaHour = dynamicOtaHour;
+    config.otaMinute = dynamicOtaMinute;
+    config.otaDuration = dynamicOtaDuration;
+    config.utcOffsetMinutes = dynamicUtcOffsetMinutes;
+    config.livestreamStartHour = dynamicLivestreamStartHour;
+    config.lowBatteryThreshold = dynamicLowBatteryThreshold;
 
-    Logger.debug(LOG_TAG_SYSTEM, "Before fetch - tempInterval: %lu, windInterval: %lu, windSampleInterval: %lu",
-                 tempInterval, windInterval, windSampleInterval);
-
-    if (httpClient.fetchConfiguration(DEVICE_ID, &tempInterval, &windInterval, &windSampleInterval, &diagInterval,
-                                      &timeInterval, &restartInterval, &sleepStartHour, &sleepEndHour,
-                                      &otaHour, &otaMinute, &otaDuration, &remoteOtaRequested))
+    if (httpClient.fetchConfiguration(DEVICE_ID, config))
     {
-        Logger.debug(LOG_TAG_SYSTEM, "After fetch - tempInterval: %lu, windInterval: %lu, windSampleInterval: %lu",
-                     tempInterval, windInterval, windSampleInterval);
-
-        // Apply configuration if values are valid (non-zero)
-        if (tempInterval > 0)
+        // Apply configuration if values are valid (non-zero); every interval
+        // is clamped so a seconds-scale server value can't put the station
+        // into a sub-second send loop
+        if (config.tempInterval > 0)
         {
-            dynamicTempInterval = tempInterval;
+            dynamicTempInterval = ConfigLogic::clampIntervalMs(config.tempInterval, 10000UL, 86400000UL);
             Logger.info(LOG_TAG_SYSTEM, "Updated temperature interval to %lu ms", dynamicTempInterval);
         }
 
-        if (windInterval > 0)
+        if (config.windSendInterval > 0)
         {
-            dynamicWindInterval = windInterval;
+            dynamicWindInterval = ConfigLogic::clampIntervalMs(config.windSendInterval, 1000UL, 3600000UL);
             Logger.info(LOG_TAG_SYSTEM, "Updated wind send interval to %lu ms", dynamicWindInterval);
         }
 
-        if (windSampleInterval > 0)
+        if (config.windSampleInterval > 0)
         {
-            dynamicWindSampleInterval = windSampleInterval;
+            dynamicWindSampleInterval = ConfigLogic::clampIntervalMs(config.windSampleInterval, 1000UL, 60000UL);
             windSensor.setSampleInterval(dynamicWindSampleInterval);
             Logger.info(LOG_TAG_SYSTEM, "Updated wind sample interval to %lu ms", dynamicWindSampleInterval);
         }
 
-        if (diagInterval > 0)
+        if (config.diagInterval > 0)
         {
-            dynamicDiagInterval = diagInterval;
+            dynamicDiagInterval = ConfigLogic::clampIntervalMs(config.diagInterval, 60000UL, 86400000UL);
             diagnosticsManager.setInterval(dynamicDiagInterval);
             Logger.info(LOG_TAG_SYSTEM, "Updated diagnostics interval to %lu ms", dynamicDiagInterval);
         }
 
-        if (timeInterval > 0)
+        if (config.timeInterval > 0)
         {
-            dynamicTimeInterval = timeInterval;
+            // The 1h cap keeps time syncs fresher than isSleepTime()'s 2h
+            // staleness gate, which would otherwise suppress night sleep
+            dynamicTimeInterval = ConfigLogic::clampIntervalMs(config.timeInterval, 600000UL, 3600000UL);
             Logger.info(LOG_TAG_SYSTEM, "Updated time update interval to %lu ms", dynamicTimeInterval);
         }
 
-        // Note: restartInterval is received from server for API compatibility but ignored
-        // We use a fixed uptime-based restart (UPTIME_RESTART_INTERVAL) instead
-        if (restartInterval > 0)
+        if (config.restartInterval > 0)
         {
-            Logger.info(LOG_TAG_SYSTEM, "Received restart interval %lu seconds from server (ignored - using fixed uptime restart)", restartInterval);
+            dynamicRestartIntervalMs = ConfigLogic::clampRestartIntervalMs(config.restartInterval, UPTIME_RESTART_INTERVAL);
+            Logger.info(LOG_TAG_SYSTEM, "Updated restart interval to %lu ms (server sent %lu s, floor 1h)",
+                        dynamicRestartIntervalMs, config.restartInterval);
         }
 
-        if (sleepStartHour >= 0 && sleepStartHour < 24)
+        if (config.sleepStartHour >= 0 && config.sleepStartHour < 24)
         {
-            dynamicSleepStartHour = sleepStartHour;
+            dynamicSleepStartHour = config.sleepStartHour;
             Logger.info(LOG_TAG_SYSTEM, "Updated sleep start hour to %d", dynamicSleepStartHour);
         }
 
-        if (sleepEndHour >= 0 && sleepEndHour < 24)
+        if (config.sleepEndHour >= 0 && config.sleepEndHour < 24)
         {
-            dynamicSleepEndHour = sleepEndHour;
+            dynamicSleepEndHour = config.sleepEndHour;
             Logger.info(LOG_TAG_SYSTEM, "Updated sleep end hour to %d", dynamicSleepEndHour);
         }
 
-        if (otaHour >= 0 && otaHour < 24)
+        if (config.otaHour >= 0 && config.otaHour < 24)
         {
-            dynamicOtaHour = otaHour;
+            dynamicOtaHour = config.otaHour;
             Logger.info(LOG_TAG_SYSTEM, "Updated OTA hour to %d", dynamicOtaHour);
         }
 
-        if (otaMinute >= 0 && otaMinute < 60)
+        if (config.otaMinute >= 0 && config.otaMinute < 60)
         {
-            dynamicOtaMinute = otaMinute;
-            Logger.info(LOG_TAG_SYSTEM, "Updated OTA minute to %d", otaMinute);
+            dynamicOtaMinute = config.otaMinute;
+            Logger.info(LOG_TAG_SYSTEM, "Updated OTA minute to %d", dynamicOtaMinute);
         }
 
-        if (otaDuration > 0)
+        if (config.otaDuration > 0)
         {
-            dynamicOtaDuration = otaDuration;
+            dynamicOtaDuration = config.otaDuration;
             Logger.info(LOG_TAG_SYSTEM, "Updated OTA duration to %d minutes", dynamicOtaDuration);
         }
 
+        // UTC offsets are valid from -12:00 to +14:00
+        if (config.utcOffsetMinutes >= -720 && config.utcOffsetMinutes <= 840 &&
+            config.utcOffsetMinutes != dynamicUtcOffsetMinutes)
+        {
+            dynamicUtcOffsetMinutes = config.utcOffsetMinutes;
+            Logger.info(LOG_TAG_SYSTEM, "Updated station UTC offset to %+d min", dynamicUtcOffsetMinutes);
+        }
+
+        // -1 (or any out-of-range hour) disables morning slow mode
+        if (config.livestreamStartHour != dynamicLivestreamStartHour)
+        {
+            dynamicLivestreamStartHour = config.livestreamStartHour;
+            Logger.info(LOG_TAG_SYSTEM, "Updated livestream start hour to %d", dynamicLivestreamStartHour);
+        }
+
+        // <= 0 disables the battery gate; anything above 5V is a config error
+        if (config.lowBatteryThreshold <= 5.0f && config.lowBatteryThreshold != dynamicLowBatteryThreshold)
+        {
+            dynamicLowBatteryThreshold = config.lowBatteryThreshold;
+            Logger.info(LOG_TAG_SYSTEM, "Updated low battery threshold to %.2f V", dynamicLowBatteryThreshold);
+        }
+
+        // Persist the applied sleep window + UTC offset for the pre-config
+        // sleep check on the next boot (written together to stay consistent)
+        rtcSleepStartHour = dynamicSleepStartHour;
+        rtcSleepEndHour = dynamicSleepEndHour;
+        rtcUtcOffsetMinutes = dynamicUtcOffsetMinutes;
+        rtcConfigMagic = RTC_CONFIG_MAGIC;
+
         // Check for remote OTA flag after config update
-        if (!otaActive && remoteOtaRequested)
+        if (!otaActive && config.remoteOta)
         {
             Logger.info(LOG_TAG_SYSTEM, "Remote OTA flag detected, attempting to start remote OTA...");
             if (checkAndInitRemoteOta())
@@ -941,11 +1081,9 @@ void setupWatchdog()
 {
     Logger.debug(LOG_TAG_SYSTEM, "Setting up watchdog timer...");
 
-    // Initialize watchdog with timeout in seconds
-    esp_task_wdt_init(WDT_TIMEOUT / 1000, true);
-    esp_task_wdt_add(NULL); // Add current thread to WDT watch
+    watchdogEnable();
 
-    Logger.debug(LOG_TAG_SYSTEM, "Watchdog timer set up with %d ms timeout", WDT_TIMEOUT);
+    Logger.debug(LOG_TAG_SYSTEM, "Watchdog timer set up with %d s timeout", WDT_TIMEOUT_S);
 }
 
 /**
@@ -957,6 +1095,71 @@ void resetWatchdog()
     {
         Logger.warn(LOG_TAG_SYSTEM, "Failed to reset watchdog timer");
     }
+}
+
+/**
+ * @brief Refresh currentHour/Minute/Second with station-local time
+ *
+ * The modem reports operator-local time plus a timezone offset. We convert
+ * to UTC and apply the remote-configurable dynamicUtcOffsetMinutes, so all
+ * hour-based settings (sleep, OTA, livestream start) are station-local and
+ * independent of the SIM operator. DST is a remote config tweak.
+ *
+ * @return true if the time was updated
+ */
+bool updateLocalTime()
+{
+    int year, month, day, hour, minute, second;
+    float timezone;
+
+    if (!modemManager.getNetworkTime(&year, &month, &day, &hour, &minute, &second, &timezone))
+    {
+        return false;
+    }
+
+    // A stale RTC (e.g. 1980-01-06) means the network never provided time
+    if (year < 2024)
+    {
+        Logger.warn(LOG_TAG_SYSTEM, "Modem time not valid yet (year %d), ignoring", year);
+        return false;
+    }
+
+    int utcMinutes = TimeLogic::modemLocalToUtcMinutes(hour, minute, timezone);
+    int localMinutes = TimeLogic::utcToLocalMinutes(utcMinutes, dynamicUtcOffsetMinutes);
+
+    currentHour = localMinutes / 60;
+    currentMinute = localMinutes % 60;
+    currentSecond = second;
+
+    syncedSecondsOfDay = (long)localMinutes * 60 + second;
+    Logger.setRealTime(currentHour, currentMinute, currentSecond);
+    lastNetworkTimeUpdate = millis();
+
+    Logger.info(LOG_TAG_SYSTEM, "Local time %02d:%02d:%02d (modem %02d:%02d TZ %+.1fh, station offset %+d min)",
+                currentHour, currentMinute, currentSecond, hour, minute, timezone, dynamicUtcOffsetMinutes);
+
+    return true;
+}
+
+/**
+ * @brief Advance the station-local clock from the last network sync
+ *
+ * currentHour/Minute/Second only change when updateLocalTime() runs (default
+ * every hour), so consumers in between would see a stale clock — sleep entry
+ * could run up to an hour late and wake durations would inherit the skew.
+ * Called once per loop() iteration.
+ */
+void refreshLocalClock()
+{
+    if (lastNetworkTimeUpdate == 0)
+    {
+        return; // Never synced - nothing to advance
+    }
+
+    long secondsOfDay = TimeLogic::advanceSecondsOfDay(syncedSecondsOfDay, millis() - lastNetworkTimeUpdate);
+    currentHour = (int)(secondsOfDay / 3600);
+    currentMinute = (int)((secondsOfDay % 3600) / 60);
+    currentSecond = (int)(secondsOfDay % 60);
 }
 
 /**
@@ -973,8 +1176,7 @@ bool isSleepTime()
     return false;
 #else
     // Check if we have valid time information (network time has been obtained)
-    // If currentHour, currentMinute, and currentSecond are all 0, it's likely we haven't obtained network time yet
-    if (currentHour == 0 && currentMinute == 0 && currentSecond == 0)
+    if (lastNetworkTimeUpdate == 0)
     {
         Logger.debug(LOG_TAG_SYSTEM, "isSleepTime(): No valid time information available, assuming not sleep time");
         return false;
@@ -997,28 +1199,9 @@ bool isSleepTime()
         return false;
     }
 
-    bool inSleepWindow;
-
-    if (dynamicSleepStartHour == dynamicSleepEndHour)
-    {
-        // If start and end hours are the same, no sleep window is defined
-        inSleepWindow = false;
-        Logger.debug(LOG_TAG_SYSTEM, "isSleepTime(): Sleep start and end hours are the same, no sleep window");
-    }
-    else if (dynamicSleepStartHour < dynamicSleepEndHour)
-    {
-        // Sleep window is within the same day (e.g., 02:00 to 06:00)
-        inSleepWindow = (currentHour >= dynamicSleepStartHour && currentHour < dynamicSleepEndHour);
-        Logger.debug(LOG_TAG_SYSTEM, "isSleepTime(): Same-day sleep window (%02d:00-%02d:00), currentHour=%d, inWindow=%s",
-                     dynamicSleepStartHour, dynamicSleepEndHour, currentHour, inSleepWindow ? "true" : "false");
-    }
-    else
-    {
-        // Sleep window crosses midnight (e.g., 23:00 to 06:00)
-        inSleepWindow = (currentHour >= dynamicSleepStartHour || currentHour < dynamicSleepEndHour);
-        Logger.debug(LOG_TAG_SYSTEM, "isSleepTime(): Midnight-crossing sleep window (%02d:00-%02d:00), currentHour=%d, inWindow=%s",
-                     dynamicSleepStartHour, dynamicSleepEndHour, currentHour, inSleepWindow ? "true" : "false");
-    }
+    bool inSleepWindow = TimeLogic::isInSleepWindow(currentHour, dynamicSleepStartHour, dynamicSleepEndHour);
+    Logger.debug(LOG_TAG_SYSTEM, "isSleepTime(): Sleep window %02d:00-%02d:00, currentHour=%d, inWindow=%s",
+                 dynamicSleepStartHour, dynamicSleepEndHour, currentHour, inSleepWindow ? "true" : "false");
 
     return inSleepWindow;
 #endif
@@ -1079,7 +1262,7 @@ void enterDeepSleepUntil(int hour, int minute)
     modemManager.maintainConnection(false);
 
     // Disable watchdog timer
-    esp_task_wdt_deinit();
+    watchdogDisable();
 
     // End OTA mode if active
     if (otaActive)
@@ -1101,6 +1284,43 @@ void enterDeepSleepUntil(int hour, int minute)
 }
 
 /**
+ * @brief Hibernate because the battery is critically low
+ *
+ * Powers everything down and deep-sleeps for CRITICAL_SLEEP_DURATION_S; the
+ * boot-time guard in setup() re-checks the battery on each wake (before the
+ * modem is powered) and either resumes normal operation or sleeps again.
+ *
+ * @param sendFinalDiagnostics Best-effort final diagnostics POST so the
+ *        dashboard shows the low batteryVoltage that explains the silence
+ */
+void enterCriticalSleep(bool sendFinalDiagnostics)
+{
+    Logger.error(LOG_TAG_SYSTEM, "CRITICAL battery - hibernating for %d s (cycle %u)",
+                 CRITICAL_SLEEP_DURATION_S, (unsigned)(rtcCriticalSleepCycles + 1));
+
+    if (sendFinalDiagnostics && modemManager.isGprsConnected() && !httpClient.isConnectionThrottled())
+    {
+        diagnosticsManager.sendDiagnostics(diagnosticsManager.readInternalTemperature());
+    }
+
+    rtcCriticalSleepActive = true;
+    rtcCriticalSleepCycles++;
+
+    watchdogDisable();
+
+    if (otaActive)
+    {
+        otaManager.end();
+        otaActive = false;
+    }
+
+    modemManager.powerOff();
+
+    esp_sleep_enable_timer_wakeup((uint64_t)CRITICAL_SLEEP_DURATION_S * 1000000ULL);
+    esp_deep_sleep_start();
+}
+
+/**
  * @brief Test the modem's network connectivity
  *
  * Performs a series of tests to check the modem's network connection
@@ -1112,11 +1332,11 @@ void testModemConnectivity()
 
     // Temporarily disable watchdog for connectivity test
     Logger.debug(LOG_TAG_SYSTEM, "Temporarily disabling watchdog for connectivity test");
-    esp_task_wdt_deinit();
+    watchdogDisable();
 
     // Get signal quality
     int signalQuality = modemManager.getSignalQuality();
-    Logger.info(LOG_TAG_SYSTEM, "Signal quality: %d dBm", signalQuality);
+    Logger.info(LOG_TAG_SYSTEM, "Signal quality: CSQ %d", signalQuality);
 
     // Get network parameters
     String networkParams = modemManager.getNetworkParams();
@@ -1135,14 +1355,14 @@ void testModemConnectivity()
         String ip = modemManager.getLocalIP();
         Logger.info(LOG_TAG_SYSTEM, "Local IP address: %s", ip.c_str());
 
-        // Test connectivity with a reliable host
-        if (modemManager.testConnectivity("google.com", 80))
+        // Test connectivity against the server the station actually talks to
+        if (modemManager.testConnectivity(SERVER_ADDRESS, SERVER_PORT))
         {
-            Logger.info(LOG_TAG_SYSTEM, "Connectivity test to google.com:80 successful.");
+            Logger.info(LOG_TAG_SYSTEM, "Connectivity test to %s:%d successful.", SERVER_ADDRESS, SERVER_PORT);
         }
         else
         {
-            Logger.error(LOG_TAG_SYSTEM, "Connectivity test to google.com:80 failed.");
+            Logger.error(LOG_TAG_SYSTEM, "Connectivity test to %s:%d failed.", SERVER_ADDRESS, SERVER_PORT);
         }
     }
     else
@@ -1181,7 +1401,7 @@ bool checkAndInitOta()
 
         // Temporarily disable watchdog during OTA initialization
         Logger.debug(LOG_TAG_SYSTEM, "Temporarily disabling watchdog for OTA initialization");
-        esp_task_wdt_deinit();
+        watchdogDisable();
 
         // Initialize OTA manager
         if (otaManager.init(OTA_SSID, OTA_PASSWORD, OTA_UPDATE_PASSWORD, dynamicOtaDuration * 60 * 1000))
@@ -1230,7 +1450,7 @@ bool checkAndInitRemoteOta()
 
     // Temporarily disable watchdog during OTA initialization
     Logger.debug(LOG_TAG_SYSTEM, "Temporarily disabling watchdog for OTA initialization");
-    esp_task_wdt_deinit();
+    watchdogDisable();
 
     // Initialize OTA manager with remote OTA duration
     if (otaManager.init(OTA_SSID, OTA_PASSWORD, OTA_UPDATE_PASSWORD, REMOTE_OTA_DURATION * 60 * 1000))

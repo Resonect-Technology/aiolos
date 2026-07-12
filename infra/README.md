@@ -1,79 +1,114 @@
-# Aiolos Project Terraform
+# Aiolos Infrastructure
 
-This directory contains Terraform code for deploying all Aiolos-specific AWS resources within the main Resonect infrastructure VPC.
+Single production environment on AWS (shared `resonect-prod` account,
+`eu-central-1`): one ARM EC2 box running Docker Compose behind Traefik, deployed
+from GitHub Actions via OIDC + SSM (no SSH, no static AWS keys).
 
-## What this module does
-- Uses the existing Resonect main VPC (10.1.0.0/16) and public subnet infrastructure
-- Provisions a security group for HTTP, HTTPS, and SSH (SSH access limited to within the VPC)
-- Launches a t4g.nano EC2 instance (default) with Docker and your AdonisJS app
-- Tags all resources with `Project = "aiolos"`
-- **Automatically installs Docker (official guide) and AWS CLI v2 (official guide) on every new EC2 instance via `user_data.sh`**
-  - The script runs only on first boot of a new instance (not on reboot)
-  - Docker and AWS CLI v2 are installed for both x86_64 and ARM (aarch64) architectures
+## Layout
 
-## Usage
-1. Copy `terraform.tfvars.example` to `terraform.tfvars` and fill in your real values (including any secrets like key_name).
-2. (Optional) Set a different instance type if desired.
-3. Authenticate with AWS SSO using the `resonect-prod` profile:
-   ```bash
-   aws sso login --profile resonect-prod
-   ```
-4. Run Terraform with the correct profile:
-   ```bash
-   AWS_PROFILE=resonect-prod terraform init
-   AWS_PROFILE=resonect-prod terraform apply
-   ```
-5. Build and push your Docker images to the ECR repositories (see Terraform output for the URLs):
-   ```bash
-   # Backend
-   aws ecr get-login-password --region eu-central-1 --profile resonect-prod | \
-     docker login --username AWS --password-stdin 590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend
-   docker build -t 590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:latest ../apps/adonis-api
-   docker push 590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-backend:latest
+- `prod/` — Terraform (S3 state backend `projects/aiolos/terraform.tfstate`),
+  plus the runtime `docker-compose.prod.yml` and `traefik.yml` that CI uploads
+  to the box.
+- `docker-compose.dev.yml` + `Caddyfile.dev` — local full-stack test
+  (`docker compose -f infra/docker-compose.dev.yml up --build`, then
+  http://localhost).
 
-   # Frontend
-   aws ecr get-login-password --region eu-central-1 --profile resonect-prod | \
-     docker login --username AWS --password-stdin 590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend
-   docker build -t 590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:latest ../apps/react-frontend
-   docker push 590183887485.dkr.ecr.eu-central-1.amazonaws.com/aiolos-frontend:latest
-   ```
-6. Access your EC2 instance via the bastion host:
-   ```bash
-   # First, connect to the bastion host
-   ssh -i /path/to/your-key.pem ubuntu@BASTION_PUBLIC_IP
-   
-   # Then, from the bastion, connect to your Aiolos instance
-   ssh -i /path/to/your-key.pem ubuntu@AIOLOS_PRIVATE_IP
-   
-   # Alternatively, if using Tailscale on the bastion host:
-   # Access directly via Tailscale network
-   ```
+## Production topology
 
-7. On the EC2 instance, use Docker Compose for deployment:
-   ```bash
-   # On the EC2 instance
-   cd /path/to/infra
-   aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 590183887485.dkr.ecr.eu-central-1.amazonaws.com
-   docker compose -f docker-compose.prod.yml pull
-   docker compose -f docker-compose.prod.yml up -d
-   ```
+```
+ESP32 stations ── plain HTTP :80 to the reserved EIP ──┐
+                                                       │ (raw IP — bypasses Cloudflare;
+                                                       │  the cellular modem's DNS is unreliable)
+Browsers ── HTTPS :443 via Cloudflare (aiolos.resonect.cz) ─┤
+                                                       ▼
+                              EC2 t4g.micro (Ubuntu 24.04 arm64), Elastic IP
+                              └─ Docker Compose @ /opt/aiolos
+                                 ├─ traefik:v3.6 (LE via Cloudflare DNS-01)
+                                 ├─ aiolos-backend (AdonisJS + Prisma, SQLite at ./data:/data)
+                                 └─ aiolos-frontend (nginx SPA)
+```
 
-> **Note:** Caddy's `/data` directory is persisted using a named volume to avoid Let's Encrypt rate limiting.
-> `terraform.tfvars` is in `.gitignore` and should never be committed. Only commit `terraform.tfvars.example`.
+Load-bearing constraints:
 
-## Outputs
-- Public IP and instance ID of the deployed EC2 instance
+- **Stations POST plain HTTP to the reserved Elastic IP on port 80** (no TLS in
+  the firmware). They target the raw IP, not a hostname, because the SIM7000G
+  modem's DNS resolution is unreliable. The Traefik ingest router on the `web`
+  entrypoint is host-agnostic (`PathPrefix('/api')`, no redirect) so raw-IP
+  posts match and are never bounced to HTTPS.
+- `aiolos.resonect.cz` is the **HTTPS-only frontend** (Cloudflare-proxied).
+  Since no device uses the hostname, Cloudflare "Always Use HTTPS" may be ON.
+- The SQLite file at `/opt/aiolos/data/db.sqlite3` is the only stateful thing on
+  the box. Back it up before risky operations.
+- SSE (`/__transmit`) is excluded from compression in the Traefik labels.
 
-## Notes
-- This module leverages the existing Resonect infrastructure VPC (10.1.0.0/16) defined in the Resonect Infra repo.
-- The EC2 instance is placed in the same VPC as the bastion host for simplified access and management.
-- SSH access is restricted to connections from within the VPC (use the bastion host as a jump server).
-- For security, direct SSH from the internet is disabled - always access through the bastion host.
-- All resources are tagged for easy identification.
-- For production, ensure your SSH key exists in the AWS region.
-- AWS SSO with the `resonect-prod` profile is recommended for authentication and access control.
-- **The `user_data.sh` script is run automatically on every new EC2 instance. It installs Docker and AWS CLI v2 using the official guides.**
+## AWS access & SSO
 
----
+Two named SSO profiles (configure them in your own `~/.aws/config` via
+`aws configure sso` against the Resonect SSO — do **not** commit the start URL
+or account IDs to this public repo):
 
-For questions or changes, see the Terraform files in this directory.
+- `resonect-prod` — the prod account (AWS provider + `ssm start-session`).
+- `resonect-master` — the account that owns the Terraform S3 state backend.
+
+Log in before Terraform / deploys:
+
+```sh
+task login:prod        # aws sso login --profile resonect-prod --use-device-code
+task login:master      # needed for the state backend
+```
+
+Shell into the box: `aws ssm start-session --target <instance-id>` (profile
+`resonect-prod`). There is no SSH ingress.
+
+## Deploys
+
+Publish a GitHub Release with a `v*` tag —
+`gh release create vX.Y.Z --generate-notes` — (or `workflow_dispatch` as an
+escape hatch) → build images to ECR → SSM Run Command pulls configs from
+`s3://aiolos-prod-deploy-config`, renders `.env.prod`/`.env.traefik` from SSM
+parameters (`/aiolos/prod/...`), and runs `docker compose up -d --wait`. Secrets
+live only in SSM Parameter Store (`aws ssm put-parameter --overwrite ...`);
+Terraform tracks the parameters but ignores their values.
+
+### Release checklist (station ↔ backend coupling)
+
+- **Config units:** the `station_configs` interval columns are MILLISECONDS
+  (`restartInterval` alone is seconds). The pre-2026 Lucid seeder wrote seconds
+  — before flashing a station against an existing database, check its latest
+  config row holds ms-scale values (the admin UI presets are always safe). Both
+  the config POST endpoint and the firmware clamp ranges now, but a legacy row
+  predates both.
+- **Station API key (enable runbook):** the backend's `stationAuth` middleware
+  is fail-open — it enforces `X-API-Key` on the station POST routes only when
+  `STATION_API_KEY` is set in its environment, and the backend logs
+  `Station ingest auth: ENFORCED|OPEN` at boot. The env value comes from SSM
+  (`/aiolos/prod/backend/station-api-key`); while that parameter still holds
+  Terraform's `PLACEHOLDER`, the deploy refuses to ship it, so enforcement stays
+  OFF until you deliberately turn the knob. Ordering matters — firmware first,
+  server second (a server-side key with no matching firmware 401s every station,
+  including the OTA-confirm route needed to fix it remotely):
+  1. `openssl rand -hex 24`; set it as `STATION_API_KEY` in
+     `firmware/secrets.ini`, build and flash the station.
+  2. Store the same key in SSM (profile `resonect-prod`):
+     ```sh
+     aws ssm put-parameter --name /aiolos/prod/backend/station-api-key \
+       --type SecureString --value <key> --overwrite
+     ```
+  3. Enforcement turns on at the next release deploy.
+  4. Verify: a keyless
+     `curl -X POST http://<EIP>/api/stations/vasiliki-001/wind -d '{}'` returns
+     401 while station data keeps flowing on the dashboard.
+
+## Terraform
+
+```sh
+cd infra/prod
+task login:prod && task login:master
+terraform init
+terraform plan
+```
+
+State lives in the shared S3 backend (`resonect-terraform-state-211125605653`,
+key `projects/aiolos/...`); it is never committed. The reserved Elastic IP that
+stations target is a Terraform-managed `aws_eip` — its address goes into
+`firmware/secrets.ini` (gitignored), never into a tracked file.

@@ -1,0 +1,19 @@
+# Lint-staged configuration
+#
+# Checks formatting on staged files before commit (fails if not formatted).
+# Run `pnpm format` to fix formatting issues before committing.
+#
+# Why check-only (no auto-fix)?
+# - Predictable: commits contain exactly what you staged
+# - No surprise file modifications during commit
+#
+# firmware/** excluded — oxfmt ignores it via ignorePatterns when scanning
+# directories but formats files passed explicitly, causing exit 2 when only
+# firmware files are staged.
+
+"{apps,packages,infra,.github,.claude,docs}/**/*.{ts,tsx,js,jsx,json,yml,yaml,md}":
+  - oxfmt --check
+
+# Terraform files - check formatting when the tools are available locally
+"infra/**/*.tf":
+  - bash -c 'command -v terraform >/dev/null 2>&1 && terraform fmt -check -recursive infra/ || echo "Skipping terraform fmt (not installed)"'

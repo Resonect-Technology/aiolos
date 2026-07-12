@@ -2,7 +2,10 @@
 
 ## Problem Statement
 
-As a wind lover, I want to see hourly wind data that is permanently archived, so that I can compare day-to-day wind patterns and analyze long-term wind trends. After implementing 1-minute and 10-minute wind data aggregation, users need hourly aggregated data as the foundation for historical analysis and comparison.
+As a wind lover, I want to see hourly wind data that is permanently archived, so
+that I can compare day-to-day wind patterns and analyze long-term wind trends.
+After implementing 1-minute and 10-minute wind data aggregation, users need
+hourly aggregated data as the foundation for historical analysis and comparison.
 
 **Prerequisites**:
 
@@ -12,11 +15,16 @@ As a wind lover, I want to see hourly wind data that is permanently archived, so
 
 ## Proposed Solution
 
-Implement hourly wind data aggregation by processing existing 10-minute data into hourly intervals. This data serves as the permanent historical archive and foundation for day-to-day wind pattern comparison.
+Implement hourly wind data aggregation by processing existing 10-minute data
+into hourly intervals. This data serves as the permanent historical archive and
+foundation for day-to-day wind pattern comparison.
 
-**Important**: Read #file:be-database.instructions.md for detailed information about the database technologies, patterns, and constraints used in this project.
+**Important**: Read #file:be-database.instructions.md for detailed information
+about the database technologies, patterns, and constraints used in this project.
 
-**Hierarchical Archive Approach**: Create hourly aggregates from 10-minute data. This becomes the permanent historical record that enables long-term wind analysis, seasonal comparisons, and day-to-day pattern recognition.
+**Hierarchical Archive Approach**: Create hourly aggregates from 10-minute data.
+This becomes the permanent historical record that enables long-term wind
+analysis, seasonal comparisons, and day-to-day pattern recognition.
 
 ## Acceptance Criteria
 
@@ -28,18 +36,22 @@ Implement hourly wind data aggregation by processing existing 10-minute data int
   - timestamp (start of hourly interval)
   - avg_speed, min_speed, max_speed (decimal fields)
   - dominant_direction (most frequent direction during hour - "četnost")
-  - tendency (enum: 'increasing', 'decreasing', 'stable') - compares current avg with previous hour
+  - tendency (enum: 'increasing', 'decreasing', 'stable') - compares current avg
+    with previous hour
   - gust_speed (maximum of max_speeds from 10-minute data)
   - calm_periods (count of 10-min intervals with avg < 1 m/s)
   - created_at, updated_at
 - [ ] Add unique constraint on (station_id, timestamp) to prevent duplicates
 - [ ] Add basic indexes on station_id and timestamp
-- [ ] **NO retention policy** - hourly data is permanently archived for historical analysis
+- [ ] **NO retention policy** - hourly data is permanently archived for
+      historical analysis
 
 ### Aggregation Service Enhancement
 
-- [ ] Create hourly aggregation process that runs at the top of each hour (XX:00)
-- [ ] Aggregate from existing `wind_data_10min` table (6 consecutive 10-minute records)
+- [ ] Create hourly aggregation process that runs at the top of each hour
+      (XX:00)
+- [ ] Aggregate from existing `wind_data_10min` table (6 consecutive 10-minute
+      records)
 - [ ] Calculate enhanced statistics:
   - avg_speed: weighted average of 10-minute averages
   - min_speed: minimum of 10-minute minimums
@@ -47,7 +59,8 @@ Implement hourly wind data aggregation by processing existing 10-minute data int
   - gust_speed: highest max_speed from any 10-minute interval
   - dominant_direction: most frequent direction from 10-minute data ("četnost")
   - calm_periods: count intervals where avg_speed < 1.0 m/s
-- [ ] Calculate tendency by comparing current hourly average with previous hourly average
+- [ ] Calculate tendency by comparing current hourly average with previous
+      hourly average
 - [ ] Handle missing 10-minute data gracefully (partial aggregates if needed)
 - [ ] Trigger cleanup of 10-minute data after successful hourly aggregation
 
@@ -89,8 +102,10 @@ Implement hourly wind data aggregation by processing existing 10-minute data int
 ### Data Retention Enhancement
 
 - [ ] **Permanent retention**: Hourly data is NEVER deleted automatically
-- [ ] After successful hourly aggregation, trigger cleanup of previous day's 10-minute data
-- [ ] Enhanced logging for data lifecycle (10-min cleanup triggered by hourly success)
+- [ ] After successful hourly aggregation, trigger cleanup of previous day's
+      10-minute data
+- [ ] Enhanced logging for data lifecycle (10-min cleanup triggered by hourly
+      success)
 - [ ] Manual export functionality for long-term data backup
 
 ## Technical Implementation Details
@@ -140,7 +155,8 @@ Implement hourly wind data aggregation by processing existing 10-minute data int
 
 ## Component Impact
 
-- [x] Backend (AdonisJS) - Enhanced aggregation service, permanent table, extended API
+- [x] Backend (AdonisJS) - Enhanced aggregation service, permanent table,
+      extended API
 - [x] Frontend (React/Vite) - Historical analysis components, date range pickers
 - [ ] Firmware (ESP32) - No changes
 - [x] Infrastructure (Docker/Terraform) - Monitor long-term storage growth
@@ -149,7 +165,8 @@ Implement hourly wind data aggregation by processing existing 10-minute data int
 
 - **Permanent Archive**: Hourly data is never automatically deleted
 - **Historical Analysis**: Must support day-to-day and seasonal comparisons
-- **Data Consistency**: Hourly data must be mathematically consistent with 10-minute data
+- **Data Consistency**: Hourly data must be mathematically consistent with
+  10-minute data
 - **Storage Growth**: Monitor disk usage as hourly data accumulates permanently
 - **API Performance**: Efficient queries for date ranges up to 31 days
 
@@ -222,7 +239,8 @@ tests/
 - [ ] Enhanced statistics (gusts, calm periods) provide valuable insights
 - [ ] API supports efficient historical data queries
 - [ ] Frontend enables meaningful day-to-day wind pattern comparison
-- [ ] Data lifecycle management works automatically (cleanup after hourly success)
+- [ ] Data lifecycle management works automatically (cleanup after hourly
+      success)
 - [ ] Long-term storage scales properly for permanent retention
 - [ ] Export functionality supports historical analysis workflows
 
@@ -239,7 +257,8 @@ tests/
 
 - **Prerequisite**: Task 1 (Database Architecture) completed
 - **Prerequisite**: Task 2 (1-minute aggregation) completed
-- **Prerequisite**: Task 3 (10-minute aggregation) completed and working reliably
+- **Prerequisite**: Task 3 (10-minute aggregation) completed and working
+  reliably
 - Existing: `wind_data_10min` table with reliable data
 - Existing: Data cleanup service framework
 

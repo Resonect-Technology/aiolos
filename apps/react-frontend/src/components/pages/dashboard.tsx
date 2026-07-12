@@ -1,154 +1,122 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { Transmit } from "@adonisjs/transmit-client";
-import { AppSidebar } from "@/components/organisms/navigation/app-sidebar";
-import { SectionCards } from "@/components/molecules/cards/section-cards-wind";
-import { WindChartInteractive } from "@/components/molecules/charts/wind-chart-interactive";
-import { WindDataTable } from "@/components/molecules/tables/wind-data-table";
-import { WindData1MinTable } from "@/components/molecules/tables/wind-data-1min-table";
-import { WindData10MinTable } from "@/components/molecules/tables/wind-data-10min-table";
-import { SiteHeader } from "@/components/organisms/navigation/site-header";
-import { FloatingStatusIndicator } from "@/components/atoms/indicators/floating-status-indicator";
-import { ConstructionModeAlert } from "@/components/atoms/alerts/construction-mode-alert";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { ConstructionModeAlert } from '@/components/atoms/alerts/construction-mode-alert';
+import { FloatingStatusIndicator } from '@/components/atoms/indicators/floating-status-indicator';
+import { PageMeta } from '@/components/atoms/seo/page-meta';
+import { SectionCards } from '@/components/molecules/cards/section-cards-wind';
+import { WindChartInteractive } from '@/components/molecules/charts/wind-chart-interactive';
+import { WindTrendChart } from '@/components/molecules/charts/wind-trend-chart';
+import { WindData1MinTable } from '@/components/molecules/tables/wind-data-1min-table';
+import { WindData10MinTable } from '@/components/molecules/tables/wind-data-10min-table';
+import { WindDataTable } from '@/components/molecules/tables/wind-data-table';
+import { AppSidebar } from '@/components/organisms/navigation/app-sidebar';
+import { SiteHeader } from '@/components/organisms/navigation/site-header';
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
+import { useTransmitSubscription } from '@/hooks/use-transmit-subscription';
+import type { WindData } from '@/types/wind';
+import { useState, useCallback } from 'react';
+import { z } from 'zod';
 
-interface WindData {
-    windSpeed: number;
-    windDirection: number;
-    timestamp: string;
-}
+import { windLivePayloadSchema } from '@repo/schemas';
+
+const UNIT_STORAGE_KEY = 'aiolos:wind-unit';
+
+// Display units (UI concern — distinct from the API's ms/kmh/knots);
+// garbage in localStorage falls back to the windsurfer default
+const storedUnitSchema = z.enum(['m/s', 'km/h', 'knots', 'beaufort']).catch('knots');
 
 export function Dashboard() {
-    // Fixed station ID for Vasiliki weather station
-    const stationId = "vasiliki-001";
+  // Fixed station ID for Vasiliki weather station
+  const stationId = 'vasiliki-001';
 
-    // Wind data state
-    const [windData, setWindData] = useState<WindData | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    const [selectedUnit, setSelectedUnit] = useState<string>("m/s");
-    const [windHistory, setWindHistory] = useState<WindData[]>([]);
+  // Wind data state
+  const [windData, setWindData] = useState<WindData | null>(null);
+  // Knots is the windsurfer default; the choice persists across visits
+  const [selectedUnit, setSelectedUnit] = useState<string>(() =>
+    storedUnitSchema.parse(localStorage.getItem(UNIT_STORAGE_KEY)),
+  );
+  const [windHistory, setWindHistory] = useState<WindData[]>([]);
 
-    const transmitInstanceRef = useRef<Transmit | null>(null);
-    const subscriptionRef = useRef<any | null>(null);
+  const handleUnitChange = useCallback((unit: string) => {
+    localStorage.setItem(UNIT_STORAGE_KEY, unit);
+    setSelectedUnit(unit);
+  }, []);
 
-    const handleUnitChange = useCallback((unit: string) => {
-        setSelectedUnit(unit);
-    }, []);
+  const { error } = useTransmitSubscription(
+    `wind/live/${stationId}`,
+    windLivePayloadSchema,
+    (payload) => {
+      setWindData(payload);
+      setWindHistory((prev) => [...prev.slice(-99), payload]); // Keep last 100 readings
+    },
+  );
 
-    useEffect(() => {
-        // Clear any previous connection state
-        setError(null);
+  return (
+    <SidebarProvider
+      defaultOpen={false}
+      style={
+        {
+          '--sidebar-width': 'calc(var(--spacing) * 72)',
+          '--header-height': 'calc(var(--spacing) * 12)',
+        } as React.CSSProperties
+      }
+    >
+      <PageMeta
+        title="Live Wind Dashboard — Vasiliki | Aiolos"
+        description="Real-time wind speed, direction, gusts and temperature for Vasiliki, Lefkada — updated live from the Aiolos weather station."
+        path="/dashboard"
+      />
+      <AppSidebar variant="inset" />
+      <SidebarInset>
+        <SiteHeader />
+        <div className="flex flex-1 flex-col">
+          <div className="@container/main flex flex-1 flex-col gap-2">
+            <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+              <div className="px-4 lg:px-6">
+                <ConstructionModeAlert />
+              </div>
 
-        // Initialize Transmit instance if it doesn't exist
-        if (!transmitInstanceRef.current) {
-            console.log("Creating new Transmit instance");
-            transmitInstanceRef.current = new Transmit({
-                baseUrl: window.location.origin,
-            });
-        }
+              {/* Current conditions first — most valuable on a phone at the beach */}
+              <div className="px-4 lg:px-6">
+                <WindChartInteractive windData={windData} selectedUnit={selectedUnit} />
+              </div>
 
-        const transmit = transmitInstanceRef.current;
-        const channelName = `wind/live/${stationId}`;
+              <div className="px-4 lg:px-6">
+                <WindTrendChart stationId={stationId} selectedUnit={selectedUnit} />
+              </div>
 
-        const newSubscription = transmit.subscription(channelName);
-        subscriptionRef.current = newSubscription;
+              <SectionCards
+                stationId={stationId}
+                error={error}
+                selectedUnit={selectedUnit}
+                onUnitChange={handleUnitChange}
+                lastWindData={windData}
+              />
 
-        newSubscription
-            .create()
-            .then(() => {
-                setError(null);
+              <div className="px-4 lg:px-6">
+                <WindData10MinTable stationId={stationId} selectedUnit={selectedUnit} />
+              </div>
 
-                newSubscription.onMessage((data: WindData) => {
-                    if (data && typeof data.windSpeed === "number") {
-                        setWindData(data);
-                        setWindHistory(prev => [...prev.slice(-99), data]); // Keep last 100 readings
-                    } else {
-                        const messagePayload = (data as any).data;
-                        if (messagePayload && typeof messagePayload.windSpeed === "number") {
-                            setWindData(messagePayload);
-                            setWindHistory(prev => [...prev.slice(-99), messagePayload]); // Keep last 100 readings
-                        } else {
-                            console.warn("Received message in unexpected format:", data);
-                        }
-                    }
-                });
-            })
-            .catch(err => {
-                setError(`Failed to connect: ${err.message || "Unknown error"}`);
-            });
+              <div className="px-4 lg:px-6">
+                <WindData1MinTable stationId={stationId} selectedUnit={selectedUnit} />
+              </div>
 
-        return () => {
-            if (subscriptionRef.current) {
-                subscriptionRef.current
-                    .delete()
-                    .catch((err: Error) => console.error(`Failed to unsubscribe from ${channelName}:`, err));
-                subscriptionRef.current = null;
-            }
-        };
-    }, [stationId]);
+              <div className="px-4 lg:px-6">
+                <WindDataTable
+                  windHistory={windHistory}
+                  selectedUnit={selectedUnit}
+                  stationId={stationId}
+                />
+              </div>
+            </div>
+          </div>
 
-    return (
-        <SidebarProvider
-            defaultOpen={false}
-            style={
-                {
-                    "--sidebar-width": "calc(var(--spacing) * 72)",
-                    "--header-height": "calc(var(--spacing) * 12)",
-                } as React.CSSProperties
-            }
-        >
-            <AppSidebar variant="inset" />
-            <SidebarInset>
-                <SiteHeader />
-                <div className="flex flex-1 flex-col">
-                    <div className="@container/main flex flex-1 flex-col gap-2">
-                        <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-                            <div className="px-4 lg:px-6">
-                                <ConstructionModeAlert />
-                            </div>
+          <footer className="text-muted-foreground mt-12 p-4 text-center text-sm">
+            <p>Resonect Technology s.r.o. &copy; {new Date().getFullYear()}</p>
+          </footer>
+        </div>
+      </SidebarInset>
 
-                            <SectionCards
-                                stationId={stationId}
-                                error={error}
-                                selectedUnit={selectedUnit}
-                                onUnitChange={handleUnitChange}
-                            />
-
-                            <div className="px-4 lg:px-6">
-                                <WindChartInteractive windData={windData} selectedUnit={selectedUnit} />
-                            </div>
-
-                            <div className="px-4 lg:px-6">
-                                <WindData10MinTable
-                                    stationId={stationId}
-                                    selectedUnit={selectedUnit}
-                                />
-                            </div>
-
-                            <div className="px-4 lg:px-6">
-                                <WindData1MinTable
-                                    stationId={stationId}
-                                    selectedUnit={selectedUnit}
-                                />
-                            </div>
-
-                            <div className="px-4 lg:px-6">
-                                <WindDataTable
-                                    windHistory={windHistory}
-                                    selectedUnit={selectedUnit}
-                                    stationId={stationId}
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    <footer className="mt-12 text-center text-muted-foreground text-sm p-4">
-                        <p>Resonect Technology s.r.o. &copy; {new Date().getFullYear()}</p>
-                    </footer>
-                </div>
-            </SidebarInset>
-
-            {/* Floating Status Indicator */}
-            <FloatingStatusIndicator stationId={stationId} />
-        </SidebarProvider>
-    );
+      {/* Floating Status Indicator */}
+      <FloatingStatusIndicator stationId={stationId} lastWindData={windData} />
+    </SidebarProvider>
+  );
 }

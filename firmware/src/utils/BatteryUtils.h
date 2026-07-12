@@ -6,7 +6,6 @@
 #pragma once
 
 #include <Arduino.h>
-#include <esp_adc_cal.h> // For calibrated ADC readings
 #include "../core/Logger.h"
 #include "../config/Config.h"
 
@@ -28,11 +27,10 @@ public:
     {
         // Configure ADC
         analogSetWidth(12);                                 // Set ADC resolution to 12 bits
+        analogRead(ADC_BATTERY_PIN);                        // Core 3.x: pin must be read once before per-pin attenuation applies
         analogSetPinAttenuation(ADC_BATTERY_PIN, ADC_11db); // Set attenuation for 0-3.3V range
 
-        // Characterize ADC for calibrated readings
-        esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_12, ADC_WIDTH_BIT_12, 1100, &_adc_chars);
-        Logger.info("BATTERY", "Battery ADC characterized for calibrated readings.");
+        Logger.info("BATTERY", "Battery ADC configured for calibrated readings.");
     }
 
     /**
@@ -42,27 +40,24 @@ public:
      */
     static float readBatteryVoltage()
     {
-        // Read multiple samples for better accuracy
+        // Read multiple calibrated samples for better accuracy
         const int numSamples = 10;
-        uint32_t batteryRawTotal = 0;
+        uint32_t voltageMvTotal = 0;
         for (int i = 0; i < numSamples; i++)
         {
-            batteryRawTotal += analogRead(ADC_BATTERY_PIN);
+            voltageMvTotal += analogReadMilliVolts(ADC_BATTERY_PIN);
             delay(2); // Small delay for stability
         }
-        int batteryRaw = batteryRawTotal / numSamples;
-
-        // Convert raw ADC reading to millivolts using calibration data
-        uint32_t voltage_mv = esp_adc_cal_raw_to_voltage(batteryRaw, &_adc_chars);
+        uint32_t voltage_mv = voltageMvTotal / numSamples;
 
         // Convert millivolts to volts and apply the voltage divider ratio
         float batteryVoltage = (float)voltage_mv / 1000.0f * BATTERY_VOLTAGE_DIVIDER_RATIO;
 
-        // Log the raw and converted values for debugging
-        Logger.debug("BATTERY", "Battery ADC Raw: %d, Calibrated Voltage: %.2fV", batteryRaw, batteryVoltage);
+        // Log the converted value for debugging
+        Logger.debug("BATTERY", "Battery ADC: %lu mV at pin, Calibrated Voltage: %.2fV", voltage_mv, batteryVoltage);
 
         // Check if likely running on USB power (voltage is often near max or zero)
-        if (batteryRaw < 100)
+        if (voltage_mv < 80)
         {
             Logger.warn("BATTERY", "Battery voltage reading is very low - possibly no battery connected.");
             // Return a value that indicates an issue, but isn't zero if that has meaning
@@ -71,8 +66,4 @@ public:
 
         return batteryVoltage;
     }
-
-private:
-    // Store ADC characteristics for calibrated conversion
-    static esp_adc_cal_characteristics_t _adc_chars;
 };

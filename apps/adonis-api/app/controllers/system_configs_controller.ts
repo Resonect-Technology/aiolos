@@ -1,31 +1,33 @@
-import type { HttpContext } from '@adonisjs/core/http'
-import SystemConfig from '#app/models/system_config'
+import type { HttpContext } from '@adonisjs/core/http';
+
+import { prisma } from '#services/prisma';
+import { systemConfigWriteSchema } from '#validators/system_config';
 
 export default class SystemConfigsController {
   /**
    * Get a specific system configuration value
    */
   async get({ params, response }: HttpContext) {
-    const key = params.key
+    const key = params.key;
 
     try {
-      const config = await SystemConfig.query().where('key', key).first()
+      const config = await prisma.systemConfig.findUnique({ where: { key } });
 
       if (!config) {
         return {
           key,
           value: null,
           message: `No configuration found for key: ${key}`,
-        }
+        };
       }
 
       return {
         key: config.key,
         value: config.value,
-      }
+      };
     } catch (error) {
-      console.error(`Error fetching system configuration for key ${key}:`, error)
-      return response.status(500).json({ error: 'Failed to fetch system configuration' })
+      console.error(`Error fetching system configuration for key ${key}:`, error);
+      return response.status(500).json({ error: 'Failed to fetch system configuration' });
     }
   }
 
@@ -34,65 +36,51 @@ export default class SystemConfigsController {
    */
   async index({ response }: HttpContext) {
     try {
-      const configs = await SystemConfig.all()
+      const configs = await prisma.systemConfig.findMany();
 
       // Transform to a key-value object
       const configObject = configs.reduce(
         (acc, config) => {
-          acc[config.key] = config.value
-          return acc
+          acc[config.key] = config.value;
+          return acc;
         },
-        {} as Record<string, string>
-      )
+        {} as Record<string, string>,
+      );
 
-      return configObject
+      return configObject;
     } catch (error) {
-      console.error('Error fetching system configurations:', error)
-      return response.status(500).json({ error: 'Failed to fetch system configurations' })
+      console.error('Error fetching system configurations:', error);
+      return response.status(500).json({ error: 'Failed to fetch system configurations' });
     }
   }
 
   /**
    * Store/update a system configuration
-   * This endpoint requires API key authentication
+   * Guarded by the adminAuth middleware (admin session cookie)
    */
   async set({ params, request, response }: HttpContext) {
-    const key = params.key
-    const { value } = request.body()
-
-    // Check for API key authentication
-    const apiKey = request.header('X-API-Key')
-    const expectedApiKey = process.env.ADMIN_API_KEY
-
-    if (!apiKey || apiKey !== expectedApiKey) {
-      return response.status(401).json({ error: 'Unauthorized. Valid API key is required.' })
-    }
+    const key = params.key;
 
     try {
-      // Validate input
-      if (value === undefined) {
-        return response.badRequest({ error: 'Value is required' })
+      // Validate input: any present value is accepted, only absence is an error
+      const parsed = systemConfigWriteSchema.safeParse(request.body());
+      if (!parsed.success) {
+        return response.badRequest({ error: 'Value is required' });
       }
 
       // Convert value to string if it's not already
-      const stringValue = String(value)
+      const stringValue = String(parsed.data.value);
 
-      // Find existing config or create new one
-      const existingConfig = await SystemConfig.query().where('key', key).first()
-
-      if (existingConfig) {
-        existingConfig.value = stringValue
-        await existingConfig.save()
-      } else {
-        await SystemConfig.create({
-          key,
-          value: stringValue,
-        })
-      }
+      // Create or update the configuration
+      await prisma.systemConfig.upsert({
+        where: { key },
+        update: { value: stringValue },
+        create: { key, value: stringValue },
+      });
 
       // Log in development mode
       if (process.env.NODE_ENV === 'development') {
-        console.log(`System configuration updated: ${key} = ${stringValue}`)
+        console.log(`System configuration updated: ${key} = ${stringValue}`);
       }
 
       return {
@@ -100,10 +88,10 @@ export default class SystemConfigsController {
         message: 'System configuration updated successfully',
         key,
         value: stringValue,
-      }
+      };
     } catch (error) {
-      console.error(`Error updating system configuration for key ${key}:`, error)
-      return response.status(500).json({ error: 'Failed to update system configuration' })
+      console.error(`Error updating system configuration for key ${key}:`, error);
+      return response.status(500).json({ error: 'Failed to update system configuration' });
     }
   }
 }
