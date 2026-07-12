@@ -41,12 +41,30 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
       // Set up wind aggregation service
       const { windAggregationService } = await import('#services/wind_aggregation_service');
 
+      // Set up DB retention cleanup
+      const { dataCleanupService } = await import('#services/data_cleanup_service');
+
       // Clean up old data every hour (1 hour = 60 * 60 * 1000 ms)
       const cleanupInterval = setInterval(
         () => {
           stationDataCache.clearOldData(1); // Remove data older than 1 hour
         },
         60 * 60 * 1000,
+      );
+
+      // DB retention cleanup: once shortly after boot, then every 6 hours
+      const retentionBootTimeout = setTimeout(() => {
+        dataCleanupService.runAllCleanups().catch((error) => {
+          console.error('Error running data retention cleanup:', error);
+        });
+      }, 30 * 1000);
+      const retentionInterval = setInterval(
+        () => {
+          dataCleanupService.runAllCleanups().catch((error) => {
+            console.error('Error running data retention cleanup:', error);
+          });
+        },
+        6 * 60 * 60 * 1000,
       );
 
       // Set up 10-minute aggregation timer
@@ -106,10 +124,14 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
       }, 5000); // Wait 5 seconds after startup
 
       // Clean up intervals when app terminates
-      app.terminating(() => {
+      app.terminating(async () => {
         clearInterval(cleanupInterval);
         clearTimeout(initialTimeout);
+        clearTimeout(retentionBootTimeout);
+        clearInterval(retentionInterval);
         windAggregationService.stopFlushTimer();
+        // Persist the in-flight minute instead of dropping it on shutdown
+        await windAggregationService.forceFlushBuckets();
       });
     });
     app.listen('SIGTERM', () => app.terminate());

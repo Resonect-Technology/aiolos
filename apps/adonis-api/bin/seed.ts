@@ -68,12 +68,6 @@ const retentionPolicies = [
     description: 'Temperature readings retention for 1 year',
   },
   {
-    dataType: 'wind',
-    retentionDays: 180,
-    isActive: true,
-    description: 'Wind data retention for 6 months',
-  },
-  {
     dataType: 'wind_1min',
     retentionDays: 90,
     isActive: true,
@@ -81,9 +75,9 @@ const retentionPolicies = [
   },
   {
     dataType: 'wind_10min',
-    retentionDays: 1,
+    retentionDays: 365,
     isActive: true,
-    description: '10-minute wind data retention - removed after hourly data created',
+    description: '10-minute wind aggregation retention for 1 year',
   },
   {
     dataType: 'diagnostics',
@@ -132,6 +126,19 @@ for (const policy of retentionPolicies) {
     await prisma.dataRetentionPolicy.create({ data: policy });
     console.log(`Created retention policy for ${policy.dataType}`);
   }
+}
+
+// One-time correction: wind_10min originally shipped as 1 day, referencing an
+// hourly rollup that never existed — cleanup would wipe all 10-minute history.
+const wind10MinPolicy = await prisma.dataRetentionPolicy.findFirst({
+  where: { dataType: 'wind_10min', retentionDays: 1 },
+});
+if (wind10MinPolicy) {
+  await prisma.dataRetentionPolicy.update({
+    where: { id: wind10MinPolicy.id },
+    data: { retentionDays: 365, description: '10-minute wind aggregation retention for 1 year' },
+  });
+  console.log('Corrected wind_10min retention policy from 1 day to 365 days');
 }
 
 console.log('Seeding completed');

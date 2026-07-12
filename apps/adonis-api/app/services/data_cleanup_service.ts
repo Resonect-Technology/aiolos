@@ -66,6 +66,36 @@ export class DataCleanupService {
     };
   }
   /**
+   * Clean up 10-minute wind data based on retention policy
+   * Default retention: 365 days (configurable via retention policy)
+   */
+  async cleanupWindData10Min(): Promise<{ deleted: number; policy: string }> {
+    const policy = await prisma.dataRetentionPolicy.findFirst({
+      where: { dataType: 'wind_10min', isActive: true },
+    });
+
+    // Default to 1 year retention if no policy exists
+    const retentionDays = policy?.retentionDays || 365;
+    const cutoffDate = DateTime.now().minus({ days: retentionDays });
+
+    // Wind timestamps are UTC ISO strings compared lexicographically
+    const result = await prisma.windData10Min.deleteMany({
+      where: { timestamp: { lt: cutoffDate.toUTC().toISO()! } },
+    });
+
+    console.log(
+      `Cleaned up ${result.count} 10-minute wind records older than ${retentionDays} days`,
+    );
+
+    return {
+      deleted: result.count,
+      policy: policy
+        ? `Retention: ${retentionDays} days`
+        : `Default retention: ${retentionDays} days`,
+    };
+  }
+
+  /**
    * Clean up diagnostics data based on retention policy
    */
   async cleanupDiagnostics(): Promise<{ deleted: number; policy: string }> {
@@ -97,15 +127,17 @@ export class DataCleanupService {
    * Run all cleanup operations
    */
   async runAllCleanups(): Promise<{
-    temperatureCleanup: any;
-    diagnosticsCleanup: any;
-    windData1MinCleanup: any;
+    temperatureCleanup: { deleted: number; policy: string };
+    diagnosticsCleanup: { deleted: number; policy: string };
+    windData1MinCleanup: { deleted: number; policy: string };
+    windData10MinCleanup: { deleted: number; policy: string };
   }> {
     console.log('Starting data cleanup operations...');
 
     const temperatureCleanup = await this.cleanupTemperatureReadings();
     const diagnosticsCleanup = await this.cleanupDiagnostics();
     const windData1MinCleanup = await this.cleanupWindData1Min();
+    const windData10MinCleanup = await this.cleanupWindData10Min();
 
     console.log('Data cleanup operations completed');
 
@@ -113,6 +145,7 @@ export class DataCleanupService {
       temperatureCleanup,
       diagnosticsCleanup,
       windData1MinCleanup,
+      windData10MinCleanup,
     };
   }
 }

@@ -16,7 +16,9 @@ interface WindBucket {
   speedCount: number;
   minSpeed: number;
   maxSpeed: number;
-  directionFrequency: Record<number, number>;
+  gustMax: number | null;
+  dirSinSum: number;
+  dirCosSum: number;
   sampleCount: number;
 }
 
@@ -42,6 +44,8 @@ export class WindAggregationService {
     windSpeed: number,
     windDirection: number,
     timestamp: string,
+    gustSpeed?: number,
+    minSpeed?: number,
   ): Promise<void> {
     const dataTime = DateTime.fromISO(timestamp);
     const intervalStart = this.getIntervalStart(dataTime);
@@ -60,7 +64,9 @@ export class WindAggregationService {
         speedCount: 0,
         minSpeed: windSpeed,
         maxSpeed: windSpeed,
-        directionFrequency: {},
+        gustMax: null,
+        dirSinSum: 0,
+        dirCosSum: 0,
         sampleCount: 0,
       };
       this.buckets.set(bucketKey, bucket);
@@ -73,10 +79,19 @@ export class WindAggregationService {
     bucket.maxSpeed = Math.max(bucket.maxSpeed, windSpeed);
     bucket.sampleCount += 1;
 
-    // Track direction frequency (round to nearest degree)
-    const roundedDirection = Math.round(windDirection);
-    bucket.directionFrequency[roundedDirection] =
-      (bucket.directionFrequency[roundedDirection] || 0) + 1;
+    // Fold in the firmware-reported gust/lull when present
+    if (gustSpeed !== undefined) {
+      bucket.gustMax = bucket.gustMax === null ? gustSpeed : Math.max(bucket.gustMax, gustSpeed);
+    }
+    if (minSpeed !== undefined) {
+      bucket.minSpeed = Math.min(bucket.minSpeed, minSpeed);
+    }
+
+    // Accumulate the direction as a unit vector (circular mean handles the
+    // 0/360 wrap correctly, unlike a frequency mode)
+    const radians = (windDirection * Math.PI) / 180;
+    bucket.dirSinSum += Math.sin(radians);
+    bucket.dirCosSum += Math.cos(radians);
 
     // Check if we need to save completed intervals
     await this.checkAndSaveCompletedIntervals();
@@ -112,7 +127,10 @@ export class WindAggregationService {
     try {
       // Calculate statistics
       const avgSpeed = bucket.speedSum / bucket.speedCount;
-      const dominantDirection = this.calculateDominantDirection(bucket.directionFrequency);
+      const dominantDirection = this.circularMean(bucket.dirSinSum, bucket.dirCosSum);
+      // Row gust: reported gusts vs the largest raw sample; null when the
+      // firmware never reported gust (lets the frontend distinguish)
+      const gustSpeed = bucket.gustMax === null ? null : Math.max(bucket.gustMax, bucket.maxSpeed);
 
       // Save to database
       const windData = await prisma.windData1Min.create({
@@ -122,6 +140,7 @@ export class WindAggregationService {
           avgSpeed: Math.round(avgSpeed * 100) / 100, // Round to 2 decimal places
           minSpeed: bucket.minSpeed,
           maxSpeed: bucket.maxSpeed,
+          gustSpeed,
           dominantDirection,
           sampleCount: bucket.sampleCount,
         },
@@ -134,29 +153,87 @@ export class WindAggregationService {
         avgSpeed: windData.avgSpeed,
         minSpeed: windData.minSpeed,
         maxSpeed: windData.maxSpeed,
+        gustSpeed: windData.gustSpeed,
         dominantDirection: windData.dominantDirection,
         sampleCount: windData.sampleCount,
       });
     } catch (error) {
+      // A row for this minute already exists (late or duplicate samples):
+      // merge instead of silently dropping the bucket
+      if ((error as { code?: string })?.code === 'P2002') {
+        await this.mergeIntoExisting(bucket);
+        return;
+      }
       console.error('Error saving wind aggregate:', error);
     }
   }
 
   /**
-   * Calculate dominant direction from frequency map
+   * Merge a bucket into an already-persisted 1-minute row (weighted by
+   * sample counts). Direction merges the two means as weighted vectors — an
+   * approximation, but far better than losing the samples.
    */
-  private calculateDominantDirection(directionFrequency: Record<number, number>): number {
-    let maxFrequency = 0;
-    let dominantDirection = 0;
+  private async mergeIntoExisting(bucket: WindBucket): Promise<void> {
+    try {
+      const timestamp = bucket.intervalStart.toUTC().toISO()!;
+      const existing = await prisma.windData1Min.findUnique({
+        where: { stationId_timestamp: { stationId: bucket.stationId, timestamp } },
+      });
+      if (!existing) return;
 
-    for (const [direction, frequency] of Object.entries(directionFrequency)) {
-      if (frequency > maxFrequency) {
-        maxFrequency = frequency;
-        dominantDirection = parseInt(direction);
-      }
+      const totalSamples = existing.sampleCount + bucket.sampleCount;
+      const avgSpeed = (existing.avgSpeed * existing.sampleCount + bucket.speedSum) / totalSamples;
+
+      const existingRad = (existing.dominantDirection * Math.PI) / 180;
+      const dominantDirection = this.circularMean(
+        Math.sin(existingRad) * existing.sampleCount + bucket.dirSinSum,
+        Math.cos(existingRad) * existing.sampleCount + bucket.dirCosSum,
+      );
+
+      const bucketGust = bucket.gustMax === null ? null : Math.max(bucket.gustMax, bucket.maxSpeed);
+      const gustSpeed =
+        existing.gustSpeed === null
+          ? bucketGust
+          : bucketGust === null
+            ? existing.gustSpeed
+            : Math.max(existing.gustSpeed, bucketGust);
+
+      const windData = await prisma.windData1Min.update({
+        where: { stationId_timestamp: { stationId: bucket.stationId, timestamp } },
+        data: {
+          avgSpeed: Math.round(avgSpeed * 100) / 100,
+          minSpeed: Math.min(existing.minSpeed, bucket.minSpeed),
+          maxSpeed: Math.max(existing.maxSpeed, bucket.maxSpeed),
+          gustSpeed,
+          dominantDirection,
+          sampleCount: totalSamples,
+        },
+      });
+
+      await transmit.broadcast(`wind/aggregated/1min/${bucket.stationId}`, {
+        stationId: bucket.stationId,
+        timestamp: windData.timestamp,
+        avgSpeed: windData.avgSpeed,
+        minSpeed: windData.minSpeed,
+        maxSpeed: windData.maxSpeed,
+        gustSpeed: windData.gustSpeed,
+        dominantDirection: windData.dominantDirection,
+        sampleCount: windData.sampleCount,
+      });
+    } catch (error) {
+      console.error('Error merging wind aggregate:', error);
     }
+  }
 
-    return dominantDirection;
+  /**
+   * Circular (vector) mean of accumulated direction components, in [0, 360)
+   */
+  private circularMean(sinSum: number, cosSum: number): number {
+    if (sinSum === 0 && cosSum === 0) {
+      return 0;
+    }
+    const degrees = (Math.atan2(sinSum, cosSum) * 180) / Math.PI;
+    return Math.round((degrees + 360) % 360) % 360;
   }
 
   /**
@@ -337,13 +414,21 @@ export class WindAggregationService {
         return; // No data to aggregate
       }
 
-      // Calculate aggregated statistics
-      const totalSpeedSum = oneMinuteData.reduce((sum, record) => sum + record.avgSpeed, 0);
-      const avgSpeed = totalSpeedSum / oneMinuteData.length;
+      // Calculate aggregated statistics — weight by each minute's sampleCount
+      // so sparse minutes don't skew the mean
+      const totalSamples = oneMinuteData.reduce((sum, record) => sum + record.sampleCount, 0);
+      const avgSpeed =
+        totalSamples > 0
+          ? oneMinuteData.reduce((sum, r) => sum + r.avgSpeed * r.sampleCount, 0) / totalSamples
+          : oneMinuteData.reduce((sum, r) => sum + r.avgSpeed, 0) / oneMinuteData.length;
       const minSpeed = Math.min(...oneMinuteData.map((r) => r.minSpeed));
       const maxSpeed = Math.max(...oneMinuteData.map((r) => r.maxSpeed));
 
-      // Calculate dominant direction using frequency
+      // Gust: max of the non-null 1-minute gusts, null when none reported
+      const gusts = oneMinuteData.map((r) => r.gustSpeed).filter((g): g is number => g !== null);
+      const gustSpeed = gusts.length > 0 ? Math.max(...gusts) : null;
+
+      // Dominant direction: sampleCount-weighted circular mean of the 1-minute means
       const dominantDirection = this.calculateDominantDirectionFromRecords(oneMinuteData);
 
       // Calculate tendency by comparing with previous 10-minute record
@@ -356,6 +441,7 @@ export class WindAggregationService {
           avgSpeed: Math.round(avgSpeed * 100) / 100,
           minSpeed,
           maxSpeed,
+          gustSpeed,
           dominantDirection,
           tendency,
         },
@@ -365,6 +451,7 @@ export class WindAggregationService {
           avgSpeed: Math.round(avgSpeed * 100) / 100,
           minSpeed,
           maxSpeed,
+          gustSpeed,
           dominantDirection,
           tendency,
         },
@@ -377,6 +464,7 @@ export class WindAggregationService {
         avgSpeed: windData.avgSpeed,
         minSpeed: windData.minSpeed,
         maxSpeed: windData.maxSpeed,
+        gustSpeed: windData.gustSpeed,
         dominantDirection: windData.dominantDirection,
         tendency: windData.tendency,
       });
@@ -387,17 +475,21 @@ export class WindAggregationService {
   }
 
   /**
-   * Calculate dominant direction from 1-minute records
+   * Calculate dominant direction from 1-minute records: circular mean of
+   * each minute's dominant direction, weighted by its sample count
    */
   private calculateDominantDirectionFromRecords(records: WindData1MinModel[]): number {
-    const directionFrequency: Record<number, number> = {};
+    let sinSum = 0;
+    let cosSum = 0;
 
     for (const record of records) {
-      const direction = Math.round(record.dominantDirection);
-      directionFrequency[direction] = (directionFrequency[direction] || 0) + 1;
+      const radians = (record.dominantDirection * Math.PI) / 180;
+      const weight = record.sampleCount > 0 ? record.sampleCount : 1;
+      sinSum += Math.sin(radians) * weight;
+      cosSum += Math.cos(radians) * weight;
     }
 
-    return this.calculateDominantDirection(directionFrequency);
+    return this.circularMean(sinSum, cosSum);
   }
 
   /**

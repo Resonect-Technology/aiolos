@@ -129,6 +129,7 @@ model WindData1Min {
   avgSpeed          Float     @map("avg_speed")
   minSpeed          Float     @map("min_speed")
   maxSpeed          Float     @map("max_speed")
+  gustSpeed         Float?    @map("gust_speed")
   dominantDirection Int       @map("dominant_direction")
   sampleCount       Int       @map("sample_count")
   createdAt         DateTime? @default(now()) @map("created_at")
@@ -149,6 +150,7 @@ model WindData10Min {
   avgSpeed          Float     @map("avg_speed")
   minSpeed          Float     @map("min_speed")
   maxSpeed          Float     @map("max_speed")
+  gustSpeed         Float?    @map("gust_speed")
   dominantDirection Int       @map("dominant_direction")
   tendency          String
   createdAt         DateTime? @default(now()) @map("created_at")

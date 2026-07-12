@@ -124,6 +124,78 @@ test.group('Firmware Critical Endpoints', (group) => {
     response.assertBody({ ok: true });
   });
 
+  test('should accept full wind payload with gust, lull and interval', async ({ client }) => {
+    const windData = {
+      windSpeed: 12.5,
+      windDirection: 270,
+      gustSpeed: 16.2,
+      minSpeed: 8.4,
+      intervalMs: 1000,
+      timestamp: new Date().toISOString(),
+    };
+
+    const response = await client.post(`/api/stations/${testStationId}/wind`).json(windData);
+
+    response.assertStatus(200);
+    response.assertBody({ ok: true });
+  });
+
+  test('should reject non-numeric gust speed', async ({ client }) => {
+    const response = await client
+      .post(`/api/stations/${testStationId}/wind`)
+      .json({ windSpeed: 12.5, windDirection: 270, gustSpeed: 'invalid' });
+
+    response.assertStatus(400);
+    response.assertBodyContains({ error: 'Invalid wind data' });
+  });
+
+  test('should reject negative gust speed', async ({ client }) => {
+    const response = await client
+      .post(`/api/stations/${testStationId}/wind`)
+      .json({ windSpeed: 12.5, windDirection: 270, gustSpeed: -1 });
+
+    response.assertStatus(400);
+    response.assertBodyContains({ error: 'Invalid wind data' });
+  });
+
+  test('should reject out-of-range wind speed', async ({ client }) => {
+    for (const windSpeed of [-5, 999]) {
+      const response = await client
+        .post(`/api/stations/${testStationId}/wind`)
+        .json({ windSpeed, windDirection: 270 });
+
+      response.assertStatus(400);
+      response.assertBodyContains({ error: 'Invalid wind data' });
+    }
+  });
+
+  test('should reject out-of-range wind direction', async ({ client }) => {
+    const response = await client
+      .post(`/api/stations/${testStationId}/wind`)
+      .json({ windSpeed: 12.5, windDirection: 400 });
+
+    response.assertStatus(400);
+    response.assertBodyContains({ error: 'Invalid wind data' });
+  });
+
+  test('should reject out-of-range interval', async ({ client }) => {
+    const response = await client
+      .post(`/api/stations/${testStationId}/wind`)
+      .json({ windSpeed: 12.5, windDirection: 270, intervalMs: 100 });
+
+    response.assertStatus(400);
+    response.assertBodyContains({ error: 'Invalid wind data' });
+  });
+
+  test('should fall back to arrival time for an invalid timestamp', async ({ client }) => {
+    const response = await client
+      .post(`/api/stations/${testStationId}/wind`)
+      .json({ windSpeed: 12.5, windDirection: 270, timestamp: 'not-a-date' });
+
+    response.assertStatus(200);
+    response.assertBody({ ok: true });
+  });
+
   /**
    * Temperature Data Endpoint Tests
    * POST /api/stations/:station_id/temperature

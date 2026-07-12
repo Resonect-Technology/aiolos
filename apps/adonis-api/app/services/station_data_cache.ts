@@ -8,6 +8,9 @@
 interface StationWindData {
   windSpeed: number;
   windDirection: number;
+  gustSpeed?: number;
+  minSpeed?: number;
+  intervalMs?: number;
   timestamp: string;
 }
 

@@ -12,6 +12,15 @@ interface MockStationData {
 }
 const mockStationStates: Record<string, MockStationData> = {};
 
+// Sanity bounds: 60 m/s (~117 kn) is far above anything real at Vasiliki but
+// below sensor garbage; NaN/Infinity would poison aggregates and SSE.
+const isValidSpeed = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 60;
+const isValidDirection = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 360;
+const isValidIntervalMs = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 500 && value <= 3_600_000;
+
 export default class StationLiveController {
   /**
    * Receives wind data and broadcasts it via Transmit SSE for real-time updates.
@@ -25,29 +34,54 @@ export default class StationLiveController {
    * - Development and testing purposes
    * - IoT/CoAP proxy integration
    *
-   * Body: { windSpeed: number, windDirection: number, timestamp?: string }
+   * Body: { windSpeed: number, windDirection: number, gustSpeed?: number,
+   *         minSpeed?: number, intervalMs?: number, timestamp?: string }
+   *
+   * gustSpeed/minSpeed are the firmware's max/min 3 s rolling means;
+   * intervalMs is the effective send interval the reading was produced under
+   * (pass-through to SSE only — lets the dashboard derive staleness at any
+   * configured cadence).
    */
   async wind({ params, request, response }: HttpContext) {
     // Capture arrival timestamp immediately for accuracy
     const arrivalTimestamp = new Date().toISOString();
 
     const { station_id } = params;
-    const { windSpeed, windDirection, timestamp } = request.only([
+    const { windSpeed, windDirection, gustSpeed, minSpeed, intervalMs, timestamp } = request.only([
       'windSpeed',
       'windDirection',
+      'gustSpeed',
+      'minSpeed',
+      'intervalMs',
       'timestamp',
     ]);
-    if (typeof windSpeed !== 'number' || typeof windDirection !== 'number') {
+    if (!isValidSpeed(windSpeed) || !isValidDirection(windDirection)) {
+      return response.badRequest({ error: 'Invalid wind data' });
+    }
+    // Optional fields must be valid when present
+    if (gustSpeed !== undefined && !isValidSpeed(gustSpeed)) {
+      return response.badRequest({ error: 'Invalid wind data' });
+    }
+    if (minSpeed !== undefined && !isValidSpeed(minSpeed)) {
+      return response.badRequest({ error: 'Invalid wind data' });
+    }
+    if (intervalMs !== undefined && !isValidIntervalMs(intervalMs)) {
       return response.badRequest({ error: 'Invalid wind data' });
     }
 
-    // Use station-provided timestamp if available, otherwise use server arrival time
-    const windTimestamp = timestamp || arrivalTimestamp;
+    // Use station-provided timestamp if valid, otherwise use server arrival time
+    const windTimestamp =
+      typeof timestamp === 'string' && !Number.isNaN(Date.parse(timestamp))
+        ? timestamp
+        : arrivalTimestamp;
 
     // Cache the latest wind data using the shared cache service
     stationDataCache.setWindData(station_id, {
       windSpeed,
       windDirection,
+      ...(gustSpeed !== undefined && { gustSpeed }),
+      ...(minSpeed !== undefined && { minSpeed }),
+      ...(intervalMs !== undefined && { intervalMs }),
       timestamp: windTimestamp,
     });
 
@@ -57,12 +91,17 @@ export default class StationLiveController {
       windSpeed,
       windDirection,
       windTimestamp,
+      gustSpeed,
+      minSpeed,
     );
 
     // Broadcast to SSE subscribers
     await transmit.broadcast(`wind/live/${station_id}`, {
       windSpeed,
       windDirection,
+      ...(gustSpeed !== undefined && { gustSpeed }),
+      ...(minSpeed !== undefined && { minSpeed }),
+      ...(intervalMs !== undefined && { intervalMs }),
       timestamp: windTimestamp,
     });
 

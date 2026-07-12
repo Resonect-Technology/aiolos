@@ -7,6 +7,7 @@
 |
 */
 
+import app from '@adonisjs/core/services/app';
 import router from '@adonisjs/core/services/router';
 import transmit from '@adonisjs/transmit/services/main';
 import AutoSwagger from 'adonis-autoswagger';
@@ -113,7 +114,8 @@ router
         router.get('/status', [WindAggregationController, 'status']).as('status');
       })
       .prefix('/wind/aggregation')
-      .as('wind.aggregation');
+      .as('wind.aggregation')
+      .use(middleware.adminAuth());
 
     /**
      * Wind debug routes (for development)
@@ -126,7 +128,8 @@ router
           .as('createMockData');
       })
       .prefix('/wind/debug')
-      .as('wind.debug');
+      .as('wind.debug')
+      .use(middleware.adminAuth());
 
     /**
      * Station API routes
@@ -193,15 +196,18 @@ router
               .as('live_wind')
               .use(middleware.stationAuth());
 
-            // Mock data routes for development
-            router
-              .group(() => {
-                router.post('/mock', [StationLiveController, 'mockWind']).as('mock');
-                router.post('/mock/start', [StationLiveController, 'startMockWind']).as('start');
-                router.post('/mock/stop', [StationLiveController, 'stopMockWind']).as('stop');
-              })
-              .prefix('/wind')
-              .as('wind');
+            // Mock data routes for development — not registered in production
+            // (mock/start spawns a 1 Hz broadcast loop and pollutes aggregates)
+            if (!app.inProduction) {
+              router
+                .group(() => {
+                  router.post('/mock', [StationLiveController, 'mockWind']).as('mock');
+                  router.post('/mock/start', [StationLiveController, 'startMockWind']).as('start');
+                  router.post('/mock/stop', [StationLiveController, 'stopMockWind']).as('stop');
+                })
+                .prefix('/wind')
+                .as('wind');
+            }
           })
           .prefix('/live')
           .as('live');

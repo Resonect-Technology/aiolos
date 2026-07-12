@@ -201,7 +201,7 @@ test.group('Wind 10-Minute Aggregation', (group) => {
     assert.approximately(tenMinData!.avgSpeed, expectedAvgSpeed, 0.01);
     assert.equal(tenMinData!.minSpeed, 7.0); // Minimum of all min speeds
     assert.equal(tenMinData!.maxSpeed, 16.0); // Maximum of all max speeds
-    assert.equal(tenMinData!.dominantDirection, 270); // Most frequent direction
+    assert.equal(tenMinData!.dominantDirection, 272); // Weighted circular mean (270×7, 275×2, 280×1)
     assert.equal(tenMinData!.tendency, 'stable'); // First record, no previous data
   });
 
@@ -440,6 +440,102 @@ test.group('Wind 10-Minute Aggregation', (group) => {
     });
 
     assert.isNotNull(tenMinData);
-    assert.equal(tenMinData!.dominantDirection, 270); // Should be 270 (most frequent)
+    assert.equal(tenMinData!.dominantDirection, 271); // Circular mean of 270×6, 275×1
+  });
+
+  test('should weight the 10-minute average by sample count', async ({ assert }) => {
+    const intervalStart = DateTime.now().startOf('minute').set({ minute: 0 });
+
+    // A dense minute (60 samples at 10 m/s) and a sparse one (6 samples at 20 m/s):
+    // unweighted mean would be 15, sample-weighted is 10.91
+    await prisma.windData1Min.create({
+      data: {
+        stationId: testStationId,
+        timestamp: intervalStart.toUTC().toISO()!,
+        avgSpeed: 10.0,
+        minSpeed: 9.0,
+        maxSpeed: 11.0,
+        dominantDirection: 270,
+        sampleCount: 60,
+      },
+    });
+    await prisma.windData1Min.create({
+      data: {
+        stationId: testStationId,
+        timestamp: intervalStart.plus({ minutes: 1 }).toUTC().toISO()!,
+        avgSpeed: 20.0,
+        minSpeed: 18.0,
+        maxSpeed: 22.0,
+        dominantDirection: 270,
+        sampleCount: 6,
+      },
+    });
+
+    await windAggregationService.processIntervalAggregation(intervalStart);
+
+    const tenMinData = await prisma.windData10Min.findFirst({
+      where: { stationId: testStationId, timestamp: intervalStart.toUTC().toISO()! },
+    });
+
+    assert.isNotNull(tenMinData);
+    assert.approximately(tenMinData!.avgSpeed, 10.91, 0.01);
+  });
+
+  test('should roll up gust as the max of non-null 1-minute gusts', async ({ assert }) => {
+    const intervalStart = DateTime.now().startOf('minute').set({ minute: 0 });
+
+    const rows = [
+      { minute: 0, gustSpeed: 14.5 },
+      { minute: 1, gustSpeed: null },
+      { minute: 2, gustSpeed: 17.2 },
+    ];
+    for (const row of rows) {
+      await prisma.windData1Min.create({
+        data: {
+          stationId: testStationId,
+          timestamp: intervalStart.plus({ minutes: row.minute }).toUTC().toISO()!,
+          avgSpeed: 10.0,
+          minSpeed: 8.0,
+          maxSpeed: 12.0,
+          gustSpeed: row.gustSpeed,
+          dominantDirection: 270,
+          sampleCount: 6,
+        },
+      });
+    }
+
+    await windAggregationService.processIntervalAggregation(intervalStart);
+
+    const tenMinData = await prisma.windData10Min.findFirst({
+      where: { stationId: testStationId, timestamp: intervalStart.toUTC().toISO()! },
+    });
+
+    assert.isNotNull(tenMinData);
+    assert.equal(tenMinData!.gustSpeed, 17.2);
+  });
+
+  test('should leave the 10-minute gust null when no minute reported one', async ({ assert }) => {
+    const intervalStart = DateTime.now().startOf('minute').set({ minute: 0 });
+
+    await prisma.windData1Min.create({
+      data: {
+        stationId: testStationId,
+        timestamp: intervalStart.toUTC().toISO()!,
+        avgSpeed: 10.0,
+        minSpeed: 8.0,
+        maxSpeed: 12.0,
+        dominantDirection: 270,
+        sampleCount: 6,
+      },
+    });
+
+    await windAggregationService.processIntervalAggregation(intervalStart);
+
+    const tenMinData = await prisma.windData10Min.findFirst({
+      where: { stationId: testStationId, timestamp: intervalStart.toUTC().toISO()! },
+    });
+
+    assert.isNotNull(tenMinData);
+    assert.isNull(tenMinData!.gustSpeed);
   });
 });

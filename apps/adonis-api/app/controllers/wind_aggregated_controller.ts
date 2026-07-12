@@ -93,6 +93,7 @@ export default class WindAggregatedController {
       avgSpeed: record.avgSpeed,
       minSpeed: record.minSpeed,
       maxSpeed: record.maxSpeed,
+      gustSpeed: record.gustSpeed,
       dominantDirection: record.dominantDirection,
       sampleCount: record.sampleCount,
     }));
@@ -133,6 +134,7 @@ export default class WindAggregatedController {
       avgSpeed: record.avgSpeed,
       minSpeed: record.minSpeed,
       maxSpeed: record.maxSpeed,
+      gustSpeed: record.gustSpeed,
       dominantDirection: record.dominantDirection,
       tendency: record.tendency,
     }));
@@ -181,6 +183,7 @@ export default class WindAggregatedController {
           avgSpeed: latestData.avgSpeed,
           minSpeed: latestData.minSpeed,
           maxSpeed: latestData.maxSpeed,
+          gustSpeed: latestData.gustSpeed,
           dominantDirection: latestData.dominantDirection,
           tendency: latestData.tendency,
           interval: '10min',
@@ -203,6 +206,7 @@ export default class WindAggregatedController {
           avgSpeed: latestData.avgSpeed,
           minSpeed: latestData.minSpeed,
           maxSpeed: latestData.maxSpeed,
+          gustSpeed: latestData.gustSpeed,
           dominantDirection: latestData.dominantDirection,
           sampleCount: latestData.sampleCount,
           interval: '1min',
@@ -279,6 +283,7 @@ export default class WindAggregatedController {
           avgSpeed: this.convertSpeed(record.avgSpeed, unit),
           minSpeed: this.convertSpeed(record.minSpeed, unit),
           maxSpeed: this.convertSpeed(record.maxSpeed, unit),
+          gustSpeed: record.gustSpeed === null ? null : this.convertSpeed(record.gustSpeed, unit),
           dominantDirection: record.dominantDirection,
           tendency: record.tendency,
         }));
@@ -298,6 +303,7 @@ export default class WindAggregatedController {
           avgSpeed: this.convertSpeed(record.avgSpeed, unit),
           minSpeed: this.convertSpeed(record.minSpeed, unit),
           maxSpeed: this.convertSpeed(record.maxSpeed, unit),
+          gustSpeed: record.gustSpeed === null ? null : this.convertSpeed(record.gustSpeed, unit),
           dominantDirection: record.dominantDirection,
           sampleCount: record.sampleCount,
         }));
