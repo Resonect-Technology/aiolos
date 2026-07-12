@@ -137,8 +137,8 @@
 #define WIND_AVERAGING_SAMPLE_INTERVAL_MS 10000 // (10s) Interval for samples within a larger averaging period
 
 // Watchdog settings
-#define WDT_TIMEOUT 120000 // Watchdog timeout in ms (120 seconds), was 30000
-// Define this to enable temporary watchdog disabling during modem operations
+#define WDT_TIMEOUT_S 120 // Watchdog timeout in seconds
+// Define this to enable temporary watchdog relaxing during modem operations
 #define DISABLE_WDT_FOR_MODEM
 
 // Safety mechanism settings

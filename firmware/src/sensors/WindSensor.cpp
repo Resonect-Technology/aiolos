@@ -5,8 +5,7 @@
 
 #include "WindSensor.h"
 #include "../core/Logger.h"
-#include <Arduino.h>     // Make sure this is included
-#include <esp_adc_cal.h> // Added for ADC calibration as in the old code
+#include <Arduino.h> // Make sure this is included
 
 #define LOG_TAG_WIND "WIND"
 
@@ -45,22 +44,6 @@ bool WindSensor::init(uint8_t anemometerPin, uint8_t windVanePin)
     // Configure anemometer pin with pull-up and interrupt
     pinMode(_anemometerPin, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(_anemometerPin), handleAnemometerInterrupt, FALLING);
-
-    // Optional: setup ADC calibration as in the old code
-    esp_adc_cal_characteristics_t adc_chars;
-    esp_adc_cal_value_t val_type = esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_12, ADC_WIDTH_BIT_12, 1100, &adc_chars);
-    if (val_type == ESP_ADC_CAL_VAL_EFUSE_VREF)
-    {
-        Logger.info(LOG_TAG_WIND, "eFuse Vref: %u mV", adc_chars.vref);
-    }
-    else if (val_type == ESP_ADC_CAL_VAL_EFUSE_TP)
-    {
-        Logger.info(LOG_TAG_WIND, "Two Point --> coeff_a: %u mV coeff_b: %u mV", adc_chars.coeff_a, adc_chars.coeff_b);
-    }
-    else
-    {
-        Logger.info(LOG_TAG_WIND, "Default Vref: 1100 mV");
-    }
 
     Logger.info(LOG_TAG_WIND, "Wind sensor initialized");
     Logger.info(LOG_TAG_WIND, "Anemometer pin: %d, Wind vane pin: %d", _anemometerPin, _windVanePin);

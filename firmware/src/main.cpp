@@ -11,6 +11,8 @@
 
 #include <Arduino.h>
 #include <esp_task_wdt.h>
+
+#include "core/Watchdog.h"
 #include <math.h> // For isnan()
 #include "config/Config.h"
 #include "core/Logger.h"
@@ -131,7 +133,7 @@ void setup()
     // Initialize watchdog but disable it during modem initialization
     setupWatchdog();
     Logger.debug(LOG_TAG_SYSTEM, "Temporarily disabling watchdog for modem initialization");
-    esp_task_wdt_deinit();
+    watchdogDisable();
 
     // Initialize modem and network
     if (!modemManager.init())
@@ -262,7 +264,7 @@ void setup()
         {
             Logger.info(LOG_TAG_SYSTEM, "Starting wind vane calibration mode");
             // Temporarily disable watchdog during calibration
-            esp_task_wdt_deinit();
+            watchdogDisable();
             windSensor.calibrateWindVane(CALIBRATION_TIME);
             // Re-enable watchdog after calibration
             setupWatchdog();
@@ -941,11 +943,9 @@ void setupWatchdog()
 {
     Logger.debug(LOG_TAG_SYSTEM, "Setting up watchdog timer...");
 
-    // Initialize watchdog with timeout in seconds
-    esp_task_wdt_init(WDT_TIMEOUT / 1000, true);
-    esp_task_wdt_add(NULL); // Add current thread to WDT watch
+    watchdogEnable();
 
-    Logger.debug(LOG_TAG_SYSTEM, "Watchdog timer set up with %d ms timeout", WDT_TIMEOUT);
+    Logger.debug(LOG_TAG_SYSTEM, "Watchdog timer set up with %d s timeout", WDT_TIMEOUT_S);
 }
 
 /**
@@ -1079,7 +1079,7 @@ void enterDeepSleepUntil(int hour, int minute)
     modemManager.maintainConnection(false);
 
     // Disable watchdog timer
-    esp_task_wdt_deinit();
+    watchdogDisable();
 
     // End OTA mode if active
     if (otaActive)
@@ -1112,7 +1112,7 @@ void testModemConnectivity()
 
     // Temporarily disable watchdog for connectivity test
     Logger.debug(LOG_TAG_SYSTEM, "Temporarily disabling watchdog for connectivity test");
-    esp_task_wdt_deinit();
+    watchdogDisable();
 
     // Get signal quality
     int signalQuality = modemManager.getSignalQuality();
@@ -1181,7 +1181,7 @@ bool checkAndInitOta()
 
         // Temporarily disable watchdog during OTA initialization
         Logger.debug(LOG_TAG_SYSTEM, "Temporarily disabling watchdog for OTA initialization");
-        esp_task_wdt_deinit();
+        watchdogDisable();
 
         // Initialize OTA manager
         if (otaManager.init(OTA_SSID, OTA_PASSWORD, OTA_UPDATE_PASSWORD, dynamicOtaDuration * 60 * 1000))
@@ -1230,7 +1230,7 @@ bool checkAndInitRemoteOta()
 
     // Temporarily disable watchdog during OTA initialization
     Logger.debug(LOG_TAG_SYSTEM, "Temporarily disabling watchdog for OTA initialization");
-    esp_task_wdt_deinit();
+    watchdogDisable();
 
     // Initialize OTA manager with remote OTA duration
     if (otaManager.init(OTA_SSID, OTA_PASSWORD, OTA_UPDATE_PASSWORD, REMOTE_OTA_DURATION * 60 * 1000))

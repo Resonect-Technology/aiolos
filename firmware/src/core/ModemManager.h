@@ -10,8 +10,8 @@
 
 #include <Arduino.h>
 #include <driver/gpio.h>
-#include <esp_task_wdt.h>
 #include "../config/Config.h"
+#include "Watchdog.h"
 
 // Define these before including TinyGSM library
 #define TINY_GSM_MODEM_SIM7000
@@ -257,21 +257,20 @@ private:
     void _updateResponsiveTime();
 
     /**
-     * @brief Temporarily disable the watchdog for long modem operations
+     * @brief Temporarily relax the watchdog for long modem operations
      *
-     * @param disable true to disable, false to re-enable
+     * @param disable true to relax (2x timeout, no panic), false to restore
      */
     void _setWatchdog(bool disable)
     {
 #ifdef DISABLE_WDT_FOR_MODEM
         if (disable)
         {
-            esp_task_wdt_reset();
-            esp_task_wdt_init(WDT_TIMEOUT * 2, false);
+            watchdogExtend();
         }
         else
         {
-            esp_task_wdt_init(WDT_TIMEOUT, true);
+            watchdogEnable();
         }
 #endif
     }

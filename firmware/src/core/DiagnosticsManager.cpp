@@ -5,6 +5,7 @@
 
 #include "DiagnosticsManager.h"
 #include "../config/Config.h"
+#include "Watchdog.h"
 
 #define LOG_TAG_DIAG "DIAG"
 
@@ -126,17 +127,16 @@ bool DiagnosticsManager::sendDiagnosticsInternal(float internalTemp, float exter
                 internalTemp, externalTemp);
 
 #ifdef DISABLE_WDT_FOR_MODEM
-    Logger.debug(LOG_TAG_DIAG, "Disabling watchdog for diagnostics");
-    esp_task_wdt_deinit();
+    Logger.debug(LOG_TAG_DIAG, "Relaxing watchdog for diagnostics");
+    watchdogExtend();
 #endif
 
     // Send data to server
     bool success = _httpClient->sendDiagnostics(DEVICE_ID, batteryVoltage, solarVoltage, internalTemp, signalQuality, uptime);
 
 #ifdef DISABLE_WDT_FOR_MODEM
-    Logger.debug(LOG_TAG_DIAG, "Re-enabling watchdog after diagnostics");
-    esp_task_wdt_init(WDT_TIMEOUT / 1000, true);
-    esp_task_wdt_add(NULL);
+    Logger.debug(LOG_TAG_DIAG, "Restoring watchdog after diagnostics");
+    watchdogEnable();
 #endif
 
     if (success)
