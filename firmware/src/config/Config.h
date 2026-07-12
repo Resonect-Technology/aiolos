@@ -88,14 +88,14 @@
 #ifdef CONFIG_OTA_PASSWORD
 #define OTA_PASSWORD CONFIG_OTA_PASSWORD
 #else
-#define OTA_PASSWORD "password"
+#error "CONFIG_OTA_PASSWORD is not defined - set OTA_PASSWORD in firmware/secrets.ini"
 #endif
 
 // OTA Update Password (separate from WiFi AP password)
 #ifdef CONFIG_OTA_UPDATE_PASSWORD
 #define OTA_UPDATE_PASSWORD CONFIG_OTA_UPDATE_PASSWORD
 #else
-#define OTA_UPDATE_PASSWORD "update123"
+#error "CONFIG_OTA_UPDATE_PASSWORD is not defined - set OTA_UPDATE_PASSWORD in firmware/secrets.ini"
 #endif
 
 #ifdef CONFIG_OTA_MIN_BATTERY_VOLTAGE
@@ -105,11 +105,7 @@
 #endif
 
 // Remote OTA activation
-#define REMOTE_OTA_DURATION 15           // Minutes to keep WiFi active for remote-triggered OTA
-#define REMOTE_OTA_FLAG_KEY "remote_ota" // Key for remote OTA flag in configuration
-
-// Power management
-#define LOW_BATTERY_THRESHOLD 3.7 // Volts
+#define REMOTE_OTA_DURATION 15 // Minutes to keep WiFi active for remote-triggered OTA
 
 #ifdef CONFIG_SLEEP_START_HOUR
 #define DEFAULT_SLEEP_START_HOUR CONFIG_SLEEP_START_HOUR

@@ -1,18 +1,18 @@
 {
-  // See http://go.microsoft.com/fwlink/?LinkId=827846
-  // for the documentation about the extensions.json format
-  "recommendations": [
-    "oxc.oxc-vscode",
-    "bradlc.vscode-tailwindcss",
-    "anthropic.claude-code",
-    "github.vscode-pull-request-github",
-    "platformio.platformio-ide"
-  ],
-  "unwantedRecommendations": [
-    "esbenp.prettier-vscode",
-    "dbaeumer.vscode-eslint",
-    "vsciot-vscode.vscode-arduino",
-    "ms-vscode.cpptools-extension-pack",
-    "ms-vscode.cpptools-themes"
-  ]
+    // See http://go.microsoft.com/fwlink/?LinkId=827846
+    // for the documentation about the extensions.json format
+    "recommendations": [
+        "anthropic.claude-code",
+        "bradlc.vscode-tailwindcss",
+        "github.vscode-pull-request-github",
+        "oxc.oxc-vscode",
+        "platformio.platformio-ide"
+    ],
+    "unwantedRecommendations": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-vscode.cpptools-extension-pack",
+        "ms-vscode.cpptools-themes",
+        "vsciot-vscode.vscode-arduino"
+    ]
 }

@@ -147,7 +147,7 @@ jobs:
       - name: Build firmware
         run: |
           cp firmware/secrets.ini.example firmware/secrets.ini
-          pio run -e aiolos-esp32dev
+          pio run -e aiolos-esp32dev -e aiolos-esp32dev-debug
 
   ci-summary:
     name: CI Summary

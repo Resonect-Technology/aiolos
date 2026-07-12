@@ -23,7 +23,6 @@
 // Log category tags
 #define LOG_TAG_SYSTEM "SYSTEM"
 #define LOG_TAG_MODEM "MODEM"
-#define LOG_TAG_COAP "COAP"
 #define LOG_TAG_SENSOR "SENSOR"
 #define LOG_TAG_POWER "POWER"
 #define LOG_TAG_OTA "OTA"

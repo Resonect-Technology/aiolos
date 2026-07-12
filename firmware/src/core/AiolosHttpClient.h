@@ -126,9 +126,6 @@ public:
     String getLocalIP();
 
 private:
-    // Response buffer size for the HTTP client
-    static const int RESPONSE_BUFFER_SIZE = 1024;
-
     // URL path buffer size
     static const size_t URL_PATH_SIZE = 64;
 
