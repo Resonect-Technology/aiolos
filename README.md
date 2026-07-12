@@ -18,7 +18,8 @@ designed for reliability, extensibility, and developer-friendliness.
 - **Live wind & weather data** for water sports and research
 - **Custom hardware**:
   [Aiolos meteostation](https://github.com/Resonect-Technology/Aiolos-HW)
-- **Remote administration**: Station config management via Bruno API client
+- **Remote administration**: Built-in `/admin` section for station config and
+  monitoring
 - **Modern backend**: AdonisJS 7 REST API with Prisma 7 on SQLite
 - **OpenAPI/Swagger docs**: Auto-generated for the API
 - **Monorepo**: Managed with [pnpm](https://pnpm.io/) and
@@ -38,7 +39,6 @@ designed for reliability, extensibility, and developer-friendliness.
 /
 ├── apps/
 │   ├── adonis-api/          # RESTful backend API (AdonisJS v7 + Prisma/SQLite)
-│   ├── bruno-api-control/   # Bruno API client collection for station config
 │   └── react-frontend/      # User interface for live data (React 19, Vite 8)
 ├── packages/
 │   └── typescript-config/   # Shared tsconfig presets (@repo/typescript-config)
@@ -64,15 +64,6 @@ designed for reliability, extensibility, and developer-friendliness.
 - Direct HTTP endpoint for weather stations to submit data
 - Auto-generated OpenAPI docs with
   [adonis-autoswagger](https://github.com/ad-on-is/adonis-autoswagger)
-
-### Bruno API Client (`apps/bruno-api-control`)
-
-- API client collection for managing station configuration and viewing
-  diagnostics
-- Git-friendly alternative to Postman/Insomnia that stores collections as files
-- Used for remote configuration and diagnostics of weather stations
-- Includes environments for development and production
-- Provides easy access to station configuration without requiring the frontend
 
 ### React Frontend ([docs](apps/react-frontend/README.md))
 

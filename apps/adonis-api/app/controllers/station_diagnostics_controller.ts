@@ -107,4 +107,33 @@ export default class StationDiagnosticsController {
       return { error: 'Failed to fetch diagnostics data' };
     }
   }
+
+  /**
+   * Get recent diagnostics history for a station.
+   * Query params: hours (default 24, max 720), limit (default 500, max 2000).
+   */
+  async history({ params, request, response }: HttpContext) {
+    const stationId = params.station_id;
+
+    const clamp = (raw: unknown, fallback: number, min: number, max: number) => {
+      const value = Number(raw);
+      if (isNaN(value)) return fallback;
+      return Math.min(max, Math.max(min, Math.trunc(value)));
+    };
+
+    const hours = clamp(request.input('hours'), 24, 1, 720);
+    const limit = clamp(request.input('limit'), 500, 1, 2000);
+    const since = new Date(Date.now() - hours * 60 * 60 * 1000);
+
+    try {
+      return await prisma.stationDiagnostic.findMany({
+        where: { stationId, createdAt: { gte: since } },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+      });
+    } catch (error) {
+      console.error('Error fetching diagnostics history:', error);
+      return response.status(500).json({ error: 'Failed to fetch diagnostics history' });
+    }
+  }
 }

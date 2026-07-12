@@ -185,10 +185,6 @@ test.group('Station Configs Controller', (group) => {
     assert,
   }) => {
     const stationId = 'test-station-003';
-    const apiKey = process.env.ADMIN_API_KEY || 'test-api-key';
-
-    // Set the API key for this test
-    process.env.ADMIN_API_KEY = apiKey;
 
     // Create weather station first
     await prisma.weatherStation.create({
@@ -211,7 +207,7 @@ test.group('Station Configs Controller', (group) => {
 
     const response = await client
       .post(`/api/stations/${stationId}/config`)
-      .header('X-API-Key', apiKey)
+      .withEncryptedCookie('aiolos_admin', { loggedInAt: new Date().toISOString() })
       .json(configData);
 
     response.assertStatus(200);
@@ -231,10 +227,10 @@ test.group('Station Configs Controller', (group) => {
   });
 
   /**
-   * Test: POST /api/stations/:station_id/config - Unauthorized (Missing API Key)
+   * Test: POST /api/stations/:station_id/config - Unauthorized (Missing admin session)
    * This test validates the error response structure for authentication failures
    */
-  test('should return error response structure when API key is missing', async ({
+  test('should return error response structure when admin session is missing', async ({
     client,
     assert,
   }) => {
@@ -251,7 +247,7 @@ test.group('Station Configs Controller', (group) => {
 
     // Validate exact error response structure
     const expectedResponse = {
-      error: 'Unauthorized. Valid API key is required.',
+      error: 'Unauthorized',
     };
 
     response.assertBody(expectedResponse);
@@ -270,10 +266,6 @@ test.group('Station Configs Controller', (group) => {
     assert,
   }) => {
     const stationId = 'test-station-005';
-    const apiKey = process.env.ADMIN_API_KEY || 'test-api-key';
-
-    // Set the API key for this test
-    process.env.ADMIN_API_KEY = apiKey;
 
     const configData = {
       tempInterval: 'invalid-number', // Invalid data type
@@ -282,7 +274,7 @@ test.group('Station Configs Controller', (group) => {
 
     const response = await client
       .post(`/api/stations/${stationId}/config`)
-      .header('X-API-Key', apiKey)
+      .withEncryptedCookie('aiolos_admin', { loggedInAt: new Date().toISOString() })
       .json(configData);
 
     response.assertStatus(400);
@@ -450,8 +442,6 @@ test.group('Station Configs Controller', (group) => {
     assert,
   }) => {
     const stationId = 'test-station-sched';
-    const apiKey = process.env.ADMIN_API_KEY || 'test-api-key';
-    process.env.ADMIN_API_KEY = apiKey;
 
     await prisma.weatherStation.create({
       data: {
@@ -465,7 +455,7 @@ test.group('Station Configs Controller', (group) => {
 
     const storeResponse = await client
       .post(`/api/stations/${stationId}/config`)
-      .header('X-API-Key', apiKey)
+      .withEncryptedCookie('aiolos_admin', { loggedInAt: new Date().toISOString() })
       .json({
         utcOffsetMinutes: 180,
         livestreamStartHour: 11,

@@ -9,7 +9,7 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { IconWind } from '@tabler/icons-react';
-import { Github, Home } from 'lucide-react';
+import { Github, Home, Settings } from 'lucide-react';
 import * as React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -31,6 +31,11 @@ const data = {
       title: 'Live Wind Dashboard',
       url: '/dashboard',
       icon: IconWind,
+    },
+    {
+      title: 'Admin',
+      url: '/admin',
+      icon: Settings,
     },
   ],
 };

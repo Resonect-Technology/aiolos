@@ -148,7 +148,7 @@ jobs:
             NODE_ENV=$(get_ssm /aiolos/prod/config/node-env)
             DATABASE_URL=$(get_ssm /aiolos/prod/config/database-url)
             APP_KEY=$(get_ssm /aiolos/prod/backend/app-key)
-            ADMIN_API_KEY=$(get_ssm /aiolos/prod/backend/admin-api-key)
+            ADMIN_PASSWORD=$(get_ssm /aiolos/prod/backend/admin-password)
             ENVEOF
             cat > /opt/aiolos/.env.traefik <<ENVEOF
             CF_DNS_API_TOKEN=$(get_ssm /aiolos/prod/traefik/cf-dns-api-token)

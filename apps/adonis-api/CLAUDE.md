@@ -12,8 +12,10 @@ AdonisJS 7 API. Prisma 7 on SQLite (better-sqlite3 driver adapter), no Lucid.
 - Migrations history starts at `0_init` (baseline that adopts pre-Prisma Lucid
   databases via `prisma migrate resolve` — see `entrypoint.sh` and
   `bin/check_baseline.ts`).
-- Auth is a plain `X-API-Key` header check against `ADMIN_API_KEY`
-  (station/system config writes). There is no user auth.
+- Admin auth: password login (`POST /api/admin/session`, checks
+  `ADMIN_PASSWORD`) sets an encrypted `aiolos_admin` cookie; the `adminAuth`
+  middleware guards station/system config writes. Station ingest routes use
+  `stationAuth` (`X-API-Key` vs `STATION_API_KEY`). No users table.
 - SSE via `@adonisjs/transmit` (`start/transmit.ts` authorizes channels; clients
   subscribe on `/__transmit`).
 - Wind aggregation: in-memory 1-minute buckets (`wind_aggregation_service`)

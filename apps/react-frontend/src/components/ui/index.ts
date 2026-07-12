@@ -1,5 +1,6 @@
 // UI components (shadcn/ui)
 export * from './alert';
+export * from './alert-dialog';
 export * from './avatar';
 export * from './badge';
 export * from './breadcrumb';
@@ -18,6 +19,7 @@ export * from './sheet';
 export * from './sidebar';
 export * from './skeleton';
 export * from './sonner';
+export * from './switch';
 export * from './table';
 export * from './tabs';
 export * from './toggle-group';

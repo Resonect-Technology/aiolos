@@ -75,6 +75,7 @@ model StationDiagnostic {
 
   station WeatherStation @relation(fields: [stationId], references: [stationId], onDelete: Cascade)
 
+  @@index([stationId, createdAt])
   @@map("station_diagnostics")
 }
 

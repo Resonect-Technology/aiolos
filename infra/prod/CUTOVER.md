@@ -14,7 +14,7 @@ plain HTTP on :80.
      `docker compose -f ~/aiolos/docker-compose.prod.yml stop backend`
    - `cp ~/aiolos/data/db.sqlite3 ~/db-backup-$(date +%F).sqlite3`
    - restart backend, copy the backup AND `~/aiolos/.env` to your machine (the
-     `.env` holds APP_KEY / ADMIN_API_KEY values for SSM)
+     `.env` holds APP_KEY / ADMIN_PASSWORD values for SSM)
 
 ## Phase 1 — state to S3 (from infra/prod/)
 
@@ -32,7 +32,8 @@ plain HTTP on :80.
 6. `terraform apply` (dns.tf still commented) → new instance, EIP, IAM, OIDC
    role, SSM params (placeholders), deploy-config bucket
 7. Populate SSM values (`aws ssm put-parameter --overwrite ...`):
-   - `/aiolos/prod/backend/app-key` + `admin-api-key` ← old box `.env`
+   - `/aiolos/prod/backend/app-key` ← old box `.env`; `admin-password` ← pick a
+     fresh admin login password (the old `.env` only has the retired API key)
    - `/aiolos/infrastructure/cloudflare-resonect-api-token` +
      `/aiolos/prod/traefik/cf-dns-api-token` ← Cloudflare token with DNS edit on
      resonect.cz (mint a dedicated one)

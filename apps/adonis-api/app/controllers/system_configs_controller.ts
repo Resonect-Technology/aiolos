@@ -55,19 +55,11 @@ export default class SystemConfigsController {
 
   /**
    * Store/update a system configuration
-   * This endpoint requires API key authentication
+   * Guarded by the adminAuth middleware (admin session cookie)
    */
   async set({ params, request, response }: HttpContext) {
     const key = params.key;
     const { value } = request.body();
-
-    // Check for API key authentication
-    const apiKey = request.header('X-API-Key');
-    const expectedApiKey = process.env.ADMIN_API_KEY;
-
-    if (!apiKey || apiKey !== expectedApiKey) {
-      return response.status(401).json({ error: 'Unauthorized. Valid API key is required.' });
-    }
 
     try {
       // Validate input

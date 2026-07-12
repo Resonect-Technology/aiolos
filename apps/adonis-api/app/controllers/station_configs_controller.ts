@@ -47,19 +47,11 @@ export default class StationConfigsController {
 
   /**
    * Store/update configuration for a station
-   * This endpoint requires API key authentication
+   * Guarded by the adminAuth middleware (admin session cookie)
    */
   async store({ params, request, response }: HttpContext) {
     const stationId = params.station_id;
     const data = request.body();
-
-    // Check for API key authentication
-    const apiKey = request.header('X-API-Key');
-    const expectedApiKey = process.env.ADMIN_API_KEY;
-
-    if (!apiKey || apiKey !== expectedApiKey) {
-      return response.status(401).json({ error: 'Unauthorized. Valid API key is required.' });
-    }
 
     try {
       // Validate data types if values are provided

@@ -19,6 +19,7 @@ const StationLiveController = () => import('#app/controllers/station_live_contro
 const StationDiagnosticsController = () =>
   import('#app/controllers/station_diagnostics_controller');
 const StationConfigsController = () => import('#app/controllers/station_configs_controller');
+const AdminSessionsController = () => import('#app/controllers/admin_sessions_controller');
 const SystemConfigsController = () => import('#app/controllers/system_configs_controller');
 const StationTemperatureController = () =>
   import('#app/controllers/station_temperature_controller');
@@ -66,13 +67,28 @@ router
 router
   .group(() => {
     /**
+     * Admin session routes (password login -> encrypted cookie)
+     */
+    router
+      .group(() => {
+        router.post('/session', [AdminSessionsController, 'store']).as('session.store');
+        router.get('/session', [AdminSessionsController, 'show']).as('session.show');
+        router.delete('/session', [AdminSessionsController, 'destroy']).as('session.destroy');
+      })
+      .prefix('/admin')
+      .as('admin');
+
+    /**
      * System-wide configuration routes
      */
     router
       .group(() => {
         router.get('/', [SystemConfigsController, 'index']).as('index');
         router.get('/:key', [SystemConfigsController, 'get']).as('get');
-        router.post('/:key', [SystemConfigsController, 'set']).as('set');
+        router
+          .post('/:key', [SystemConfigsController, 'set'])
+          .as('set')
+          .use(middleware.adminAuth());
       })
       .prefix('/system/config')
       .as('system.config');
@@ -135,10 +151,16 @@ router
           .as('diagnostics.store')
           .use(middleware.stationAuth());
         router.get('/diagnostics', [StationDiagnosticsController, 'show']).as('diagnostics.show');
+        router
+          .get('/diagnostics/history', [StationDiagnosticsController, 'history'])
+          .as('diagnostics.history');
 
         // Station configuration endpoints (includes all config and flags)
         router.get('/config', [StationConfigsController, 'show']).as('config.show');
-        router.post('/config', [StationConfigsController, 'store']).as('config.store');
+        router
+          .post('/config', [StationConfigsController, 'store'])
+          .as('config.store')
+          .use(middleware.adminAuth());
 
         // OTA confirmation endpoint - firmware calls this to confirm OTA mode started
         router

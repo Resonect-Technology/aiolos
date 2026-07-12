@@ -61,9 +61,9 @@ resource "aws_ssm_parameter" "backend_app_key" {
   }
 }
 
-resource "aws_ssm_parameter" "backend_admin_api_key" {
-  name        = "/aiolos/prod/backend/admin-api-key"
-  description = "X-API-Key value for the config write endpoints"
+resource "aws_ssm_parameter" "backend_admin_password" {
+  name        = "/aiolos/prod/backend/admin-password"
+  description = "Admin login password for the dashboard /admin section"
   type        = "SecureString"
   value       = "PLACEHOLDER"
 

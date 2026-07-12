@@ -20,7 +20,7 @@ Set up the Aiolos development environment:
    ```
 
 3. **Backend env** - copy `apps/adonis-api/.env.example` to
-   `apps/adonis-api/.env` and set `APP_KEY` (32+ chars) and `ADMIN_API_KEY`.
+   `apps/adonis-api/.env` and set `APP_KEY` (32+ chars) and `ADMIN_PASSWORD`.
 
 4. **Database** - migrations + idempotent seeds:
 

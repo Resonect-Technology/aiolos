@@ -30,7 +30,6 @@ Data flow: ESP32 station → cellular **plain HTTP** POST → `aiolos.resonect.c
 | ---------------------------- | ---------------------------------------------------------------------------------------------- |
 | `apps/adonis-api`            | AdonisJS 7 REST API + SSE. Prisma 7 on SQLite (better-sqlite3 driver adapter). Japa tests.     |
 | `apps/react-frontend`        | React 19 + Vite 8 + Tailwind 4 (shadcn) dashboard. Talks to the API same-origin (`/api`, SSE). |
-| `apps/bruno-api-control`     | Bruno API-client collection (open with the Bruno app). **Not** a pnpm workspace member.        |
 | `packages/typescript-config` | Shared tsconfig presets (`@repo/typescript-config`).                                           |
 | `firmware/`                  | ESP32 firmware — **PlatformIO + Arduino framework** (root `platformio.ini`). NOT ESP-IDF.      |
 | `hardware/`                  | 3D-printable mount (`support_stand.3mf`).                                                      |
