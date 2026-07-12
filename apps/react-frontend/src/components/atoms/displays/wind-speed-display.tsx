@@ -3,7 +3,9 @@ import { Badge } from '@/components/ui/badge';
 import { Info } from 'lucide-react';
 import { Wind } from 'lucide-react';
 import { useMemo } from 'react';
-import GaugeComponent from 'react-gauge-component';
+// Named import: the package's `module` field points at a CJS file, so the
+// default import resolves to the module object under Vite/Rolldown.
+import { GaugeComponent } from 'react-gauge-component';
 
 import { formatLastUpdated } from '../../../lib/time-utils';
 import {
