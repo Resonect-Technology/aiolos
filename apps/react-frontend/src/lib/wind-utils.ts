@@ -55,23 +55,6 @@ export const WIND_DIRECTIONS: WindDirectionAngle[] = [
   'NNW',
 ];
 
-// Beaufort scale descriptions
-export const BEAUFORT_DESCRIPTIONS = [
-  { force: 0, description: 'Calm', minSpeed: 0, maxSpeed: 0.3 },
-  { force: 1, description: 'Light air', minSpeed: 0.3, maxSpeed: 1.6 },
-  { force: 2, description: 'Light breeze', minSpeed: 1.6, maxSpeed: 3.4 },
-  { force: 3, description: 'Gentle breeze', minSpeed: 3.4, maxSpeed: 5.5 },
-  { force: 4, description: 'Moderate breeze', minSpeed: 5.5, maxSpeed: 8.0 },
-  { force: 5, description: 'Fresh breeze', minSpeed: 8.0, maxSpeed: 10.8 },
-  { force: 6, description: 'Strong breeze', minSpeed: 10.8, maxSpeed: 13.9 },
-  { force: 7, description: 'High wind, near gale', minSpeed: 13.9, maxSpeed: 17.2 },
-  { force: 8, description: 'Gale', minSpeed: 17.2, maxSpeed: 20.8 },
-  { force: 9, description: 'Strong gale', minSpeed: 20.8, maxSpeed: 24.5 },
-  { force: 10, description: 'Storm', minSpeed: 24.5, maxSpeed: 28.5 },
-  { force: 11, description: 'Violent storm', minSpeed: 28.5, maxSpeed: 32.7 },
-  { force: 12, description: 'Hurricane', minSpeed: 32.7, maxSpeed: Infinity },
-];
-
 // Wind speed ranges for the wind rose chart
 export const WIND_SPEED_RANGES = [
   { min: 0, max: 1, description: 'Calm' },
@@ -124,7 +107,7 @@ export const convertWindSpeed = (speed: number, unit: string): number => {
     case 'knots':
       return speed * 1.94384;
     case 'beaufort':
-      if (speed < 0.3) return 0;
+      if (speed < 0.5) return 0;
       if (speed < 1.6) return 1;
       if (speed < 3.4) return 2;
       if (speed < 5.5) return 3;
@@ -150,28 +133,24 @@ export const convertWindSpeed = (speed: number, unit: string): number => {
 export const getWindSpeedRangeDisplay = (unit: string) => {
   const unitLabel = WIND_UNIT_LABELS[unit] || 'm/s';
 
-  // For Beaufort scale, we'll use the descriptions instead of numerical ranges
-  if (unit === 'beaufort') {
-    return {
-      unitLabel,
-      ranges: [
-        { range: '0-1', description: 'Calm' },
-        { range: '1-3', description: 'Light air' },
-        { range: '3-5', description: 'Light breeze' },
-        { range: '5-8', description: 'Gentle breeze' },
-        { range: '8-11', description: 'Moderate breeze' },
-        { range: '11-14', description: 'Fresh breeze' },
-        { range: '14-17', description: 'Strong breeze' },
-        { range: '17-20', description: 'Near gale' },
-        { range: '20+', description: 'Gale or stronger' },
-      ],
-    };
-  }
-
-  // For other units, we'll convert the numerical ranges
   return {
     unitLabel,
     ranges: WIND_SPEED_RANGES.map((range) => {
+      if (unit === 'beaufort') {
+        // Beaufort is a 0-12 step scale, not a linear conversion. The bin's
+        // upper bound is exclusive, so convert just below it (a 5-8 m/s bin
+        // spans forces 3-4, not 3-5).
+        const minForce = convertWindSpeed(range.min, unit);
+        if (range.max === Infinity) {
+          return { range: `${minForce}+`, description: range.description };
+        }
+        const maxForce = convertWindSpeed(range.max - 0.01, unit);
+        return {
+          range: minForce === maxForce ? `${minForce}` : `${minForce}-${maxForce}`,
+          description: range.description,
+        };
+      }
+
       const minValue = Math.round(convertWindSpeed(range.min, unit));
       const maxValue = range.max === Infinity ? '+' : Math.round(convertWindSpeed(range.max, unit));
 

@@ -106,6 +106,7 @@ export function WindRoseChart({ windHistory, selectedUnit }: WindRoseChartProps)
                         <span className="text-foreground text-sm font-medium">
                           {range.range} {unitDisplay.unitLabel}
                         </span>
+                        <span className="text-muted-foreground text-sm">· {range.description}</span>
                       </div>
                     );
                   })}
