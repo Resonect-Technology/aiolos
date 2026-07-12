@@ -22,7 +22,7 @@ Data flow: ESP32 station → cellular **plain HTTP** POST → `aiolos.resonect.c
 - **State assumptions.** If multiple interpretations exist, present them.
 - **Verify before done.** Run the commands in Testing below; report real
   results, never claim untested things work.
-- **Production is one push away** — see `.claude/rules/production-safety.md`.
+- **Production is one release away** — see `.claude/rules/production-safety.md`.
 
 ## Repository Structure
 
