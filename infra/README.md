@@ -44,10 +44,11 @@ Load-bearing constraints:
 
 - Shell: `aws ssm start-session --target <instance-id>` (profile
   `resonect-prod`). There is no SSH ingress.
-- Deploys: push to `main` (or `workflow_dispatch`) → build images to ECR → SSM
-  Run Command pulls configs from `s3://aiolos-prod-deploy-config`, renders
-  `.env.prod`/`.env.traefik` from SSM parameters (`/aiolos/prod/...`), and runs
-  `docker compose up -d --wait`.
+- Deploys: publish a GitHub Release with a `v*` tag —
+  `gh release create vX.Y.Z --generate-notes` — (or `workflow_dispatch` as an
+  escape hatch) → build images to ECR → SSM Run Command pulls configs from
+  `s3://aiolos-prod-deploy-config`, renders `.env.prod`/`.env.traefik` from SSM
+  parameters (`/aiolos/prod/...`), and runs `docker compose up -d --wait`.
 - Secrets: SSM Parameter Store is the source of truth
   (`aws ssm put-parameter --overwrite ...`); Terraform tracks the parameters but
   ignores their values.

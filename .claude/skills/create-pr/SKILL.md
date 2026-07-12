@@ -41,6 +41,7 @@ Create a pull request with `gh`. Follow these steps:
 **Rules:**
 
 - PR titles follow Conventional Commits (they become the squash commit header)
-- **Merging to main deploys production** — say so in the PR body when the change
+- Merging to main does NOT deploy — production ships when the user publishes a
+  GitHub Release (`v*` tag). Still call out in the PR body when the change
   affects the running service, the device API contract, or the DB
 - Use "Squash and merge"

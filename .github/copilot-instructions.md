@@ -5,7 +5,8 @@
 
 The five most load-bearing facts:
 
-1. **Merging to `main` deploys production immediately.** Never push to main.
+1. **Publishing a GitHub Release (`v*` tag) deploys production.** Never push to
+   main directly, and never create releases — only the user releases.
 2. Deployed ESP32 stations POST **plain HTTP** to fixed API routes at
    `aiolos.resonect.cz:80` — never rename these routes, change response shapes,
    or add HTTP→HTTPS redirects on API paths.

@@ -1,9 +1,12 @@
 name: Deploy Aiolos
 
+# Deploys production when a GitHub Release (v* tag) is published — NOT on
+# merges to main. Uses the `release` event (not `push: tags`) because
+# [skip ci] in the release commit message suppresses tag-push events.
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+  release:
+    types: [published]
+  workflow_dispatch: # Emergency redeploy escape hatch
 
 concurrency:
   group: deploy-prod
@@ -22,6 +25,7 @@ permissions:
 jobs:
   build-backend:
     name: Build & push backend image
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'v')
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v6
@@ -47,11 +51,13 @@ jobs:
           tags: |
             ${{ env.ECR_REGISTRY }}/aiolos-backend:latest
             ${{ env.ECR_REGISTRY }}/aiolos-backend:${{ github.sha }}
+            ${{ github.event.release.tag_name && format('{0}/aiolos-backend:{1}', env.ECR_REGISTRY, github.event.release.tag_name) || '' }}
           cache-from: type=gha,scope=backend
           cache-to: type=gha,scope=backend,mode=max
 
   build-frontend:
     name: Build & push frontend image
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'v')
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v6
@@ -77,6 +83,7 @@ jobs:
           tags: |
             ${{ env.ECR_REGISTRY }}/aiolos-frontend:latest
             ${{ env.ECR_REGISTRY }}/aiolos-frontend:${{ github.sha }}
+            ${{ github.event.release.tag_name && format('{0}/aiolos-frontend:{1}', env.ECR_REGISTRY, github.event.release.tag_name) || '' }}
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,scope=frontend,mode=max
 
@@ -109,7 +116,7 @@ jobs:
         with:
           instance-id: ${{ env.INFRASTRUCTURE_EC2_INSTANCE_ID }}
           s3-bucket: ${{ env.DEPLOY_CONFIG_BUCKET }}
-          comment: "Aiolos production deploy ${{ github.sha }}"
+          comment: "Aiolos production deploy ${{ github.event.release.tag_name || github.sha }}"
           timeout-seconds: "900"
           commands: |
             set -e

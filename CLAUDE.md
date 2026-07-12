@@ -70,10 +70,12 @@ The same commands are wrapped in the root `Taskfile.yml` (`task --list`) for
 
 ## Deployment
 
-**Merging to `main` deploys production immediately** (`deploy.yml`: OIDC → ECR →
-SSM Run Command → docker compose on the EC2 box). Secrets live in AWS SSM under
-`/aiolos/prod/...`; nothing secret is in the repo. Details and the box topology:
-`infra/README.md`.
+**Publishing a GitHub Release deploys production** (`deploy.yml` on
+`release: published` with a `v*` tag: OIDC → ECR → SSM Run Command → docker
+compose on the EC2 box). Merging to `main` does NOT deploy. The user releases
+with `gh release create vX.Y.Z --generate-notes` — never create releases
+yourself. Secrets live in AWS SSM under `/aiolos/prod/...`; nothing secret is in
+the repo. Details and the box topology: `infra/README.md`.
 
 ## Rules
 

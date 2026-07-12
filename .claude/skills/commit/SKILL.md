@@ -37,8 +37,7 @@ Create a git commit following project conventions. Follow these steps:
 
 **Rules:**
 
-- NEVER push to remote - let the user push manually (a push to main deploys
-  production)
+- NEVER push to remote - let the user push manually
 - NEVER amend previous commits unless explicitly asked
 - If the pre-commit hook fails, fix the issue and create a NEW commit
 - NEVER use `--no-verify` unless the user explicitly requests it

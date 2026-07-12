@@ -1,7 +1,9 @@
 # Production Safety Rules
 
-- **Merging to `main` deploys production immediately.** There is no staging —
-  the PR checks are the last gate.
+- **Publishing a GitHub Release (`v*` tag) deploys production.** There is no
+  staging — the PR checks are the last automated gate before a release. NEVER
+  create or publish releases; only the user releases
+  (`gh release create vX.Y.Z --generate-notes`).
 - Production is a single EC2 box; the SQLite file at `/opt/aiolos/data` is the
   only live data. Never suggest operations that recreate or wipe it.
 - **Deployed ESP32 stations are the API's contract.** They POST plain HTTP to

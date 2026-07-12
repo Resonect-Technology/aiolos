@@ -2,16 +2,18 @@
 
 **CRITICAL - Branch Protection:**
 
-- **NEVER push directly to `main`** — a push to main deploys production
-  immediately (deploy.yml)
+- **NEVER push directly to `main`** — main must only move via reviewed PRs; it
+  is what production releases are cut from
 - **ALWAYS work on feature/fix branches** and merge via Pull Request
 - Branch naming: `feat/description`, `fix/description`, `chore/description`
 
-**CRITICAL - Push Restrictions:**
+**CRITICAL - Push & Release Restrictions:**
 
 - **NEVER push to remote repositories** — only commit locally
 - **ALWAYS let the user push manually** — the user controls when changes go to
-  remote (and therefore when production deploys)
+  remote
+- **NEVER create or publish a GitHub Release** — publishing a release (`v*` tag)
+  deploys production (deploy.yml); only the user releases
 
 **Commit Conventions:**
 
