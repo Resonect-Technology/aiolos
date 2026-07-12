@@ -168,3 +168,11 @@
 #else
 #define SERVER_PORT (uint16_t)80
 #endif
+
+// Station API key sent as X-API-Key on every request (must match the
+// server's STATION_API_KEY env; server ignores it while that env is unset)
+#ifdef CONFIG_STATION_API_KEY
+#define STATION_API_KEY CONFIG_STATION_API_KEY
+#else
+#error "CONFIG_STATION_API_KEY is not defined - set STATION_API_KEY in firmware/secrets.ini"
+#endif

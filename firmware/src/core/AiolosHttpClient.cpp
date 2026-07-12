@@ -165,16 +165,32 @@ int AiolosHttpClient::_performRequest(const char *method, const char *path, cons
 
     Logger.debug(LOG_TAG_HTTP, "Sending %s request to %s", method, path);
 
+    // Build the request manually so we can attach the X-API-Key header
+    // (the library's convenience post()/get() cannot add headers)
+    _arduinoClient->beginRequest();
     int err = 0;
     if (strcmp(method, "POST") == 0)
     {
         const char *requestBody = (body != nullptr) ? body : "";
-        err = _arduinoClient->post(path, "application/json", requestBody);
+        err = _arduinoClient->post(path);
+        if (err == 0)
+        {
+            _arduinoClient->sendHeader("Content-Type", "application/json");
+            _arduinoClient->sendHeader("Content-Length", strlen(requestBody));
+            _arduinoClient->sendHeader("X-API-Key", STATION_API_KEY);
+            _arduinoClient->beginBody();
+            _arduinoClient->print(requestBody);
+        }
     }
     else
     {
         err = _arduinoClient->get(path);
+        if (err == 0)
+        {
+            _arduinoClient->sendHeader("X-API-Key", STATION_API_KEY);
+        }
     }
+    _arduinoClient->endRequest();
 
     if (err != 0)
     {
@@ -273,8 +289,19 @@ int AiolosHttpClient::_performLightweightPost(const char *path, const char *body
 
     Logger.debug(LOG_TAG_HTTP, "Sending lightweight POST request to %s", path);
 
+    // Build the request manually so we can attach the X-API-Key header
     const char *requestBody = (body != nullptr) ? body : "";
-    int err = _arduinoClient->post(path, "application/json", requestBody);
+    _arduinoClient->beginRequest();
+    int err = _arduinoClient->post(path);
+    if (err == 0)
+    {
+        _arduinoClient->sendHeader("Content-Type", "application/json");
+        _arduinoClient->sendHeader("Content-Length", strlen(requestBody));
+        _arduinoClient->sendHeader("X-API-Key", STATION_API_KEY);
+        _arduinoClient->beginBody();
+        _arduinoClient->print(requestBody);
+    }
+    _arduinoClient->endRequest();
 
     if (err != 0)
     {

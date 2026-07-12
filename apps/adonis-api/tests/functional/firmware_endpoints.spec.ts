@@ -695,3 +695,101 @@ test.group('Firmware Critical Endpoints', (group) => {
     assert.equal(body.message, 'OTA confirmation received');
   });
 });
+
+/**
+ * Station Auth Tests (X-API-Key on station ingest routes)
+ *
+ * When STATION_API_KEY is set, the station POST routes (wind, temperature,
+ * diagnostics, ota-confirm) require a matching X-API-Key header. When it is
+ * unset the routes stay open. GET /config is always open.
+ */
+test.group('Station Auth', (group) => {
+  const testStationId = 'test-station-auth';
+  const originalStationApiKey = process.env.STATION_API_KEY;
+
+  group.each.setup(async () => {
+    await prisma.temperatureReading.deleteMany();
+    await prisma.stationDiagnostic.deleteMany();
+    await prisma.stationConfig.deleteMany();
+    await prisma.weatherStation.deleteMany();
+
+    await prisma.weatherStation.create({
+      data: {
+        stationId: testStationId,
+        name: 'Test Station Auth',
+        location: 'Test Environment',
+        description: 'Test station for auth tests',
+        isActive: true,
+      },
+    });
+  });
+
+  group.each.teardown(async () => {
+    // Restore the env so other test groups are unaffected
+    if (originalStationApiKey === undefined) {
+      delete process.env.STATION_API_KEY;
+    } else {
+      process.env.STATION_API_KEY = originalStationApiKey;
+    }
+
+    await prisma.temperatureReading.deleteMany();
+    await prisma.stationDiagnostic.deleteMany();
+    await prisma.stationConfig.deleteMany();
+    await prisma.weatherStation.deleteMany();
+  });
+
+  const windData = { windSpeed: 5.5, windDirection: 180 };
+
+  test('should reject station POST without key when STATION_API_KEY is set', async ({ client }) => {
+    process.env.STATION_API_KEY = 'station-secret';
+
+    const response = await client.post(`/api/stations/${testStationId}/wind`).json(windData);
+
+    response.assertStatus(401);
+    response.assertBodyContains({ error: 'Invalid or missing API key' });
+  });
+
+  test('should reject station POST with wrong key when STATION_API_KEY is set', async ({
+    client,
+  }) => {
+    process.env.STATION_API_KEY = 'station-secret';
+
+    const response = await client
+      .post(`/api/stations/${testStationId}/diagnostics`)
+      .header('X-API-Key', 'wrong-key')
+      .json({ batteryVoltage: 3.7, solarVoltage: 5.0, signalQuality: 20, uptime: 100 });
+
+    response.assertStatus(401);
+  });
+
+  test('should accept station POST with correct key when STATION_API_KEY is set', async ({
+    client,
+  }) => {
+    process.env.STATION_API_KEY = 'station-secret';
+
+    const response = await client
+      .post(`/api/stations/${testStationId}/wind`)
+      .header('X-API-Key', 'station-secret')
+      .json(windData);
+
+    response.assertStatus(200);
+    response.assertBody({ ok: true });
+  });
+
+  test('should accept keyless station POST when STATION_API_KEY is unset', async ({ client }) => {
+    delete process.env.STATION_API_KEY;
+
+    const response = await client.post(`/api/stations/${testStationId}/wind`).json(windData);
+
+    response.assertStatus(200);
+    response.assertBody({ ok: true });
+  });
+
+  test('config fetch should stay open even when STATION_API_KEY is set', async ({ client }) => {
+    process.env.STATION_API_KEY = 'station-secret';
+
+    const response = await client.get(`/api/stations/${testStationId}/config`);
+
+    response.assertStatus(200);
+  });
+});

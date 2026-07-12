@@ -12,6 +12,7 @@ import transmit from '@adonisjs/transmit/services/main';
 import AutoSwagger from 'adonis-autoswagger';
 
 import swagger from '#config/swagger';
+import { middleware } from '#start/kernel';
 
 // Import controllers
 const StationLiveController = () => import('#app/controllers/station_live_controller');
@@ -121,7 +122,8 @@ router
         // Temperature data endpoint for firmware
         router
           .post('/temperature', [StationTemperatureController, 'store'])
-          .as('temperature.store');
+          .as('temperature.store')
+          .use(middleware.stationAuth());
         router.get('/temperature', [StationTemperatureController, 'index']).as('temperature.index');
         router
           .get('/temperature/latest', [StationTemperatureController, 'latest'])
@@ -130,7 +132,8 @@ router
         // Station diagnostics endpoints
         router
           .post('/diagnostics', [StationDiagnosticsController, 'store'])
-          .as('diagnostics.store');
+          .as('diagnostics.store')
+          .use(middleware.stationAuth());
         router.get('/diagnostics', [StationDiagnosticsController, 'show']).as('diagnostics.show');
 
         // Station configuration endpoints (includes all config and flags)
@@ -138,10 +141,16 @@ router
         router.post('/config', [StationConfigsController, 'store']).as('config.store');
 
         // OTA confirmation endpoint - firmware calls this to confirm OTA mode started
-        router.post('/ota-confirm', [StationConfigsController, 'confirmOta']).as('ota.confirm');
+        router
+          .post('/ota-confirm', [StationConfigsController, 'confirmOta'])
+          .as('ota.confirm')
+          .use(middleware.stationAuth());
 
         // Wind data endpoint for firmware (maps to same controller as live/wind)
-        router.post('/wind', [StationLiveController, 'wind']).as('wind');
+        router
+          .post('/wind', [StationLiveController, 'wind'])
+          .as('wind')
+          .use(middleware.stationAuth());
 
         // Aggregated wind data endpoints
         router
@@ -157,7 +166,10 @@ router
         router
           .group(() => {
             // Live wind data ingestion endpoint for stations
-            router.post('/wind', [StationLiveController, 'wind']).as('live_wind');
+            router
+              .post('/wind', [StationLiveController, 'wind'])
+              .as('live_wind')
+              .use(middleware.stationAuth());
 
             // Mock data routes for development
             router
