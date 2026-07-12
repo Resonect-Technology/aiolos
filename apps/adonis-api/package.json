@@ -14,7 +14,8 @@
     "seed": "node --import @poppinss/ts-exec bin/seed.ts",
     "prisma:generate": "prisma generate",
     "prebuild": "prisma generate",
-    "pretest": "prisma generate"
+    "pretest": "prisma generate",
+    "precheck-types": "prisma generate"
   },
   "imports": {
     "#app/*": "./app/*.js",

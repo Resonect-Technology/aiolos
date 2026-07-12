@@ -19,6 +19,7 @@
     },
     "test": {
       "dependsOn": ["^build"],
+      "passThroughEnv": ["NODE_ENV", "TZ", "PORT", "HOST", "LOG_LEVEL", "APP_KEY"],
       "outputs": ["coverage/**"],
       "cache": true
     },
