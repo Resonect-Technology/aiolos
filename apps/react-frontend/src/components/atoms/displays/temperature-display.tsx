@@ -1,9 +1,9 @@
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { transmit } from '@/lib/transmit';
 import { Thermometer } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 
+import { useTransmitSubscription } from '../../../hooks/use-transmit-subscription';
 import { formatLastUpdated } from '../../../lib/time-utils';
 
 interface TemperatureData {
@@ -17,78 +17,16 @@ interface TemperatureDisplayProps {
 
 export function TemperatureDisplay({ stationId }: TemperatureDisplayProps) {
   const [temperatureData, setTemperatureData] = useState<TemperatureData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const subscriptionRef = useRef<any | null>(null);
-
-  useEffect(() => {
-    // Clear any previous connection state
-    setError(null);
-    setLoading(true);
-
-    const channelName = `temperature/live/${stationId}`;
-
-    const newSubscription = transmit.subscription(channelName);
-    subscriptionRef.current = newSubscription;
-
-    newSubscription
-      .create()
-      .then(() => {
-        setLoading(false);
-        setError(null);
-        console.log(`Connected to temperature channel: ${channelName}`);
-
-        newSubscription.onMessage((data: TemperatureData) => {
-          console.log('Temperature data received:', data);
-          if (data && typeof data.temperature === 'number') {
-            setTemperatureData(data);
-          } else {
-            // Handle wrapped message format
-            const messagePayload = (data as any).data;
-            if (messagePayload && typeof messagePayload.temperature === 'number') {
-              setTemperatureData(messagePayload);
-            } else {
-              console.warn('Received temperature message in unexpected format:', data);
-            }
-          }
-        });
-      })
-      .catch((err) => {
-        console.error('Failed to connect to temperature channel:', err);
-        setError(`Failed to connect: ${err.message || 'Unknown error'}`);
-        setLoading(false);
-
-        // Fallback to API polling if SSE fails
-        fetchTemperatureFromAPI();
-      });
-
-    return () => {
-      if (subscriptionRef.current) {
-        subscriptionRef.current
-          .delete()
-          .catch((err: Error) => console.error(`Failed to unsubscribe from ${channelName}:`, err));
-        subscriptionRef.current = null;
-      }
-    };
-  }, [stationId]);
-
-  // Fallback function for API polling
+  // Fallback for when SSE fails
   const fetchTemperatureFromAPI = async () => {
     try {
-      console.log(`Fetching temperature from API for station: ${stationId}`);
-      const url = `/api/stations/${stationId}/temperature/latest`;
-      const response = await fetch(url);
-
+      const response = await fetch(`/api/stations/${stationId}/temperature/latest`);
       if (!response.ok) {
-        console.log(`API Error (${response.status}): Could not fetch temperature data`);
         return;
       }
 
       const data = await response.json();
-      console.log('Temperature data from API:', data);
-
-      // Convert API response to expected format
       if (data.temperature !== undefined) {
         setTemperatureData({
           temperature: data.temperature,
@@ -99,6 +37,28 @@ export function TemperatureDisplay({ stationId }: TemperatureDisplayProps) {
       console.error('Error fetching temperature from API:', err);
     }
   };
+
+  const { connected, error } = useTransmitSubscription<
+    TemperatureData | { data?: TemperatureData }
+  >(
+    `temperature/live/${stationId}`,
+    (message) => {
+      // Messages arrive either as the payload itself or wrapped in { data }
+      const payload =
+        message && typeof (message as TemperatureData).temperature === 'number'
+          ? (message as TemperatureData)
+          : (message as { data?: TemperatureData }).data;
+
+      if (payload && typeof payload.temperature === 'number') {
+        setTemperatureData(payload);
+      } else {
+        console.warn('Received temperature message in unexpected format:', message);
+      }
+    },
+    fetchTemperatureFromAPI,
+  );
+
+  const loading = !connected && !error;
 
   return (
     <div className="space-y-2 text-center">

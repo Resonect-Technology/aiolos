@@ -1,29 +1,39 @@
 import { useState, useEffect, useCallback } from 'react';
 
-import { transmit } from '../lib/transmit';
-import type { WindAggregatedResponse, WindAggregated1Min } from '../types/wind-aggregated';
+import type {
+  WindAggregatedResponse,
+  WindAggregated1Min,
+  WindAggregated10Min,
+} from '../types/wind-aggregated';
+import { useTransmitSubscription } from './use-transmit-subscription';
+
+type WindAggregateInterval = '1min' | '10min';
 
 interface UseWindAggregatedDataProps {
   stationId: string;
   date?: string;
-  interval?: string;
+  interval?: WindAggregateInterval;
   limit?: number;
 }
 
-interface UseWindAggregatedDataReturn {
-  data: WindAggregated1Min[];
+interface UseWindAggregatedDataReturn<T> {
+  data: T[];
   loading: boolean;
   error: string | null;
   refetch: () => void;
 }
 
-export function useWindAggregatedData({
+/**
+ * Fetch aggregated wind data (1-minute or 10-minute intervals). Data comes in
+ * m/s from the backend; unit conversion happens in the components.
+ */
+export function useWindAggregatedData<T extends WindAggregated1Min | WindAggregated10Min>({
   stationId,
   date,
   interval = '1min',
   limit = 10,
-}: UseWindAggregatedDataProps): UseWindAggregatedDataReturn {
-  const [data, setData] = useState<WindAggregated1Min[]>([]);
+}: UseWindAggregatedDataProps): UseWindAggregatedDataReturn<T> {
+  const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,24 +48,21 @@ export function useWindAggregatedData({
         ...(date && { date }),
       });
 
-      // Always use the base endpoint - data comes in m/s and conversion happens in frontend
-      const endpoint = `/api/stations/${stationId}/wind/aggregated?${queryParams}`;
-
-      const response = await fetch(endpoint);
+      const response = await fetch(`/api/stations/${stationId}/wind/aggregated?${queryParams}`);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const result: WindAggregatedResponse = await response.json();
-      setData(result.data as WindAggregated1Min[]);
+      setData(result.data as T[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch aggregated wind data');
       setData([]);
     } finally {
       setLoading(false);
     }
-  }, [stationId, date, interval, limit]); // Removed 'unit' from dependencies since we don't use it for API calls anymore
+  }, [stationId, date, interval, limit]);
 
   useEffect(() => {
     fetchData();
@@ -64,50 +71,28 @@ export function useWindAggregatedData({
   return { data, loading, error, refetch: fetchData };
 }
 
-interface UseWindAggregatedSSEProps {
+interface UseWindAggregatedSSEProps<T> {
   stationId: string;
-  onNewAggregate: (data: WindAggregated1Min) => void;
+  interval?: WindAggregateInterval;
+  onNewAggregate: (data: T) => void;
 }
 
-export function useWindAggregatedSSE({ stationId, onNewAggregate }: UseWindAggregatedSSEProps) {
-  const [connected, setConnected] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const channelName = `wind/aggregated/1min/${stationId}`;
-    const subscription = transmit.subscription(channelName);
-
-    subscription
-      .create()
-      .then(() => {
-        setConnected(true);
-        setError(null);
-
-        subscription.onMessage((data: any) => {
-          if (data && data.stationId === stationId) {
-            onNewAggregate({
-              timestamp: data.timestamp,
-              avgSpeed: data.avgSpeed,
-              minSpeed: data.minSpeed,
-              maxSpeed: data.maxSpeed,
-              gustSpeed: data.gustSpeed ?? null,
-              dominantDirection: data.dominantDirection,
-              sampleCount: data.sampleCount,
-            });
-          }
-        });
-      })
-      .catch((err) => {
-        setError(`Failed to connect to aggregated data stream: ${err.message}`);
-        setConnected(false);
-      });
-
-    return () => {
-      subscription
-        .delete()
-        .catch((err: Error) => console.error(`Failed to unsubscribe from ${channelName}:`, err));
-    };
-  }, [stationId, onNewAggregate]);
-
-  return { connected, error };
+/**
+ * Live updates for aggregated wind data. The broadcast payload carries the
+ * aggregate fields plus stationId; gustSpeed is normalized to null when the
+ * backend omits it.
+ */
+export function useWindAggregatedSSE<T extends WindAggregated1Min | WindAggregated10Min>({
+  stationId,
+  interval = '1min',
+  onNewAggregate,
+}: UseWindAggregatedSSEProps<T>) {
+  return useTransmitSubscription<T & { stationId?: string }>(
+    `wind/aggregated/${interval}/${stationId}`,
+    (data) => {
+      if (data && data.stationId === stationId) {
+        onNewAggregate({ ...data, gustSpeed: data.gustSpeed ?? null });
+      }
+    },
+  );
 }

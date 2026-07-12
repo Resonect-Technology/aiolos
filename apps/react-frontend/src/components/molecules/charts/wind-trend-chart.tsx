@@ -44,7 +44,7 @@ function formatTime(timestamp: string): string {
 export function WindTrendChart({ stationId, selectedUnit }: WindTrendChartProps) {
   const [points, setPoints] = useState<WindAggregated1Min[]>([]);
 
-  const { data, loading } = useWindAggregatedData({
+  const { data, loading } = useWindAggregatedData<WindAggregated1Min>({
     stationId,
     interval: '1min',
     limit: MAX_POINTS,
@@ -68,7 +68,11 @@ export function WindTrendChart({ stationId, selectedUnit }: WindTrendChartProps)
     });
   }, []);
 
-  useWindAggregatedSSE({ stationId, onNewAggregate: handleNewAggregate });
+  useWindAggregatedSSE<WindAggregated1Min>({
+    stationId,
+    interval: '1min',
+    onNewAggregate: handleNewAggregate,
+  });
 
   const unitLabel = WIND_UNIT_LABELS[selectedUnit] || 'm/s';
 

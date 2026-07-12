@@ -135,6 +135,22 @@ export const convertWindSpeed = (speed: number, unit: string): number => {
 };
 
 /**
+ * Format a wind direction as degrees plus cardinal, e.g. "272° W"
+ */
+export const formatWindDirection = (degrees: number): string => {
+  return `${degrees}° ${WIND_DIRECTIONS[Math.round(degrees / 22.5) % 16] ?? 'N'}`;
+};
+
+/**
+ * Format a wind speed (m/s) in the selected unit: Beaufort rounds to a whole
+ * force, everything else shows one decimal
+ */
+export const formatWindSpeed = (speed: number, unit: string): string => {
+  const converted = convertWindSpeed(speed, unit);
+  return unit === 'beaufort' ? String(Math.round(converted)) : converted.toFixed(1);
+};
+
+/**
  * Get wind speed range display information based on the selected unit
  * @param unit The selected wind speed unit
  * @returns Array of range display information with proper unit conversions

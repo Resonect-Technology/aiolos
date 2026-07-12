@@ -1,28 +1,9 @@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { useNow } from '@/hooks/use-now';
-import { getStationHour, isInSleepWindow, staleThresholdMs } from '@/lib/time-utils';
+import { useStationMode } from '@/hooks/use-station-mode';
 import type { WindData } from '@/types/wind';
 import { AlertTriangle, Eye, Moon, WifiOff } from 'lucide-react';
-import { memo, useState, useEffect } from 'react';
-
-interface StationConfig {
-  stationId: string;
-  sleepStartHour: number | null;
-  sleepEndHour: number | null;
-  tempInterval: number | null;
-  windSendInterval: number | null;
-  windSampleInterval: number | null;
-  diagInterval: number | null;
-  timeInterval: number | null;
-  restartInterval: number | null;
-  otaHour: number | null;
-  otaMinute: number | null;
-  otaDuration: number | null;
-  remoteOta: boolean;
-  utcOffsetMinutes?: number | null;
-  message?: string;
-}
+import { memo } from 'react';
 
 interface ConnectionStatusProps {
   error: string | null;
@@ -30,63 +11,12 @@ interface ConnectionStatusProps {
   lastWindData: WindData | null;
 }
 
-type StationMode = 'live' | 'sleeping' | 'offline' | 'unknown';
-
 export const ConnectionStatus = memo(function ConnectionStatus({
   error,
   stationId,
   lastWindData,
 }: ConnectionStatusProps) {
-  const [stationConfig, setStationConfig] = useState<StationConfig | null>(null);
-  const now = useNow(30_000);
-
-  // Fetch station config
-  useEffect(() => {
-    const fetchStationConfig = async () => {
-      try {
-        const response = await fetch(`/api/stations/${stationId}/config`);
-        if (response.ok) {
-          const config: StationConfig = await response.json();
-          setStationConfig(config);
-        } else {
-          console.warn('Failed to fetch station config:', response.statusText);
-        }
-      } catch (error) {
-        console.error('Error fetching station config:', error);
-      }
-    };
-
-    fetchStationConfig();
-  }, [stationId]);
-
-  // Status is driven by DATA freshness first; the sleep schedule only
-  // explains the silence. A green "Live" must mean data is flowing.
-  const getStationMode = (): StationMode => {
-    const dataFresh =
-      lastWindData !== null &&
-      now - new Date(lastWindData.timestamp).getTime() <= staleThresholdMs(lastWindData.intervalMs);
-
-    if (dataFresh) {
-      return 'live';
-    }
-
-    if (
-      stationConfig &&
-      stationConfig.sleepStartHour !== null &&
-      stationConfig.sleepEndHour !== null
-    ) {
-      const stationHour = getStationHour(stationConfig.utcOffsetMinutes ?? null);
-      if (isInSleepWindow(stationHour, stationConfig.sleepStartHour, stationConfig.sleepEndHour)) {
-        return 'sleeping';
-      }
-    }
-
-    // No fresh data outside sleep hours: before the config arrives we can't
-    // tell sleeping from offline yet
-    return stationConfig ? 'offline' : 'unknown';
-  };
-
-  const stationMode = getStationMode();
+  const { mode: stationMode } = useStationMode(stationId, lastWindData);
 
   const getModeDisplay = () => {
     switch (stationMode) {

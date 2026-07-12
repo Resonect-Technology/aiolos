@@ -4,10 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { transmit } from '@/lib/transmit';
 import { Activity, Battery, Sun, Wifi, Clock, AlertTriangle } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 
+import { useTransmitSubscription } from '../../../hooks/use-transmit-subscription';
 import { formatLastUpdated } from '../../../lib/time-utils';
 
 interface DiagnosticsData {
@@ -33,83 +33,20 @@ interface DiagnosticsPanelProps {
 
 export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
   const [diagnosticsData, setDiagnosticsData] = useState<DiagnosticsData | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const subscriptionRef = useRef<any | null>(null);
-
-  useEffect(() => {
-    // Clear any previous connection state
-    setError(null);
-    setLoading(true);
-
-    const channelName = `station/diagnostics/${stationId}`;
-
-    const newSubscription = transmit.subscription(channelName);
-    subscriptionRef.current = newSubscription;
-
-    newSubscription
-      .create()
-      .then(() => {
-        setLoading(false);
-        setError(null);
-        console.log(`Connected to diagnostics channel: ${channelName}`);
-
-        newSubscription.onMessage((data: DiagnosticsData) => {
-          console.log('Diagnostics data received:', data);
-          if (data && typeof data.batteryVoltage === 'number') {
-            setDiagnosticsData(data);
-          } else {
-            // Handle wrapped message format
-            const messagePayload = (data as any).data;
-            if (messagePayload && typeof messagePayload.batteryVoltage === 'number') {
-              setDiagnosticsData(messagePayload);
-            } else {
-              console.warn('Received diagnostics message in unexpected format:', data);
-            }
-          }
-        });
-      })
-      .catch((err) => {
-        console.error('Failed to connect to diagnostics channel:', err);
-        setError(`Failed to connect: ${err.message || 'Unknown error'}`);
-        setLoading(false);
-
-        // Fallback to API polling if SSE fails
-        fetchDiagnosticsFromAPI();
-      });
-
-    return () => {
-      if (subscriptionRef.current) {
-        subscriptionRef.current
-          .delete()
-          .catch((err: Error) => console.error(`Failed to unsubscribe from ${channelName}:`, err));
-        subscriptionRef.current = null;
-      }
-    };
-  }, [stationId]);
-
-  // Fallback function for API polling
+  // Fallback for when SSE fails
   const fetchDiagnosticsFromAPI = async () => {
     try {
-      console.log(`Fetching diagnostics from API for station: ${stationId}`);
-      const url = `/api/stations/${stationId}/diagnostics`;
-      const response = await fetch(url);
+      const response = await fetch(`/api/stations/${stationId}/diagnostics`);
 
       if (!response.ok) {
         if (response.status === 404) {
-          console.log('No diagnostics data found for this station');
           setDiagnosticsData(null);
-          return;
         }
-        console.log(`API Error (${response.status}): Could not fetch diagnostics data`);
         return;
       }
 
       const data = await response.json();
-      console.log('Diagnostics data from API:', data);
-
-      // Convert API response to expected format
       if (data.batteryVoltage !== undefined) {
         setDiagnosticsData({
           ...data,
@@ -120,6 +57,28 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
       console.error('Error fetching diagnostics from API:', err);
     }
   };
+
+  const { connected, error } = useTransmitSubscription<
+    DiagnosticsData | { data?: DiagnosticsData }
+  >(
+    `station/diagnostics/${stationId}`,
+    (message) => {
+      // Messages arrive either as the payload itself or wrapped in { data }
+      const payload =
+        message && typeof (message as DiagnosticsData).batteryVoltage === 'number'
+          ? (message as DiagnosticsData)
+          : (message as { data?: DiagnosticsData }).data;
+
+      if (payload && typeof payload.batteryVoltage === 'number') {
+        setDiagnosticsData(payload);
+      } else {
+        console.warn('Received diagnostics message in unexpected format:', message);
+      }
+    },
+    fetchDiagnosticsFromAPI,
+  );
+
+  const loading = !connected && !error;
 
   // Format uptime from seconds to a human-readable format
   const formatUptime = (seconds: number) => {

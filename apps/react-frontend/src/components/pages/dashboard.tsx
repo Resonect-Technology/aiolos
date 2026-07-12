@@ -1,5 +1,6 @@
 import { ConstructionModeAlert } from '@/components/atoms/alerts/construction-mode-alert';
 import { FloatingStatusIndicator } from '@/components/atoms/indicators/floating-status-indicator';
+import { PageMeta } from '@/components/atoms/seo/page-meta';
 import { SectionCards } from '@/components/molecules/cards/section-cards-wind';
 import { WindChartInteractive } from '@/components/molecules/charts/wind-chart-interactive';
 import { WindTrendChart } from '@/components/molecules/charts/wind-trend-chart';
@@ -9,9 +10,9 @@ import { WindDataTable } from '@/components/molecules/tables/wind-data-table';
 import { AppSidebar } from '@/components/organisms/navigation/app-sidebar';
 import { SiteHeader } from '@/components/organisms/navigation/site-header';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
-import { transmit } from '@/lib/transmit';
+import { useTransmitSubscription } from '@/hooks/use-transmit-subscription';
 import type { WindData } from '@/types/wind';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 
 const UNIT_STORAGE_KEY = 'aiolos:wind-unit';
 
@@ -21,62 +22,34 @@ export function Dashboard() {
 
   // Wind data state
   const [windData, setWindData] = useState<WindData | null>(null);
-  const [error, setError] = useState<string | null>(null);
   // Knots is the windsurfer default; the choice persists across visits
   const [selectedUnit, setSelectedUnit] = useState<string>(
     () => localStorage.getItem(UNIT_STORAGE_KEY) ?? 'knots',
   );
   const [windHistory, setWindHistory] = useState<WindData[]>([]);
 
-  const subscriptionRef = useRef<any | null>(null);
-
   const handleUnitChange = useCallback((unit: string) => {
     localStorage.setItem(UNIT_STORAGE_KEY, unit);
     setSelectedUnit(unit);
   }, []);
 
-  useEffect(() => {
-    // Clear any previous connection state
-    setError(null);
+  const { error } = useTransmitSubscription<WindData | { data?: WindData }>(
+    `wind/live/${stationId}`,
+    (message) => {
+      // Messages arrive either as the payload itself or wrapped in { data }
+      const payload =
+        message && typeof (message as WindData).windSpeed === 'number'
+          ? (message as WindData)
+          : (message as { data?: WindData }).data;
 
-    const channelName = `wind/live/${stationId}`;
-
-    const newSubscription = transmit.subscription(channelName);
-    subscriptionRef.current = newSubscription;
-
-    newSubscription
-      .create()
-      .then(() => {
-        setError(null);
-
-        newSubscription.onMessage((data: WindData) => {
-          if (data && typeof data.windSpeed === 'number') {
-            setWindData(data);
-            setWindHistory((prev) => [...prev.slice(-99), data]); // Keep last 100 readings
-          } else {
-            const messagePayload = (data as any).data;
-            if (messagePayload && typeof messagePayload.windSpeed === 'number') {
-              setWindData(messagePayload);
-              setWindHistory((prev) => [...prev.slice(-99), messagePayload]); // Keep last 100 readings
-            } else {
-              console.warn('Received message in unexpected format:', data);
-            }
-          }
-        });
-      })
-      .catch((err) => {
-        setError(`Failed to connect: ${err.message || 'Unknown error'}`);
-      });
-
-    return () => {
-      if (subscriptionRef.current) {
-        subscriptionRef.current
-          .delete()
-          .catch((err: Error) => console.error(`Failed to unsubscribe from ${channelName}:`, err));
-        subscriptionRef.current = null;
+      if (payload && typeof payload.windSpeed === 'number') {
+        setWindData(payload);
+        setWindHistory((prev) => [...prev.slice(-99), payload]); // Keep last 100 readings
+      } else {
+        console.warn('Received message in unexpected format:', message);
       }
-    };
-  }, [stationId]);
+    },
+  );
 
   return (
     <SidebarProvider
@@ -88,6 +61,11 @@ export function Dashboard() {
         } as React.CSSProperties
       }
     >
+      <PageMeta
+        title="Live Wind Dashboard — Vasiliki | Aiolos"
+        description="Real-time wind speed, direction, gusts and temperature for Vasiliki, Lefkada — updated live from the Aiolos weather station."
+        path="/dashboard"
+      />
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader />

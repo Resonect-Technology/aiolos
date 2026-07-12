@@ -1,101 +1,25 @@
 import { Badge } from '@/components/ui/badge';
-import { useNow } from '@/hooks/use-now';
-import {
-  calculateNextSleepWakeTime,
-  formatSleepSchedule,
-  getStationHour,
-  isInSleepWindow,
-  staleThresholdMs,
-} from '@/lib/time-utils';
+import { useStationMode } from '@/hooks/use-station-mode';
+import { calculateNextSleepWakeTime, formatSleepSchedule } from '@/lib/time-utils';
 import type { WindData } from '@/types/wind';
 import { Eye, Moon, AlertTriangle, WifiOff } from 'lucide-react';
-import { memo, useState, useEffect } from 'react';
-
-interface StationConfig {
-  stationId: string;
-  sleepStartHour: number | null;
-  sleepEndHour: number | null;
-  tempInterval: number | null;
-  windSendInterval: number | null;
-  windSampleInterval: number | null;
-  diagInterval: number | null;
-  timeInterval: number | null;
-  restartInterval: number | null;
-  otaHour: number | null;
-  otaMinute: number | null;
-  otaDuration: number | null;
-  remoteOta: boolean;
-  utcOffsetMinutes?: number | null;
-  message?: string;
-}
+import { memo } from 'react';
 
 interface FloatingStatusIndicatorProps {
   stationId: string;
   lastWindData: WindData | null;
 }
 
-type StationMode = 'live' | 'sleeping' | 'offline' | 'unknown';
-
 export const FloatingStatusIndicator = memo(function FloatingStatusIndicator({
   stationId,
   lastWindData,
 }: FloatingStatusIndicatorProps) {
-  const [stationConfig, setStationConfig] = useState<StationConfig | null>(null);
-  const now = useNow(30_000);
+  const { mode: stationMode, config: stationConfig } = useStationMode(stationId, lastWindData);
 
-  // Fetch station config
-  useEffect(() => {
-    const fetchStationConfig = async () => {
-      try {
-        const response = await fetch(`/api/stations/${stationId}/config`);
-        if (response.ok) {
-          const config: StationConfig = await response.json();
-          setStationConfig(config);
-        } else {
-          console.warn(
-            'Failed to fetch station config for floating indicator:',
-            response.statusText,
-          );
-        }
-      } catch (error) {
-        console.error('Error fetching station config for floating indicator:', error);
-      }
-    };
-
-    fetchStationConfig();
-  }, [stationId]);
-
-  // Data freshness decides Live; the sleep schedule (on the STATION's clock)
-  // only distinguishes Sleeping from Offline when data is missing
-  const utcOffsetMinutes = stationConfig?.utcOffsetMinutes ?? null;
-  const getStationMode = (): StationMode => {
-    const dataFresh =
-      lastWindData !== null &&
-      now - new Date(lastWindData.timestamp).getTime() <= staleThresholdMs(lastWindData.intervalMs);
-
-    if (dataFresh) {
-      return 'live';
-    }
-
-    if (
-      stationConfig &&
-      stationConfig.sleepStartHour !== null &&
-      stationConfig.sleepEndHour !== null
-    ) {
-      const stationHour = getStationHour(utcOffsetMinutes);
-      if (isInSleepWindow(stationHour, stationConfig.sleepStartHour, stationConfig.sleepEndHour)) {
-        return 'sleeping';
-      }
-    }
-
-    return stationConfig ? 'offline' : 'unknown';
-  };
-
-  const stationMode = getStationMode();
   const nextSleepWakeInfo = calculateNextSleepWakeTime(
     stationConfig?.sleepStartHour ?? null,
     stationConfig?.sleepEndHour ?? null,
-    utcOffsetMinutes,
+    stationConfig?.utcOffsetMinutes ?? null,
   );
 
   const getModeDisplay = () => {

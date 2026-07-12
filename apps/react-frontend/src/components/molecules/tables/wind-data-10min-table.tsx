@@ -12,8 +12,13 @@ import {
 import { Wind, Clock, Loader2 } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 
-import { useWind10MinData, useWind10MinSSE } from '../../../hooks/useWind10MinData';
-import { convertWindSpeed, WIND_GUST_COLOR, WIND_UNIT_LABELS } from '../../../lib/wind-utils';
+import { useWindAggregatedData, useWindAggregatedSSE } from '../../../hooks/useWindAggregatedData';
+import {
+  formatWindDirection,
+  formatWindSpeed,
+  WIND_GUST_COLOR,
+  WIND_UNIT_LABELS,
+} from '../../../lib/wind-utils';
 import type { WindAggregated10Min } from '../../../types/wind-aggregated';
 import { TendencyIndicator } from '../../atoms/indicators/tendency-indicator';
 
@@ -25,8 +30,9 @@ interface WindData10MinTableProps {
 export function WindData10MinTable({ stationId, selectedUnit }: WindData10MinTableProps) {
   const [tableData, setTableData] = useState<WindAggregated10Min[]>([]);
 
-  const { data, loading, error } = useWind10MinData({
+  const { data, loading, error } = useWindAggregatedData<WindAggregated10Min>({
     stationId,
+    interval: '10min',
     limit: 6,
   });
 
@@ -52,7 +58,11 @@ export function WindData10MinTable({ stationId, selectedUnit }: WindData10MinTab
     });
   }, []);
 
-  useWind10MinSSE({ stationId, onNewAggregate: handleNewAggregate });
+  useWindAggregatedSSE<WindAggregated10Min>({
+    stationId,
+    interval: '10min',
+    onNewAggregate: handleNewAggregate,
+  });
 
   const formatTime = (timestamp: string) => {
     // Show the END of the 10-minute interval (more intuitive for users)
@@ -65,42 +75,7 @@ export function WindData10MinTable({ stationId, selectedUnit }: WindData10MinTab
     });
   };
 
-  const formatDirection = (degrees: number) => {
-    const cardinalDirections = [
-      'N',
-      'NNE',
-      'NE',
-      'ENE',
-      'E',
-      'ESE',
-      'SE',
-      'SSE',
-      'S',
-      'SSW',
-      'SW',
-      'WSW',
-      'W',
-      'WNW',
-      'NW',
-      'NNW',
-    ];
-    const index = Math.round(degrees / 22.5) % 16;
-    return `${degrees}° ${cardinalDirections[index]}`;
-  };
-
-  const convertSpeed = (speed: number) => {
-    // Data always comes in m/s from backend, convert to selected unit
-    return convertWindSpeed(speed, selectedUnit);
-  };
-
-  const formatSpeed = (speed: number) => {
-    const converted = convertSpeed(speed);
-    return selectedUnit === 'beaufort' ? Math.round(converted) : converted.toFixed(1);
-  };
-
-  const getUnitLabel = () => {
-    return WIND_UNIT_LABELS[selectedUnit] || 'm/s';
-  };
+  const unitLabel = WIND_UNIT_LABELS[selectedUnit] || 'm/s';
 
   return (
     <Card className="min-w-0">
@@ -134,7 +109,7 @@ export function WindData10MinTable({ stationId, selectedUnit }: WindData10MinTab
           <div className="space-y-4">
             <div className="flex items-center justify-end">
               <Badge variant="outline">
-                {tableData.length} intervals (last hour) • Unit: {getUnitLabel()}
+                {tableData.length} intervals (last hour) • Unit: {unitLabel}
               </Badge>
             </div>
 
@@ -159,29 +134,29 @@ export function WindData10MinTable({ stationId, selectedUnit }: WindData10MinTab
                       </TableCell>
                       <TableCell>
                         <span className="font-medium">
-                          {formatSpeed(row.avgSpeed)} {getUnitLabel()}
+                          {formatWindSpeed(row.avgSpeed, selectedUnit)} {unitLabel}
                         </span>
                       </TableCell>
                       <TableCell>
                         <span className="text-muted-foreground">
-                          {formatSpeed(row.minSpeed)} {getUnitLabel()}
+                          {formatWindSpeed(row.minSpeed, selectedUnit)} {unitLabel}
                         </span>
                       </TableCell>
                       <TableCell>
                         <span className="text-foreground font-medium">
-                          {formatSpeed(row.maxSpeed)} {getUnitLabel()}
+                          {formatWindSpeed(row.maxSpeed, selectedUnit)} {unitLabel}
                         </span>
                       </TableCell>
                       <TableCell>
                         <span className="font-medium" style={{ color: WIND_GUST_COLOR }}>
                           {row.gustSpeed !== null
-                            ? `${formatSpeed(row.gustSpeed)} ${getUnitLabel()}`
+                            ? `${formatWindSpeed(row.gustSpeed, selectedUnit)} ${unitLabel}`
                             : '–'}
                         </span>
                       </TableCell>
                       <TableCell>
                         <span className="font-mono text-sm">
-                          {formatDirection(row.dominantDirection)}
+                          {formatWindDirection(row.dominantDirection)}
                         </span>
                       </TableCell>
                       <TableCell>
