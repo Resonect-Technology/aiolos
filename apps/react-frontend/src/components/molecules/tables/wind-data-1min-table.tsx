@@ -13,7 +13,7 @@ import { Wind, ArrowUp, ArrowDown, TrendingUp, Loader2 } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 
 import { useWindAggregatedData, useWindAggregatedSSE } from '../../../hooks/useWindAggregatedData';
-import { convertWindSpeed, WIND_UNIT_LABELS } from '../../../lib/wind-utils';
+import { convertWindSpeed, WIND_GUST_COLOR, WIND_UNIT_LABELS } from '../../../lib/wind-utils';
 import type { WindAggregated1Min } from '../../../types/wind-aggregated';
 
 interface WindData1MinTableProps {
@@ -109,9 +109,9 @@ export function WindData1MinTable({ stationId, selectedUnit }: WindData1MinTable
     const previousAvg = convertSpeed(previous.avgSpeed);
 
     if (currentAvg > previousAvg) {
-      return <ArrowUp className="h-3 w-3 text-green-500" />;
+      return <ArrowUp className="h-3 w-3 text-green-600 dark:text-green-400" />;
     } else if (currentAvg < previousAvg) {
-      return <ArrowDown className="h-3 w-3 text-red-500" />;
+      return <ArrowDown className="h-3 w-3 text-red-600 dark:text-red-400" />;
     }
     return null;
   };
@@ -178,17 +178,17 @@ export function WindData1MinTable({ stationId, selectedUnit }: WindData1MinTable
                         </div>
                       </TableCell>
                       <TableCell>
-                        <span className="text-blue-600">
+                        <span className="text-muted-foreground">
                           {formatSpeed(row.minSpeed)} {getUnitLabel()}
                         </span>
                       </TableCell>
                       <TableCell>
-                        <span className="text-red-600">
+                        <span className="text-foreground font-medium">
                           {formatSpeed(row.maxSpeed)} {getUnitLabel()}
                         </span>
                       </TableCell>
                       <TableCell>
-                        <span className="font-medium text-orange-600">
+                        <span className="font-medium" style={{ color: WIND_GUST_COLOR }}>
                           {row.gustSpeed !== null
                             ? `${formatSpeed(row.gustSpeed)} ${getUnitLabel()}`
                             : '–'}

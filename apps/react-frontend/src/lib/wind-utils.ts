@@ -68,7 +68,11 @@ export const WIND_SPEED_RANGES = [
   { min: 20, max: Infinity, description: 'Gale or stronger' },
 ];
 
-// Color codes for different wind speed ranges (matching WindRose chart)
+// Canonical wind-strength palette, used by the wind rose legend, the speed
+// gauge, the trend chart and the tables. MUST stay identical to the scale
+// hardcoded inside @eunchurn/react-windrose (v1.3.5) — the library accepts no
+// color props, so the rose arcs always use its internal palette and everything
+// else matches it from here.
 export const WIND_SPEED_COLORS = [
   '#8e44ad', // 0-1 m/s (purple)
   '#4242f4', // 1-3 m/s (blue)
@@ -85,6 +89,10 @@ export const WIND_SPEED_COLORS = [
 export const getWindSpeedColor = (rangeIndex: number): string => {
   return WIND_SPEED_COLORS[Math.min(rangeIndex, WIND_SPEED_COLORS.length - 1)] ?? '#f44242';
 };
+
+// Gust readings are highlighted with the near-gale bin color everywhere
+// (tables, trend chart) so "gust orange" always means the same thing
+export const WIND_GUST_COLOR = getWindSpeedColor(7);
 
 // Helper function to get color by wind speed value (in m/s)
 export const getWindSpeedColorByValue = (speed: number): string => {

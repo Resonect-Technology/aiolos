@@ -13,7 +13,7 @@ import { Wind, Clock, Loader2 } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 
 import { useWind10MinData, useWind10MinSSE } from '../../../hooks/useWind10MinData';
-import { convertWindSpeed, WIND_UNIT_LABELS } from '../../../lib/wind-utils';
+import { convertWindSpeed, WIND_GUST_COLOR, WIND_UNIT_LABELS } from '../../../lib/wind-utils';
 import type { WindAggregated10Min } from '../../../types/wind-aggregated';
 import { TendencyIndicator } from '../../atoms/indicators/tendency-indicator';
 
@@ -163,17 +163,17 @@ export function WindData10MinTable({ stationId, selectedUnit }: WindData10MinTab
                         </span>
                       </TableCell>
                       <TableCell>
-                        <span className="text-blue-600">
+                        <span className="text-muted-foreground">
                           {formatSpeed(row.minSpeed)} {getUnitLabel()}
                         </span>
                       </TableCell>
                       <TableCell>
-                        <span className="text-red-600">
+                        <span className="text-foreground font-medium">
                           {formatSpeed(row.maxSpeed)} {getUnitLabel()}
                         </span>
                       </TableCell>
                       <TableCell>
-                        <span className="font-medium text-orange-600">
+                        <span className="font-medium" style={{ color: WIND_GUST_COLOR }}>
                           {row.gustSpeed !== null
                             ? `${formatSpeed(row.gustSpeed)} ${getUnitLabel()}`
                             : '–'}

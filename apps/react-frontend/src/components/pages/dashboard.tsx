@@ -97,6 +97,11 @@ export function Dashboard() {
                 <ConstructionModeAlert />
               </div>
 
+              {/* Current conditions first — most valuable on a phone at the beach */}
+              <div className="px-4 lg:px-6">
+                <WindChartInteractive windData={windData} selectedUnit={selectedUnit} />
+              </div>
+
               <SectionCards
                 stationId={stationId}
                 error={error}
@@ -104,10 +109,6 @@ export function Dashboard() {
                 onUnitChange={handleUnitChange}
                 lastWindData={windData}
               />
-
-              <div className="px-4 lg:px-6">
-                <WindChartInteractive windData={windData} selectedUnit={selectedUnit} />
-              </div>
 
               <div className="px-4 lg:px-6">
                 <WindData10MinTable stationId={stationId} selectedUnit={selectedUnit} />

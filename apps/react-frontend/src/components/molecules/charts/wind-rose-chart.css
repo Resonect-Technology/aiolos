@@ -1,0 +1,32 @@
+/*
+ * Overrides for @eunchurn/react-windrose's internal SVG.
+ * The library exposes no props for colors, labels, fonts or margins
+ * (only chartData/columns/width/height/responsive/legendGap), so the
+ * noisy parts are hidden here instead — see issue #47 — and the freed
+ * margin is reclaimed by scaling the SVG up.
+ */
+
+.wind-rose-chart svg {
+  transform: scale(1.1);
+  transform-origin: center;
+}
+
+/* Frequency-count numbers, direction labels and built-in legend text */
+.wind-rose-chart svg text {
+  display: none;
+}
+
+/* The 16 radial axis spokes with their tick marks */
+.wind-rose-chart svg .axis {
+  display: none;
+}
+
+/* Built-in legend swatches — the app renders its own legend chips */
+.wind-rose-chart svg g:has(> rect) {
+  display: none;
+}
+
+/* Dashed reference rings (stroke is hardcoded to "gray" upstream) */
+.wind-rose-chart svg circle {
+  stroke: var(--border);
+}

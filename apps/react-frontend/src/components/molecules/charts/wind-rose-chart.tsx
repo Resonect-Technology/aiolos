@@ -1,9 +1,6 @@
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import { Chart } from '@eunchurn/react-windrose';
 import type { ChartData as BaseChartData } from '@eunchurn/react-windrose';
-import { BarChart3, Info } from 'lucide-react';
 import { useMemo } from 'react';
 
 import {
@@ -12,6 +9,8 @@ import {
   WIND_SPEED_COLORS,
 } from '../../../lib/wind-utils';
 import { calculateCustomWindRose, createEmptyWindRoseData } from '../../../lib/windrose-utils';
+
+import './wind-rose-chart.css';
 
 interface WindData {
   windSpeed: number;
@@ -53,81 +52,63 @@ export function WindRoseChart({ windHistory, selectedUnit }: WindRoseChartProps)
   }, [selectedUnit]);
 
   return (
-    <div className="w-full max-w-full overflow-hidden">
-      <div className="flex min-h-[400px] flex-col gap-4 lg:flex-row lg:gap-6">
-        {/* Chart Container */}
-        <div className="min-w-0 flex-1">
-          <div className="flex h-full flex-col">
-            <div className="flex min-h-[300px] flex-grow items-center justify-center overflow-hidden px-2 lg:min-h-[400px]">
-              {/* Responsive container that maintains aspect ratio */}
-              <div className="aspect-square w-full max-w-sm sm:max-w-md lg:max-w-lg xl:max-w-xl">
-                <Chart
-                  chartData={windRoseData as unknown as BaseChartData[]}
-                  columns={windRoseColumns}
-                  responsive
-                  legendGap={8}
-                />
-              </div>
-            </div>
-
-            <div className="mt-4 px-4 text-center">
-              <Badge variant="outline" className="text-xs">
-                {windHistory.length > 0
-                  ? `Based on ${windHistory.length} most recent measurements`
-                  : 'No wind data collected yet. The chart will update as data arrives.'}
-              </Badge>
-            </div>
-          </div>
+    <div className="w-full max-w-full">
+      {/* Rose with cardinal direction overlay (the library's own labels are hidden) */}
+      <div
+        className="relative mx-auto aspect-square w-full max-w-md lg:max-w-lg"
+        role="img"
+        aria-label="Wind rose showing how often the wind blew from each direction, colored by speed"
+      >
+        <div className="wind-rose-chart h-full w-full">
+          {/* className lands on the library's own div so the measured
+              container really is the square wrapper */}
+          <Chart
+            chartData={windRoseData as unknown as BaseChartData[]}
+            columns={windRoseColumns}
+            responsive
+            legendGap={0}
+            className="flex h-full w-full items-center justify-center"
+          />
         </div>
+        <span className="text-muted-foreground absolute top-0 left-1/2 -translate-x-1/2 text-xs font-medium">
+          N
+        </span>
+        <span className="text-muted-foreground absolute bottom-0 left-1/2 -translate-x-1/2 text-xs font-medium">
+          S
+        </span>
+        <span className="text-muted-foreground absolute top-1/2 right-0 -translate-y-1/2 text-xs font-medium">
+          E
+        </span>
+        <span className="text-muted-foreground absolute top-1/2 left-0 -translate-y-1/2 text-xs font-medium">
+          W
+        </span>
+      </div>
 
-        {/* Legend - Right side on desktop, bottom on mobile */}
-        <div className="flex-shrink-0 lg:w-72 xl:w-80">
-          <Card className="h-full">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <BarChart3 className="text-primary h-4 w-4" />
-                Wind Speed Ranges
-              </CardTitle>
-              <div className="text-muted-foreground text-sm">({unitDisplay.unitLabel})</div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                {unitDisplay.ranges
-                  .slice()
-                  .reverse()
-                  .map((range, index) => {
-                    const originalIndex = unitDisplay.ranges.length - 1 - index;
-                    return (
-                      <div key={originalIndex} className="flex items-center space-x-3">
-                        <span
-                          className="border-border h-4 w-4 flex-shrink-0 rounded-full border shadow-sm"
-                          style={{ backgroundColor: WIND_SPEED_COLORS[originalIndex] }}
-                        ></span>
-                        <span className="text-foreground text-sm font-medium">
-                          {range.range} {unitDisplay.unitLabel}
-                        </span>
-                        <span className="text-muted-foreground text-sm">· {range.description}</span>
-                      </div>
-                    );
-                  })}
-              </div>
-
-              <Separator />
-
-              <div className="text-muted-foreground space-y-2 text-xs">
-                <div className="flex items-start gap-2">
-                  <Info className="mt-0.5 h-3 w-3 flex-shrink-0" />
-                  <div className="space-y-1">
-                    <p>• Each spoke represents a wind direction</p>
-                    <p>• Length shows frequency of winds from that direction</p>
-                    <p>• Colors represent different wind speed ranges</p>
-                    <p>• Longer sections = more frequent winds</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+      {/* Compact legend: one chip per speed bin, low to high */}
+      <div className="mt-4 space-y-2 text-center">
+        <div className="text-muted-foreground text-xs">
+          Wind speed ({unitDisplay.unitLabel}) — longer petals mean more frequent wind from that
+          direction
         </div>
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5">
+          {unitDisplay.ranges.map((range, index) => (
+            <span key={index} className="flex items-center gap-1.5" title={range.description}>
+              <span
+                className="border-border h-3 w-3 shrink-0 rounded-full border"
+                style={{ backgroundColor: WIND_SPEED_COLORS[index] }}
+              ></span>
+              <span className="text-foreground text-xs">{range.range}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 text-center">
+        <Badge variant="outline" className="text-xs">
+          {windHistory.length > 0
+            ? `Based on ${windHistory.length} most recent measurements`
+            : 'No wind data collected yet. The chart will update as data arrives.'}
+        </Badge>
       </div>
     </div>
   );

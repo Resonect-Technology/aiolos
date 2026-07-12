@@ -11,9 +11,11 @@ import { useNow } from '../../../hooks/use-now';
 import { formatLastUpdated, staleThresholdMs } from '../../../lib/time-utils';
 import {
   convertWindSpeed,
+  WIND_SPEED_RANGES,
   WIND_UNIT_LABELS,
   getGaugeMinValue,
   getGaugeMaxValue,
+  getWindSpeedColor,
 } from '../../../lib/wind-utils';
 import type { WindData } from '../../../types/wind';
 
@@ -71,155 +73,32 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
     } else {
       return `${value.toFixed(1)} ${currentUnitLabel}`;
     }
-  }; // Configure gauge arcs based on selected unit using theme colors
+  };
+
+  // Gauge bands are generated from the shared 9-bin ranges and palette, so a
+  // color on the gauge means the same wind strength as on the wind rose,
+  // legend and trend chart.
   const gaugeSubArcs = useMemo((): GaugeArc[] => {
     const arcs: GaugeArc[] = [];
-    // Theme colors: light to dark green progression for better visual distribution
-    const themeColors = ['#22c55e', '#10b981', '#059669', '#047857', '#065f46'] as const;
-
-    switch (selectedUnit) {
-      case 'm/s':
-        arcs.push(
-          {
-            limit: 3,
-            color: themeColors[0], // Calm/Light air (0-3 m/s)
-            tooltip: { text: 'Calm to Light air' },
-            showTick: true,
-          },
-          {
-            limit: 7,
-            color: themeColors[1], // Light/Gentle breeze (3-7 m/s)
-            tooltip: { text: 'Light to Gentle breeze' },
-            showTick: true,
-          },
-          {
-            limit: 12,
-            color: themeColors[2], // Moderate/Fresh breeze (7-12 m/s)
-            tooltip: { text: 'Moderate to Fresh breeze' },
-            showTick: true,
-          },
-          {
-            limit: 18,
-            color: themeColors[3], // Strong breeze/Near gale (12-18 m/s)
-            tooltip: { text: 'Strong breeze to Near gale' },
-            showTick: true,
-          },
-          {
-            color: themeColors[4], // Gale and above (18+ m/s)
-            tooltip: { text: 'Gale or stronger' },
-          },
-        );
-        break;
-      case 'km/h':
-        arcs.push(
-          {
-            limit: 11,
-            color: themeColors[0], // Calm/Light air (0-11 km/h)
-            tooltip: { text: 'Calm to Light air' },
-            showTick: true,
-          },
-          {
-            limit: 25,
-            color: themeColors[1], // Light/Gentle breeze (11-25 km/h)
-            tooltip: { text: 'Light to Gentle breeze' },
-            showTick: true,
-          },
-          {
-            limit: 43,
-            color: themeColors[2], // Moderate/Fresh breeze (25-43 km/h)
-            tooltip: { text: 'Moderate to Fresh breeze' },
-            showTick: true,
-          },
-          {
-            limit: 65,
-            color: themeColors[3], // Strong breeze/Near gale (43-65 km/h)
-            tooltip: { text: 'Strong breeze to Near gale' },
-            showTick: true,
-          },
-          {
-            color: themeColors[4], // Gale and above (65+ km/h)
-            tooltip: { text: 'Gale or stronger' },
-          },
-        );
-        break;
-      case 'knots':
-        arcs.push(
-          {
-            limit: 6,
-            color: themeColors[0], // Calm/Light air (0-6 knots)
-            tooltip: { text: 'Calm to Light air' },
-            showTick: true,
-          },
-          {
-            limit: 13,
-            color: themeColors[1], // Light/Gentle breeze (6-13 knots)
-            tooltip: { text: 'Light to Gentle breeze' },
-            showTick: true,
-          },
-          {
-            limit: 23,
-            color: themeColors[2], // Moderate/Fresh breeze (13-23 knots)
-            tooltip: { text: 'Moderate to Fresh breeze' },
-            showTick: true,
-          },
-          {
-            limit: 35,
-            color: themeColors[3], // Strong breeze/Near gale (23-35 knots)
-            tooltip: { text: 'Strong breeze to Near gale' },
-            showTick: true,
-          },
-          {
-            color: themeColors[4], // Gale and above (35+ knots)
-            tooltip: { text: 'Gale or stronger' },
-          },
-        );
-        break;
-      case 'beaufort':
-        arcs.push(
-          {
-            limit: 2,
-            color: themeColors[0], // Beaufort 0-2 (Calm to Light breeze)
-            tooltip: { text: 'Calm to Light breeze' },
-            showTick: true,
-          },
-          {
-            limit: 4,
-            color: themeColors[1], // Beaufort 3-4 (Gentle to Moderate breeze)
-            tooltip: { text: 'Gentle to Moderate breeze' },
-            showTick: true,
-          },
-          {
-            limit: 6,
-            color: themeColors[2], // Beaufort 5-6 (Fresh to Strong breeze)
-            tooltip: { text: 'Fresh to Strong breeze' },
-            showTick: true,
-          },
-          {
-            limit: 8,
-            color: themeColors[3], // Beaufort 7-8 (Near gale to Gale)
-            tooltip: { text: 'Near gale to Gale' },
-            showTick: true,
-          },
-          {
-            color: themeColors[4], // Beaufort 9+ (Strong gale and above)
-            tooltip: { text: 'Strong gale or stronger' },
-          },
-        );
-        break;
-      default:
-        arcs.push(
-          { limit: 5, color: themeColors[0], tooltip: { text: 'Too slow' }, showTick: true },
-          { limit: 10, color: themeColors[1], tooltip: { text: 'Getting there' }, showTick: true },
-          {
-            limit: 15,
-            color: themeColors[2],
-            tooltip: { text: 'Good conditions' },
-            showTick: true,
-          },
-          { limit: 20, color: themeColors[3], tooltip: { text: 'Strong winds' }, showTick: true },
-          { color: themeColors[4], tooltip: { text: 'Very strong' } },
-        );
-    }
+    let previousLimit = 0;
+    WIND_SPEED_RANGES.forEach((range, index) => {
+      const color = getWindSpeedColor(index);
+      if (range.max === Infinity) {
+        arcs.push({ color, tooltip: { text: range.description } });
+        return;
+      }
+      // Convert just below the bin edge so Beaufort (a step scale) lands in
+      // the force the bin actually ends in
+      const converted = convertWindSpeed(range.max - 0.01, selectedUnit);
+      const limit = selectedUnit === 'beaufort' ? converted : Math.round(converted * 10) / 10;
+      // Neighbouring bins can collapse to the same Beaufort force — merge
+      // them instead of emitting a zero-width arc
+      if (limit <= previousLimit) {
+        return;
+      }
+      previousLimit = limit;
+      arcs.push({ limit, color, tooltip: { text: range.description } });
+    });
     return arcs;
   }, [selectedUnit]);
 
@@ -281,7 +160,7 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
               subArcs: gaugeSubArcs,
             }}
             pointer={{
-              color: 'hsl(var(--foreground))',
+              color: 'var(--foreground)',
               length: 0.8,
               width: 18,
               elastic: true,
@@ -298,7 +177,7 @@ export function WindSpeedDisplay({ windData, selectedUnit }: WindSpeedDisplayPro
                   style: {
                     fontSize: '12px',
                     fontWeight: '500',
-                    fill: 'hsl(var(--muted-foreground))',
+                    fill: 'var(--muted-foreground)',
                   },
                 },
               },

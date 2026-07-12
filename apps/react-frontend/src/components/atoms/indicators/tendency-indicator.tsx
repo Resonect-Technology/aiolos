@@ -10,13 +10,13 @@ export function TendencyIndicator({ tendency, className }: TendencyIndicatorProp
   const getIcon = () => {
     switch (tendency) {
       case 'increasing':
-        return <ArrowUp className="h-4 w-4 text-green-500" />;
+        return <ArrowUp className="h-4 w-4 text-green-600 dark:text-green-400" />;
       case 'decreasing':
-        return <ArrowDown className="h-4 w-4 text-red-500" />;
+        return <ArrowDown className="h-4 w-4 text-red-600 dark:text-red-400" />;
       case 'stable':
-        return <ArrowRight className="h-4 w-4 text-gray-500" />;
+        return <ArrowRight className="text-muted-foreground h-4 w-4" />;
       default:
-        return <ArrowRight className="h-4 w-4 text-gray-500" />;
+        return <ArrowRight className="text-muted-foreground h-4 w-4" />;
     }
   };
 
@@ -36,13 +36,13 @@ export function TendencyIndicator({ tendency, className }: TendencyIndicatorProp
   const getColor = () => {
     switch (tendency) {
       case 'increasing':
-        return 'text-green-600';
+        return 'text-green-600 dark:text-green-400';
       case 'decreasing':
-        return 'text-red-600';
+        return 'text-red-600 dark:text-red-400';
       case 'stable':
-        return 'text-gray-600';
+        return 'text-muted-foreground';
       default:
-        return 'text-gray-600';
+        return 'text-muted-foreground';
     }
   };
 

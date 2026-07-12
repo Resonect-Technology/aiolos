@@ -66,3 +66,4 @@ terraform.rc
 Thumbs.db
 *.swp
 *.swo
+.playwright-mcp/

@@ -20,7 +20,7 @@ export function SectionCards({
   lastWindData,
 }: SectionCardsProps) {
   return (
-    <div className="grid auto-rows-min gap-4 px-4 md:grid-cols-3 lg:px-6">
+    <div className="grid auto-rows-min grid-cols-2 gap-4 px-4 md:grid-cols-3 lg:px-6">
       {/* Connection Status */}
       <Card>
         <CardContent>
