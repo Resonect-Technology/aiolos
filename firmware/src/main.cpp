@@ -670,8 +670,9 @@ void loop()
         }
 
         // Measure and send temperature data periodically (stretched while the battery gate is active)
-        if (currentMillis - lastTemperatureUpdate >=
-            SchedLogic::effectiveIntervalMs(batteryGateActive, dynamicTempInterval, SLOW_MODE_TEMPDIAG_INTERVAL_MS))
+        unsigned long effectiveTempInterval =
+            SchedLogic::effectiveIntervalMs(batteryGateActive, dynamicTempInterval, SLOW_MODE_TEMPDIAG_INTERVAL_MS);
+        if (currentMillis - lastTemperatureUpdate >= effectiveTempInterval)
         {
             // Check if we need to start a new temperature conversion
             if (!tempConversionStarted)
@@ -698,7 +699,7 @@ void loop()
                     Logger.info(LOG_TAG_SYSTEM, "External temperature: %.2f°C", externalTemp);
 
                     // Send external temperature data to server (internal temp is sent in diagnostics)
-                    if (httpClient.sendTemperatureData(DEVICE_ID, externalTemp))
+                    if (httpClient.sendTemperatureData(DEVICE_ID, externalTemp, effectiveTempInterval))
                     {
                         Logger.info(LOG_TAG_SYSTEM, "Temperature data sent successfully");
                     }
@@ -732,7 +733,7 @@ void loop()
                 Logger.info(LOG_TAG_SYSTEM, "External temperature: %.2f°C", externalTemp);
 
                 // Send external temperature data to server (internal temp is sent in diagnostics)
-                if (httpClient.sendTemperatureData(DEVICE_ID, externalTemp))
+                if (httpClient.sendTemperatureData(DEVICE_ID, externalTemp, effectiveTempInterval))
                 {
                     Logger.info(LOG_TAG_SYSTEM, "Temperature data sent successfully");
                 }

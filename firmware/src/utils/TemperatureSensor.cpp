@@ -37,6 +37,9 @@ bool TemperatureSensor::init(uint8_t pin, const char *name)
     // Initialize sensor and set 9-bit resolution
     _dallasSensor->begin();
     _dallasSensor->setResolution(9);
+    // Return immediately from requestTemperatures(); both read paths already
+    // wait >= 100ms before reading (9-bit conversion takes <= 93.75ms)
+    _dallasSensor->setWaitForConversion(false);
 
     // Check if sensors are using parasitic power
     bool parasiticMode = false;
@@ -46,7 +49,7 @@ bool TemperatureSensor::init(uint8_t pin, const char *name)
         if (_dallasSensor->getAddress(deviceAddress, 0))
         {
             parasiticMode = _dallasSensor->readPowerSupply(deviceAddress);
-            Logger.debug(LOG_TAG_TEMP, "Sensor '%s' power mode: %s", _name, parasiticMode ? "External" : "Parasitic");
+            Logger.debug(LOG_TAG_TEMP, "Sensor '%s' power mode: %s", _name, parasiticMode ? "Parasitic" : "External");
         }
     }
 

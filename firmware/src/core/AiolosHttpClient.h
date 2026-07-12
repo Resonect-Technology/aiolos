@@ -131,10 +131,11 @@ public:
      *
      * @param stationId Station identifier
      * @param externalTemp External temperature in Celsius
+     * @param intervalMs Effective send interval in milliseconds
      * @return true if successful
      * @return false if failed
      */
-    bool sendTemperatureData(const char *stationId, float externalTemp);
+    bool sendTemperatureData(const char *stationId, float externalTemp, unsigned long intervalMs);
 
     /**
      * @brief Confirms to the server that OTA has been initiated

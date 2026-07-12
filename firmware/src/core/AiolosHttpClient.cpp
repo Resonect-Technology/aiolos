@@ -529,7 +529,7 @@ bool AiolosHttpClient::sendWindData(const char *stationId, float windSpeed, floa
 /**
  * @brief Send temperature data to the server (optimized for high-frequency sending)
  */
-bool AiolosHttpClient::sendTemperatureData(const char *stationId, float externalTemp)
+bool AiolosHttpClient::sendTemperatureData(const char *stationId, float externalTemp, unsigned long intervalMs)
 {
     Logger.info(LOG_TAG_HTTP, "Sending temperature data for station %s", stationId);
 
@@ -537,6 +537,7 @@ bool AiolosHttpClient::sendTemperatureData(const char *stationId, float external
     JsonDocument doc;
     doc.to<JsonObject>(); // Ensure it's an object
     doc["temperature"] = externalTemp;
+    doc["intervalMs"] = intervalMs;
 
     String jsonBuffer;
     serializeJson(doc, jsonBuffer);
