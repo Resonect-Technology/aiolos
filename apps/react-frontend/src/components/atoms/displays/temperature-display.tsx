@@ -2,21 +2,26 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Thermometer } from 'lucide-react';
 import { useState } from 'react';
+import { z } from 'zod';
+
+import { temperatureLivePayloadSchema, type TemperatureLivePayload } from '@repo/schemas';
 
 import { useTransmitSubscription } from '../../../hooks/use-transmit-subscription';
 import { formatLastUpdated } from '../../../lib/time-utils';
 
-interface TemperatureData {
-  temperature: number;
-  timestamp: string;
-}
+// GET /temperature/latest response (legacy SensorReading shape)
+const latestTemperatureResponseSchema = z.looseObject({
+  temperature: z.number(),
+  lastUpdated: z.string().optional(),
+  createdAt: z.string().optional(),
+});
 
 interface TemperatureDisplayProps {
   stationId: string;
 }
 
 export function TemperatureDisplay({ stationId }: TemperatureDisplayProps) {
-  const [temperatureData, setTemperatureData] = useState<TemperatureData | null>(null);
+  const [temperatureData, setTemperatureData] = useState<TemperatureLivePayload | null>(null);
 
   // Fallback for when SSE fails
   const fetchTemperatureFromAPI = async () => {
@@ -26,11 +31,11 @@ export function TemperatureDisplay({ stationId }: TemperatureDisplayProps) {
         return;
       }
 
-      const data = await response.json();
-      if (data.temperature !== undefined) {
+      const parsed = latestTemperatureResponseSchema.safeParse(await response.json());
+      if (parsed.success) {
         setTemperatureData({
-          temperature: data.temperature,
-          timestamp: data.lastUpdated || data.createdAt || new Date().toISOString(),
+          temperature: parsed.data.temperature,
+          timestamp: parsed.data.lastUpdated || parsed.data.createdAt || new Date().toISOString(),
         });
       }
     } catch (err) {
@@ -38,23 +43,10 @@ export function TemperatureDisplay({ stationId }: TemperatureDisplayProps) {
     }
   };
 
-  const { connected, error } = useTransmitSubscription<
-    TemperatureData | { data?: TemperatureData }
-  >(
+  const { connected, error } = useTransmitSubscription(
     `temperature/live/${stationId}`,
-    (message) => {
-      // Messages arrive either as the payload itself or wrapped in { data }
-      const payload =
-        message && typeof (message as TemperatureData).temperature === 'number'
-          ? (message as TemperatureData)
-          : (message as { data?: TemperatureData }).data;
-
-      if (payload && typeof payload.temperature === 'number') {
-        setTemperatureData(payload);
-      } else {
-        console.warn('Received temperature message in unexpected format:', message);
-      }
-    },
+    temperatureLivePayloadSchema,
+    setTemperatureData,
     fetchTemperatureFromAPI,
   );
 

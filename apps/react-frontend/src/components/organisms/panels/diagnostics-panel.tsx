@@ -7,32 +7,21 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Activity, Battery, Sun, Wifi, Clock, AlertTriangle } from 'lucide-react';
 import { useState } from 'react';
 
+import {
+  diagnosticsHistoryRowSchema,
+  diagnosticsLivePayloadSchema,
+  type DiagnosticsLivePayload,
+} from '@repo/schemas';
+
 import { useTransmitSubscription } from '../../../hooks/use-transmit-subscription';
 import { formatLastUpdated } from '../../../lib/time-utils';
-
-interface DiagnosticsData {
-  id?: number;
-  stationId: string;
-  batteryVoltage: number;
-  solarVoltage: number;
-  internalTemperature: number | null;
-  signalQuality: number;
-  uptime: number;
-  firmwareVersion?: string | null;
-  freeHeap?: number | null;
-  minFreeHeap?: number | null;
-  resetReason?: string | null;
-  timestamp: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
 
 interface DiagnosticsPanelProps {
   stationId: string;
 }
 
 export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
-  const [diagnosticsData, setDiagnosticsData] = useState<DiagnosticsData | null>(null);
+  const [diagnosticsData, setDiagnosticsData] = useState<DiagnosticsLivePayload | null>(null);
 
   // Fallback for when SSE fails
   const fetchDiagnosticsFromAPI = async () => {
@@ -46,11 +35,13 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
         return;
       }
 
-      const data = await response.json();
-      if (data.batteryVoltage !== undefined) {
+      // The "no diagnostics yet" message body simply fails the parse and
+      // leaves the panel in its empty state
+      const parsed = diagnosticsHistoryRowSchema.safeParse(await response.json());
+      if (parsed.success) {
         setDiagnosticsData({
-          ...data,
-          timestamp: data.createdAt || new Date().toISOString(),
+          ...parsed.data,
+          timestamp: parsed.data.createdAt,
         });
       }
     } catch (err) {
@@ -58,23 +49,10 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
     }
   };
 
-  const { connected, error } = useTransmitSubscription<
-    DiagnosticsData | { data?: DiagnosticsData }
-  >(
+  const { connected, error } = useTransmitSubscription(
     `station/diagnostics/${stationId}`,
-    (message) => {
-      // Messages arrive either as the payload itself or wrapped in { data }
-      const payload =
-        message && typeof (message as DiagnosticsData).batteryVoltage === 'number'
-          ? (message as DiagnosticsData)
-          : (message as { data?: DiagnosticsData }).data;
-
-      if (payload && typeof payload.batteryVoltage === 'number') {
-        setDiagnosticsData(payload);
-      } else {
-        console.warn('Received diagnostics message in unexpected format:', message);
-      }
-    },
+    diagnosticsLivePayloadSchema,
+    setDiagnosticsData,
     fetchDiagnosticsFromAPI,
   );
 

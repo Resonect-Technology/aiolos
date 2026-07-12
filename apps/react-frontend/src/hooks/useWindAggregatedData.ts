@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 
-import type {
-  WindAggregatedResponse,
-  WindAggregated1Min,
-  WindAggregated10Min,
-} from '../types/wind-aggregated';
+import {
+  windAggregated1MinBroadcastSchema,
+  windAggregated1MinResponseSchema,
+  windAggregated10MinBroadcastSchema,
+  windAggregated10MinResponseSchema,
+} from '@repo/schemas';
+
+import type { WindAggregated1Min, WindAggregated10Min } from '../types/wind-aggregated';
 import { useTransmitSubscription } from './use-transmit-subscription';
 
 type WindAggregateInterval = '1min' | '10min';
@@ -54,8 +57,14 @@ export function useWindAggregatedData<T extends WindAggregated1Min | WindAggrega
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const result: WindAggregatedResponse = await response.json();
-      setData(result.data as T[]);
+      const envelopeSchema =
+        interval === '10min' ? windAggregated10MinResponseSchema : windAggregated1MinResponseSchema;
+      const result = envelopeSchema.safeParse(await response.json());
+      if (!result.success) {
+        throw new Error('Unexpected aggregated wind data shape');
+      }
+      // The caller's T matches the interval it requested
+      setData(result.data.data as T[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch aggregated wind data');
       setData([]);
@@ -78,20 +87,25 @@ interface UseWindAggregatedSSEProps<T> {
 }
 
 /**
- * Live updates for aggregated wind data. The broadcast payload carries the
- * aggregate fields plus stationId; gustSpeed is normalized to null when the
- * backend omits it.
+ * Live updates for aggregated wind data, validated against the broadcast
+ * schema matching the interval (row fields plus stationId).
  */
 export function useWindAggregatedSSE<T extends WindAggregated1Min | WindAggregated10Min>({
   stationId,
   interval = '1min',
   onNewAggregate,
 }: UseWindAggregatedSSEProps<T>) {
-  return useTransmitSubscription<T & { stationId?: string }>(
+  const broadcastSchema =
+    interval === '10min' ? windAggregated10MinBroadcastSchema : windAggregated1MinBroadcastSchema;
+
+  return useTransmitSubscription(
     `wind/aggregated/${interval}/${stationId}`,
+    broadcastSchema,
     (data) => {
-      if (data && data.stationId === stationId) {
-        onNewAggregate({ ...data, gustSpeed: data.gustSpeed ?? null });
+      if (data.stationId === stationId) {
+        // The caller's T matches the interval it subscribed to; the schema
+        // has already guaranteed the runtime shape
+        onNewAggregate(data as unknown as T);
       }
     },
   );

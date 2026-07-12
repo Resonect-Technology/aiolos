@@ -14,6 +14,8 @@ import { useTransmitSubscription } from '@/hooks/use-transmit-subscription';
 import type { WindData } from '@/types/wind';
 import { useState, useCallback } from 'react';
 
+import { windLivePayloadSchema } from '@repo/schemas';
+
 const UNIT_STORAGE_KEY = 'aiolos:wind-unit';
 
 export function Dashboard() {
@@ -33,21 +35,12 @@ export function Dashboard() {
     setSelectedUnit(unit);
   }, []);
 
-  const { error } = useTransmitSubscription<WindData | { data?: WindData }>(
+  const { error } = useTransmitSubscription(
     `wind/live/${stationId}`,
-    (message) => {
-      // Messages arrive either as the payload itself or wrapped in { data }
-      const payload =
-        message && typeof (message as WindData).windSpeed === 'number'
-          ? (message as WindData)
-          : (message as { data?: WindData }).data;
-
-      if (payload && typeof payload.windSpeed === 'number') {
-        setWindData(payload);
-        setWindHistory((prev) => [...prev.slice(-99), payload]); // Keep last 100 readings
-      } else {
-        console.warn('Received message in unexpected format:', message);
-      }
+    windLivePayloadSchema,
+    (payload) => {
+      setWindData(payload);
+      setWindHistory((prev) => [...prev.slice(-99), payload]); // Keep last 100 readings
     },
   );
 
