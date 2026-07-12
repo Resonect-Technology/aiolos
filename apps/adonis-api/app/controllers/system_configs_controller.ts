@@ -1,6 +1,7 @@
 import type { HttpContext } from '@adonisjs/core/http';
 
 import { prisma } from '#services/prisma';
+import { systemConfigWriteSchema } from '#validators/system_config';
 
 export default class SystemConfigsController {
   /**
@@ -59,16 +60,16 @@ export default class SystemConfigsController {
    */
   async set({ params, request, response }: HttpContext) {
     const key = params.key;
-    const { value } = request.body();
 
     try {
-      // Validate input
-      if (value === undefined) {
+      // Validate input: any present value is accepted, only absence is an error
+      const parsed = systemConfigWriteSchema.safeParse(request.body());
+      if (!parsed.success) {
         return response.badRequest({ error: 'Value is required' });
       }
 
       // Convert value to string if it's not already
-      const stringValue = String(value);
+      const stringValue = String(parsed.data.value);
 
       // Create or update the configuration
       await prisma.systemConfig.upsert({

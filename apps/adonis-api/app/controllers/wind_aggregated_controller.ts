@@ -2,6 +2,12 @@ import type { HttpContext } from '@adonisjs/core/http';
 import { DateTime } from 'luxon';
 
 import { prisma } from '#services/prisma';
+import {
+  aggregateIntervalQuerySchema,
+  dateQuerySchema,
+  limitQuerySchema,
+  windUnitQuerySchema,
+} from '#validators/wind_aggregated';
 
 /**
  * Controller for aggregated wind data endpoints
@@ -14,26 +20,38 @@ export default class WindAggregatedController {
    */
   async index({ params, request, response }: HttpContext) {
     const { station_id } = params;
-    const { interval = '1min', date, limit } = request.qs();
+    const qs = request.qs();
 
     // Validate interval parameter
-    if (!['1min', '10min'].includes(interval)) {
+    const intervalResult = aggregateIntervalQuerySchema.safeParse(qs.interval);
+    if (!intervalResult.success) {
       return response.badRequest({
         error: 'Invalid interval. Supported intervals: 1min, 10min',
       });
     }
+    const interval = intervalResult.data;
 
     // Set default limits based on interval
     const defaultLimit = interval === '10min' ? 6 : 10;
     const maxLimit = interval === '10min' ? 144 : 1440; // 144 = full day for 10min, 1440 = full day for 1min
 
     // Parse and validate limit parameter
-    const recordLimit = limit ? parseInt(limit) : defaultLimit;
-    if (recordLimit < 1 || recordLimit > maxLimit) {
+    const limitResult = limitQuerySchema(defaultLimit, maxLimit).safeParse(qs.limit);
+    if (!limitResult.success) {
       return response.badRequest({
         error: `Invalid limit. Must be between 1 and ${maxLimit} for ${interval} interval.`,
       });
     }
+    const recordLimit = limitResult.data;
+
+    // Validate date parameter (dateRange keeps its own check as a safety net)
+    const dateResult = dateQuerySchema.safeParse(qs.date);
+    if (!dateResult.success) {
+      return response.badRequest({
+        error: 'Invalid date format. Use YYYY-MM-DD format.',
+      });
+    }
+    const date = dateResult.data;
 
     try {
       if (interval === '10min') {
@@ -155,14 +173,15 @@ export default class WindAggregatedController {
    */
   async latest({ params, request, response }: HttpContext) {
     const { station_id } = params;
-    const { interval = '1min' } = request.qs();
 
     // Validate interval parameter
-    if (!['1min', '10min'].includes(interval)) {
+    const intervalResult = aggregateIntervalQuerySchema.safeParse(request.qs().interval);
+    if (!intervalResult.success) {
       return response.badRequest({
         error: 'Invalid interval. Supported intervals: 1min, 10min',
       });
     }
+    const interval = intervalResult.data;
 
     try {
       if (interval === '10min') {
@@ -227,41 +246,47 @@ export default class WindAggregatedController {
    */
   async converted({ params, request, response }: HttpContext) {
     const { station_id } = params;
-    const { interval = '1min', date, unit = 'ms', limit } = request.qs();
+    const qs = request.qs();
 
     // Validate interval parameter
-    if (!['1min', '10min'].includes(interval)) {
+    const intervalResult = aggregateIntervalQuerySchema.safeParse(qs.interval);
+    if (!intervalResult.success) {
       return response.badRequest({
         error: 'Invalid interval. Supported intervals: 1min, 10min',
       });
     }
+    const interval = intervalResult.data;
 
     // Validate unit parameter
-    const validUnits = ['ms', 'kmh', 'knots'];
-    if (!validUnits.includes(unit)) {
+    const unitResult = windUnitQuerySchema.safeParse(qs.unit);
+    if (!unitResult.success) {
       return response.badRequest({
-        error: `Invalid unit. Supported units: ${validUnits.join(', ')}`,
+        error: 'Invalid unit. Supported units: ms, kmh, knots',
       });
     }
+    const unit = unitResult.data;
 
     // Set default limits based on interval
     const defaultLimit = interval === '10min' ? 6 : 10;
     const maxLimit = interval === '10min' ? 144 : 1440;
 
     // Parse and validate limit parameter
-    const recordLimit = limit ? parseInt(limit) : defaultLimit;
-    if (recordLimit < 1 || recordLimit > maxLimit) {
+    const limitResult = limitQuerySchema(defaultLimit, maxLimit).safeParse(qs.limit);
+    if (!limitResult.success) {
       return response.badRequest({
         error: `Invalid limit. Must be between 1 and ${maxLimit} for ${interval} interval.`,
       });
     }
+    const recordLimit = limitResult.data;
 
     try {
-      if (date && !DateTime.fromISO(date).isValid) {
+      const dateResult = dateQuerySchema.safeParse(qs.date);
+      if (!dateResult.success) {
         return response.badRequest({
           error: 'Invalid date format. Use YYYY-MM-DD format.',
         });
       }
+      const date = dateResult.data;
 
       const responseDate = date ? DateTime.fromISO(date).toISODate()! : DateTime.now().toISODate()!;
 

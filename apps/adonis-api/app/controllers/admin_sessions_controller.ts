@@ -3,6 +3,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import type { HttpContext } from '@adonisjs/core/http';
 
 import { ADMIN_COOKIE } from '#middleware/admin_auth_middleware';
+import { adminLoginSchema } from '#validators/admin_session';
 
 const sha256 = (value: string) => createHash('sha256').update(value).digest();
 
@@ -12,14 +13,14 @@ export default class AdminSessionsController {
    * Fails closed when ADMIN_PASSWORD is not configured.
    */
   async store({ request, response }: HttpContext) {
-    const { password } = request.body();
+    const parsed = adminLoginSchema.safeParse(request.body());
     const expected = process.env.ADMIN_PASSWORD;
 
     const valid =
-      typeof password === 'string' &&
+      parsed.success &&
       typeof expected === 'string' &&
       expected.length > 0 &&
-      timingSafeEqual(sha256(password), sha256(expected));
+      timingSafeEqual(sha256(parsed.data.password), sha256(expected));
 
     if (!valid) {
       return response.unauthorized({ error: 'Invalid password' });

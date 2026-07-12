@@ -18,4 +18,7 @@ export default await Env.create(new URL('../', import.meta.url), {
   HOST: Env.schema.string({ format: 'host' }),
   LOG_LEVEL: Env.schema.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']),
   ADMIN_PASSWORD: Env.schema.string.optional(),
+  // Read via raw process.env in station_auth_middleware (tests mutate it at
+  // runtime — keep it that way); declared here so it's documented/validated
+  STATION_API_KEY: Env.schema.string.optional(),
 });

@@ -1,6 +1,7 @@
 import type { HttpContext } from '@adonisjs/core/http';
 
 import { prisma } from '#services/prisma';
+import { stationConfigWriteSchema } from '#validators/station_config';
 
 export default class StationConfigsController {
   /**
@@ -54,52 +55,17 @@ export default class StationConfigsController {
     const data = request.body();
 
     try {
-      // Validate data types if values are provided
-      const configData: Record<string, any> = {};
-
-      // Define all valid camelCase field names
-      const validFields = [
-        'tempInterval',
-        'windSendInterval',
-        'windSampleInterval',
-        'diagInterval',
-        'timeInterval',
-        'restartInterval',
-        'sleepStartHour',
-        'sleepEndHour',
-        'otaHour',
-        'otaMinute',
-        'otaDuration',
-        'remoteOta',
-        'utcOffsetMinutes',
-        'livestreamStartHour',
-        'lowBatteryThreshold',
-      ];
-
-      // Process numeric fields
-      for (const field of validFields) {
-        if (data[field] !== undefined) {
-          // Skip the boolean field (handle separately)
-          if (field === 'remoteOta') continue;
-
-          const value = Number(data[field]);
-          if (isNaN(value)) {
-            return response.badRequest({ error: `Invalid value for ${field}. Must be a number.` });
-          }
-          configData[field] = value;
-        }
+      // Coerce/validate the allowlisted fields; unknown keys are stripped
+      const parsed = stationConfigWriteSchema.safeParse(data);
+      if (!parsed.success) {
+        const field = String(parsed.error.issues[0]?.path[0] ?? 'field');
+        return response.badRequest({ error: `Invalid value for ${field}. Must be a number.` });
       }
 
-      // Handle remoteOta flag (boolean)
-      if (data.remoteOta !== undefined) {
-        configData.remoteOta = Boolean(data.remoteOta);
-      }
-
-      // Add stationId to the data
-      configData.stationId = stationId;
+      const configData = { ...parsed.data, stationId };
 
       // Create new config record
-      await prisma.stationConfig.create({ data: configData as any });
+      await prisma.stationConfig.create({ data: configData });
 
       // Log in development mode
       if (process.env.NODE_ENV === 'development') {

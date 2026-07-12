@@ -1,6 +1,8 @@
 import transmit from '@adonisjs/transmit/services/main';
 import { DateTime } from 'luxon';
 
+import type { WindAggregated1MinBroadcast, WindAggregated10MinBroadcast } from '@repo/schemas';
+
 import type { WindTendency } from '#app/types';
 import { prisma } from '#services/prisma';
 
@@ -156,7 +158,7 @@ export class WindAggregationService {
         gustSpeed: windData.gustSpeed,
         dominantDirection: windData.dominantDirection,
         sampleCount: windData.sampleCount,
-      });
+      } satisfies WindAggregated1MinBroadcast);
     } catch (error) {
       // A row for this minute already exists (late or duplicate samples):
       // merge instead of silently dropping the bucket
@@ -219,7 +221,7 @@ export class WindAggregationService {
         gustSpeed: windData.gustSpeed,
         dominantDirection: windData.dominantDirection,
         sampleCount: windData.sampleCount,
-      });
+      } satisfies WindAggregated1MinBroadcast);
     } catch (error) {
       console.error('Error merging wind aggregate:', error);
     }
@@ -466,8 +468,10 @@ export class WindAggregationService {
         maxSpeed: windData.maxSpeed,
         gustSpeed: windData.gustSpeed,
         dominantDirection: windData.dominantDirection,
-        tendency: windData.tendency,
-      });
+        // SQLite stores tendency as plain text; values are written from
+        // WindTendency only
+        tendency: windData.tendency as WindTendency,
+      } satisfies WindAggregated10MinBroadcast);
     } catch (error) {
       console.error(`Error aggregating 10-minute data for station ${stationId}:`, error);
       throw error;
