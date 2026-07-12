@@ -38,13 +38,15 @@ const stations = [
   },
 ];
 
+// Interval fields are MILLISECONDS (the firmware applies them raw);
+// restartInterval alone is SECONDS (the firmware converts and clamps it).
 const stationConfigDefaults = {
-  tempInterval: 300, // 5 minutes
-  windSendInterval: 300, // 5 minutes
-  windSampleInterval: 60, // 1 minute
-  diagInterval: 3600, // 1 hour
-  timeInterval: 86400, // 1 day
-  restartInterval: 604800, // 1 week
+  tempInterval: 300000, // 5 minutes
+  windSendInterval: 300000, // 5 minutes (averaged mode)
+  windSampleInterval: 10000, // 10 seconds
+  diagInterval: 300000, // 5 minutes
+  timeInterval: 3600000, // 1 hour
+  restartInterval: 604800, // 1 week (seconds)
   sleepStartHour: 22, // 10 PM
   sleepEndHour: 6, // 6 AM
   otaHour: 3, // 3 AM
