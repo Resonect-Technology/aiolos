@@ -43,6 +43,10 @@ export default class StationDiagnosticsController {
         signalQuality,
         uptime,
         internalTemperature: data.internalTemperature,
+        firmwareVersion: data.firmwareVersion,
+        freeHeap: data.freeHeap,
+        minFreeHeap: data.minFreeHeap,
+        resetReason: data.resetReason,
         timestamp: diagnosticsData.timestamp,
       });
 
@@ -55,6 +59,10 @@ export default class StationDiagnosticsController {
           internalTemperature: data.internalTemperature ?? null,
           signalQuality: signalQuality,
           uptime: uptime,
+          firmwareVersion: data.firmwareVersion ?? null,
+          freeHeap: data.freeHeap ?? null,
+          minFreeHeap: data.minFreeHeap ?? null,
+          resetReason: data.resetReason ?? null,
         },
       });
 

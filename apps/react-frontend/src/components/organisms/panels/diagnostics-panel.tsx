@@ -18,6 +18,10 @@ interface DiagnosticsData {
   internalTemperature: number | null;
   signalQuality: number;
   uptime: number;
+  firmwareVersion?: string | null;
+  freeHeap?: number | null;
+  minFreeHeap?: number | null;
+  resetReason?: string | null;
   timestamp: string;
   createdAt?: string;
   updatedAt?: string;
@@ -285,6 +289,36 @@ export function DiagnosticsPanel({ stationId }: DiagnosticsPanelProps) {
                       : 'N/A'}
                   </span>
                 </div>
+                {diagnosticsData.firmwareVersion && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Firmware:</span>
+                    <Badge variant="outline">v{diagnosticsData.firmwareVersion}</Badge>
+                  </div>
+                )}
+                {diagnosticsData.resetReason && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Last reset:</span>
+                    <Badge
+                      variant={
+                        ['POWERON', 'DEEPSLEEP'].includes(diagnosticsData.resetReason)
+                          ? 'secondary'
+                          : 'destructive'
+                      }
+                    >
+                      {diagnosticsData.resetReason}
+                    </Badge>
+                  </div>
+                )}
+                {typeof diagnosticsData.freeHeap === 'number' && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Free heap:</span>
+                    <span className="font-medium">
+                      {Math.round(diagnosticsData.freeHeap / 1024)} kB
+                      {typeof diagnosticsData.minFreeHeap === 'number' &&
+                        ` (min ${Math.round(diagnosticsData.minFreeHeap / 1024)} kB)`}
+                    </span>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

@@ -22,6 +22,10 @@ interface StationDiagnosticsData {
   signalQuality: number;
   uptime: number;
   internalTemperature?: number;
+  firmwareVersion?: string;
+  freeHeap?: number;
+  minFreeHeap?: number;
+  resetReason?: string;
   timestamp: string;
 }
 

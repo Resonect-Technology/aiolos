@@ -7,7 +7,41 @@
 #include "../config/Config.h"
 #include "Watchdog.h"
 
+#include <esp_system.h>
+
 #define LOG_TAG_DIAG "DIAG"
+
+/**
+ * @brief Map the ESP-IDF reset reason to a short stable string for the server
+ */
+static const char *resetReasonToString(esp_reset_reason_t reason)
+{
+    switch (reason)
+    {
+    case ESP_RST_POWERON:
+        return "POWERON";
+    case ESP_RST_EXT:
+        return "EXT";
+    case ESP_RST_SW:
+        return "SW";
+    case ESP_RST_PANIC:
+        return "PANIC";
+    case ESP_RST_INT_WDT:
+        return "INT_WDT";
+    case ESP_RST_TASK_WDT:
+        return "TASK_WDT";
+    case ESP_RST_WDT:
+        return "WDT";
+    case ESP_RST_DEEPSLEEP:
+        return "DEEPSLEEP";
+    case ESP_RST_BROWNOUT:
+        return "BROWNOUT";
+    case ESP_RST_SDIO:
+        return "SDIO";
+    default:
+        return "UNKNOWN";
+    }
+}
 
 // Global instance
 DiagnosticsManager diagnosticsManager;
@@ -66,19 +100,25 @@ bool DiagnosticsManager::sendDiagnostics(float internalTemp)
 
     Logger.info(LOG_TAG_DIAG, "Collecting and sending diagnostics data...");
 
-    // Get signal quality
-    int signalQuality = _modemManager->getSignalQuality();
+    // Reset reason never changes during a boot - compute once
+    static const char *resetReason = resetReasonToString(esp_reset_reason());
 
-    // Read voltage values
-    float batteryVoltage = readBatteryVoltage();
-    float solarVoltage = readSolarVoltage();
-
-    // Get system uptime in seconds
-    unsigned long uptime = getSystemUptime();
+    AiolosHttpClient::DiagnosticsPayload payload;
+    payload.batteryVoltage = readBatteryVoltage();
+    payload.solarVoltage = readSolarVoltage();
+    payload.internalTemperature = internalTemp;
+    payload.signalQuality = _modemManager->getSignalQuality();
+    payload.uptime = getSystemUptime();
+    payload.firmwareVersion = FIRMWARE_VERSION;
+    payload.freeHeap = esp_get_free_heap_size();
+    payload.minFreeHeap = esp_get_minimum_free_heap_size();
+    payload.resetReason = resetReason;
 
     // Log diagnostic values before sending
     Logger.info(LOG_TAG_DIAG, "Diagnostics - Battery: %.2fV, Solar: %.2fV, Signal: %d, Uptime: %lus, Internal temp: %.1f°C",
-                batteryVoltage, solarVoltage, signalQuality, uptime, internalTemp);
+                payload.batteryVoltage, payload.solarVoltage, payload.signalQuality, payload.uptime, internalTemp);
+    Logger.info(LOG_TAG_DIAG, "Health - FW: %s, Heap: %lu B (min %lu B), Reset: %s",
+                FIRMWARE_VERSION, (unsigned long)payload.freeHeap, (unsigned long)payload.minFreeHeap, resetReason);
 
 #ifdef DISABLE_WDT_FOR_MODEM
     Logger.debug(LOG_TAG_DIAG, "Relaxing watchdog for diagnostics");
@@ -86,7 +126,7 @@ bool DiagnosticsManager::sendDiagnostics(float internalTemp)
 #endif
 
     // Send data to server
-    bool success = _httpClient->sendDiagnostics(DEVICE_ID, batteryVoltage, solarVoltage, internalTemp, signalQuality, uptime);
+    bool success = _httpClient->sendDiagnostics(DEVICE_ID, payload);
 
 #ifdef DISABLE_WDT_FOR_MODEM
     Logger.debug(LOG_TAG_DIAG, "Restoring watchdog after diagnostics");

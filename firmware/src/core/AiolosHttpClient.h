@@ -35,18 +35,30 @@ public:
     bool init(ModemManager &modemManager, const char *serverAddress, uint16_t serverPort);
 
     /**
+     * @brief Diagnostics data sent to the server
+     */
+    struct DiagnosticsPayload
+    {
+        float batteryVoltage = 0.0f;       // Volts
+        float solarVoltage = 0.0f;         // Volts
+        float internalTemperature = -127.0f; // Celsius (-127 = unavailable)
+        int signalQuality = 0;             // CSQ
+        unsigned long uptime = 0;          // Seconds
+        const char *firmwareVersion = nullptr;
+        uint32_t freeHeap = 0;    // Bytes
+        uint32_t minFreeHeap = 0; // Bytes (lowest since boot)
+        const char *resetReason = nullptr;
+    };
+
+    /**
      * @brief Send diagnostics data to the server
      *
      * @param stationId Station identifier
-     * @param batteryVoltage Battery voltage in volts
-     * @param solarVoltage Solar panel voltage in volts
-     * @param internalTemp Internal temperature in Celsius
-     * @param signalQuality Signal quality in dBm
-     * @param uptime System uptime in seconds
+     * @param payload Diagnostics values to send
      * @return true if successful
      * @return false if failed
      */
-    bool sendDiagnostics(const char *stationId, float batteryVoltage, float solarVoltage, float internalTemp, int signalQuality, unsigned long uptime);
+    bool sendDiagnostics(const char *stationId, const DiagnosticsPayload &payload);
 
     /**
      * @brief Send wind data to the server

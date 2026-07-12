@@ -1,18 +1,18 @@
 {
-    "recommendations": [
-        "Jason2866.esp-decoder",
-        "anthropic.claude-code",
-        "bradlc.vscode-tailwindcss",
-        "github.vscode-pull-request-github",
-        "oxc.oxc-vscode",
-        "pioarduino.pioarduino-ide",
-        "platformio.platformio-ide"
-    ],
-    "unwantedRecommendations": [
-        "dbaeumer.vscode-eslint",
-        "esbenp.prettier-vscode",
-        "ms-vscode.cpptools-extension-pack",
-        "ms-vscode.cpptools-themes",
-        "vsciot-vscode.vscode-arduino"
-    ]
+  "recommendations": [
+    "Jason2866.esp-decoder",
+    "anthropic.claude-code",
+    "bradlc.vscode-tailwindcss",
+    "github.vscode-pull-request-github",
+    "oxc.oxc-vscode",
+    "pioarduino.pioarduino-ide",
+    "platformio.platformio-ide"
+  ],
+  "unwantedRecommendations": [
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "ms-vscode.cpptools-extension-pack",
+    "ms-vscode.cpptools-themes",
+    "vsciot-vscode.vscode-arduino"
+  ]
 }

@@ -306,18 +306,31 @@ int AiolosHttpClient::_performLightweightPost(const char *path, const char *body
 /**
  * @brief Send diagnostics data to the server
  */
-bool AiolosHttpClient::sendDiagnostics(const char *stationId, float batteryVoltage, float solarVoltage, float internalTemp, int signalQuality, unsigned long uptime)
+bool AiolosHttpClient::sendDiagnostics(const char *stationId, const DiagnosticsPayload &payload)
 {
     Logger.info(LOG_TAG_HTTP, "Sending diagnostics data for station %s", stationId);
 
     // Create JSON payload using ArduinoJson with fixed-size document
     JsonDocument doc;
     doc.to<JsonObject>(); // Ensure it's an object
-    doc["batteryVoltage"] = batteryVoltage;
-    doc["solarVoltage"] = solarVoltage;
-    doc["internalTemperature"] = internalTemp;
-    doc["signalQuality"] = signalQuality;
-    doc["uptime"] = uptime;
+    doc["batteryVoltage"] = payload.batteryVoltage;
+    doc["solarVoltage"] = payload.solarVoltage;
+    doc["internalTemperature"] = payload.internalTemperature;
+    doc["signalQuality"] = payload.signalQuality;
+    doc["uptime"] = payload.uptime;
+    if (payload.firmwareVersion != nullptr)
+    {
+        doc["firmwareVersion"] = payload.firmwareVersion;
+    }
+    if (payload.freeHeap > 0)
+    {
+        doc["freeHeap"] = payload.freeHeap;
+        doc["minFreeHeap"] = payload.minFreeHeap;
+    }
+    if (payload.resetReason != nullptr)
+    {
+        doc["resetReason"] = payload.resetReason;
+    }
 
     String jsonBuffer;
     serializeJson(doc, jsonBuffer);

@@ -63,6 +63,10 @@ model StationDiagnostic {
   internalTemperature Float?    @map("internal_temperature")
   signalQuality       Int       @map("signal_quality")
   uptime              Int
+  firmwareVersion     String?   @map("firmware_version")
+  freeHeap            Int?      @map("free_heap")
+  minFreeHeap         Int?      @map("min_free_heap")
+  resetReason         String?   @map("reset_reason")
   createdAt           DateTime? @default(now()) @map("created_at")
   updatedAt           DateTime? @updatedAt @map("updated_at")
 

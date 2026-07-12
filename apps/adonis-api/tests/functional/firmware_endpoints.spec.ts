@@ -226,6 +226,40 @@ test.group('Firmware Critical Endpoints', (group) => {
     assert.equal(stored!.internalTemperature, 42.5);
   });
 
+  test('should persist optional health fields (firmware version, heap, reset reason)', async ({
+    client,
+    assert,
+  }) => {
+    const diagnosticsData = {
+      batteryVoltage: 3.9,
+      solarVoltage: 5.5,
+      signalQuality: 90,
+      uptime: 4242,
+      firmwareVersion: '2.1.0',
+      freeHeap: 123456,
+      minFreeHeap: 98765,
+      resetReason: 'DEEPSLEEP',
+    };
+
+    const response = await client
+      .post(`/api/stations/${testStationId}/diagnostics`)
+      .json(diagnosticsData);
+
+    response.assertStatus(200);
+    response.assertBody({ ok: true });
+
+    const stored = await prisma.stationDiagnostic.findFirst({
+      where: { stationId: testStationId },
+      orderBy: { id: 'desc' },
+    });
+
+    assert.exists(stored);
+    assert.equal(stored!.firmwareVersion, '2.1.0');
+    assert.equal(stored!.freeHeap, 123456);
+    assert.equal(stored!.minFreeHeap, 98765);
+    assert.equal(stored!.resetReason, 'DEEPSLEEP');
+  });
+
   test('should accept diagnostics data without optional internal temperature', async ({
     client,
   }) => {
