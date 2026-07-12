@@ -57,8 +57,8 @@ docker compose -f infra/docker-compose.dev.yml up --build  # full stack on :80
 ```
 
 The same commands are wrapped in the root `Taskfile.yml` (`task --list`) for
-[go-task](https://taskfile.dev) users; `task infra:*` never runs
-`terraform apply`.
+[go-task](https://taskfile.dev) users; the full Docker stack is `task dev:start`
+/ `task dev:stop`.
 
 ## Testing
 

@@ -103,8 +103,8 @@ pnpm lint && pnpm check-types && pnpm format:check
 ```
 
 With [go-task](https://taskfile.dev) installed, `task --list` shows the same
-commands plus database, firmware, and infra helpers (`task setup`, `task check`,
-`task firmware:build`, …).
+commands plus database and firmware helpers (`task setup`, `task check`,
+`task dev:start`, `task firmware:build`, …).
 
 See each app's README (and CLAUDE.md for AI agents) for details.
 
