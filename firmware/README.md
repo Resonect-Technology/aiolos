@@ -1,6 +1,6 @@
-# Aiolos Firmware v2.0
+# Aiolos Firmware v2.2.0
 
-This document provides a comprehensive overview of the Aiolos Weather Station firmware, designed for the LilyGO T-SIM7000G module. It covers the system architecture, key features, and operational logic, intended for developers maintaining or extending the project.
+This document provides a comprehensive overview of the Aiolos Weather Station firmware, designed for the LilyGO T-SIM7000G module. It covers the system architecture, key features, and operational logic, intended for developers maintaining or extending the project. Build/upload commands and the source layout live in [`CLAUDE.md`](./CLAUDE.md); the current firmware version is defined by `FIRMWARE_VERSION` in `src/config/Config.h`.
 
 ## Core Architecture
 
@@ -104,7 +104,7 @@ The firmware uses a flexible, three-tiered configuration system.
 1.  **`secrets.ini`**: For per-device secrets that should not be in version control (APN, Wi-Fi passwords, etc.). See "Environment Configuration" below.
 2.  **`Config.h`**: Contains the default fallback values for all operational parameters (e.g., `DEFAULT_WIND_INTERVAL`). These are used if the device cannot reach the server.
 3.  **Remote Configuration**: At runtime, the device periodically fetches a JSON configuration from the backend server using `AiolosHttpClient.fetchConfiguration()`. These values override the defaults, allowing for dynamic adjustment of reporting intervals, sleep times, and other parameters without reflashing the firmware.
-   - **Note**: The `restartInterval` parameter is received from the server for API compatibility but is ignored by the firmware. The device uses a fixed 4-hour uptime-based restart instead for maximum reliability.
+   - **Note**: The `restartInterval` (seconds) from remote config overrides the default uptime-based restart. It is clamped by `ConfigLogic::clampRestartIntervalMs` to a **1-hour floor** (guards against a typo forcing a restart loop) and a 1-week cap; `0`/absent keeps the firmware default (`UPTIME_RESTART_INTERVAL`, 4 hours).
 
 ### 6. System Reliability & Watchdog Management
 
@@ -112,7 +112,7 @@ The firmware implements comprehensive system reliability measures to ensure stab
 
 - **Watchdog Timer**: 120-second timeout to detect and recover from system hangs
 - **Strategic Disabling**: Watchdog is temporarily disabled during long operations (modem initialization, OTA updates, connectivity tests)
-- **Uptime-Based Restart**: Automatic restart after 4 hours of continuous operation to maintain system health and prevent memory fragmentation
+- **Uptime-Based Restart**: Automatic restart after a default 4 hours of continuous operation (server-tunable via `restartInterval`, see §5) to maintain system health and prevent memory fragmentation
 - **Error Recovery**: Graceful handling of modem, network, and sensor failures with appropriate fallbacks
 - **Non-Blocking Operations**: All potentially blocking operations converted to timer-based alternatives
 - **System Responsiveness**: Sensors and core functions continue operating during connection issues
@@ -169,5 +169,17 @@ All safety timing constants are centrally defined in `Config.h`:
 - **Non-Blocking Operation**: Sensors continue operating during connection issues
 - **Comprehensive Logging**: Full diagnostic information for troubleshooting
 - **Remote Monitoring**: Offline status visible in logs for proactive intervention
+
+---
+
+## Additions in 2.1 / 2.2
+
+Features added after the 2.0 architecture above. Constants are in `src/config/Config.h`; the pure, host-testable rules are in `src/logic/` (covered by native Unity tests, `pio test -e native`, which also run in CI).
+
+- **Station authentication**: every request carries an `X-API-Key` header (`STATION_API_KEY`, set in `secrets.ini`). The server enforces it only when its `STATION_API_KEY` env is set, so the firmware sends it unconditionally.
+- **Station-local time**: `utcOffsetMinutes` (default +180, Greece summer) drives sleep-window and OTA-window scheduling against wall-clock local time. `livestreamStartHour` enables a morning "slow mode" that keeps send intervals low until the sun is up.
+- **Battery protection**: a `lowBatteryThreshold` gate floors send intervals when the pack is low, and a **critical-battery hibernation tier** (`CRITICAL_BATTERY_VOLTAGE` 3.5 V entry after several minute-spaced reads, `CRITICAL_BATTERY_RECOVERY_V` 3.6 V exit) parks the device until it recovers. The boot check runs before the modem powers on to break brownout loops.
+- **Richer diagnostics**: each diagnostics POST includes `firmwareVersion`, `freeHeap`, and `resetReason` alongside battery/solar/signal, surfaced as health badges on the dashboard.
+- **Remote restart interval**: see §5 — server-tunable with a 1-hour safety floor.
 
 ---

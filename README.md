@@ -59,19 +59,21 @@ designed for reliability, extensibility, and developer-friendliness.
 
 ### Adonis API Service ([docs](apps/adonis-api/README.md))
 
-- Stores and exposes sensor data (wind, temperature)
-- RESTful, IoT-friendly routes: `/station/:station_id/readings`
-- Direct HTTP endpoint for weather stations to submit data
-- Auto-generated OpenAPI docs with
-  [adonis-autoswagger](https://github.com/ad-on-is/adonis-autoswagger)
+- Stores and exposes sensor data (wind, temperature, diagnostics)
+- Fixed HTTP routes the field stations POST to (e.g.
+  `POST /api/stations/:station_id/wind`, `/temperature`, `/diagnostics`,
+  `GET /api/stations/:station_id/config`)
+- Live wind streamed to the dashboard over SSE (`@adonisjs/transmit`)
+- Auto-generated OpenAPI docs at `/docs`
+  ([adonis-autoswagger](https://github.com/ad-on-is/adonis-autoswagger))
 
 ### React Frontend ([docs](apps/react-frontend/README.md))
 
-- User interface built with React, Vite, and TypeScript.
-- Displays live wind speed (with unit conversion) and direction using dynamic
-  gauges and a compass.
-- Connects to the Adonis API via Server-Sent Events (SSE) for real-time data.
-- Provides controls for interacting with mock data streams from the backend.
+- React 19 + Vite 8 + Tailwind 4 (shadcn/ui) dashboard.
+- Live wind speed (m/s, km/h, knots, Beaufort), direction compass, and wind
+  rose, plus temperature and station diagnostics.
+- Live wind over Server-Sent Events (SSE); temperature/diagnostics over REST.
+- Password-protected `/admin` section for station config and monitoring.
 
 ### Firmware ([docs](firmware/README.md))
 
@@ -118,57 +120,13 @@ This project is licensed under the GNU Affero General Public License v3.0
 
 ---
 
-## AI-First Development with GitHub Copilot
+## AI-assisted development
 
-This project uses **GitHub Copilot extensively** as an AI-first development
-approach. We've configured a comprehensive setup to maximize Copilot's
-effectiveness on complex IoT and web development tasks.
-
-### Our Copilot Setup
-
-- **Custom Instructions**:
-  [`.github/copilot-instructions.md`](.github/copilot-instructions.md) provides
-  project-specific guidance including architecture patterns, development
-  workflows, and integration points
-- **Environment Setup**:
-  [`.github/workflows/copilot-setup-steps.yml`](.github/workflows/copilot-setup-steps.yml)
-  pre-installs all dependencies (Node.js, Python, PlatformIO, databases) so
-  Copilot can build, test, and validate changes in its development environment
-- **Multi-Component Architecture**: Copilot understands the relationships
-  between firmware (ESP32), backend (AdonisJS), and frontend (React) components
-
-### Best Practices for Task Assignment
-
-When assigning tasks to Copilot, follow these guidelines based on
-[GitHub's best practices](https://docs.github.com/en/enterprise-cloud@latest/copilot/how-tos/agents/copilot-coding-agent/best-practices-for-using-copilot-to-work-on-tasks):
-
-**✅ Good Tasks for Copilot:**
-
-- Bug fixes and user interface improvements
-- Test coverage expansion and documentation updates
-- API endpoint additions and database schema changes
-- Frontend component development using our shadcn/ui + Tailwind stack
-- Firmware sensor integration and power management optimizations
-
-**❌ Tasks to Handle Yourself:**
-
-- Complex cross-repository refactoring requiring deep domain knowledge
-- Production-critical issues and security-sensitive changes
-- Ambiguous tasks lacking clear requirements
-- Major architectural decisions affecting multiple components
-
-**📝 Writing Effective Issues:**
-
-- Provide clear problem descriptions and complete acceptance criteria
-- Specify which files/components need changes
-- Include context about the IoT hardware constraints and API compatibility
-  requirements
-- Reference relevant documentation sections when applicable
-
-### Pull Request Iteration
-
-Use pull request comments to iterate with Copilot - it will read comments from
-users with write access and make required changes automatically. Batch multiple
-comments using "Start a review" for more efficient collaboration.
+This project is developed with [Claude Code](https://claude.com/claude-code).
+Guidance for AI agents — and a fast onboarding for humans — lives in
+[`CLAUDE.md`](CLAUDE.md), the path-scoped rules under
+[`.claude/rules/`](.claude/rules), and a `CLAUDE.md` in each
+app/`firmware`/`infra` directory. VS Code recommends the `anthropic.claude-code`
+extension (see `.vscode/extensions.json`).
 
 ---
