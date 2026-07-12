@@ -38,6 +38,46 @@ namespace SchedLogic
     }
 
     /**
+     * @brief Critical-battery decision with hysteresis and consecutive-read debounce
+     *
+     * The no-battery/USB sentinel (<= 0.15 V) never triggers hibernation and
+     * resets the debounce counter - a bench-powered station must stay awake.
+     * When already critical, a single reading >= recoveryV exits (the wide
+     * critical->recovery band absorbs noise). When not critical, entry
+     * requires requiredReads consecutive readings below criticalV so modem
+     * TX sag transients cannot hibernate a healthy station.
+     *
+     * @param criticalActive Current hibernation state
+     * @param batteryVoltage Measured battery voltage
+     * @param criticalV Hibernate below this
+     * @param recoveryV Resume at or above this
+     * @param consecutiveLow Caller-held debounce counter (in/out)
+     * @param requiredReads Consecutive low reads needed to enter
+     * @return true = hibernation requested / still required
+     */
+    inline bool updateCriticalBattery(bool criticalActive, float batteryVoltage,
+                                      float criticalV, float recoveryV,
+                                      int &consecutiveLow, int requiredReads)
+    {
+        if (batteryVoltage <= 0.15f)
+        {
+            consecutiveLow = 0;
+            return false; // No battery / USB power - never hibernate
+        }
+        if (criticalActive)
+        {
+            return batteryVoltage < recoveryV;
+        }
+        if (batteryVoltage < criticalV)
+        {
+            consecutiveLow++;
+            return consecutiveLow >= requiredReads;
+        }
+        consecutiveLow = 0;
+        return false;
+    }
+
+    /**
      * @brief Morning slow mode: true before the livestream start hour
      *
      * @param localHour Station-local hour (0-23)
@@ -54,17 +94,17 @@ namespace SchedLogic
     }
 
     /**
-     * @brief Wind send interval to actually use
+     * @brief Send interval to actually use (wind, temperature, diagnostics)
      *
-     * In slow mode the interval is floored to slowFloorMs (a >5s interval
-     * automatically selects the firmware's averaged-sampling path).
+     * In slow mode the interval is floored to slowFloorMs (for wind, a >5s
+     * interval automatically selects the firmware's averaged-sampling path).
      */
-    inline unsigned long effectiveWindIntervalMs(bool slowMode, unsigned long windIntervalMs, unsigned long slowFloorMs)
+    inline unsigned long effectiveIntervalMs(bool slowMode, unsigned long intervalMs, unsigned long slowFloorMs)
     {
         if (!slowMode)
         {
-            return windIntervalMs;
+            return intervalMs;
         }
-        return windIntervalMs > slowFloorMs ? windIntervalMs : slowFloorMs;
+        return intervalMs > slowFloorMs ? intervalMs : slowFloorMs;
     }
 }

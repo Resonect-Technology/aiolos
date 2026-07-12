@@ -137,6 +137,24 @@ void test_utc_to_local()
     TEST_ASSERT_EQUAL_INT(60, TimeLogic::utcToLocalMinutes(23 * 60, 120));
 }
 
+// --- TimeLogic: ticking clock between syncs --------------------------------------
+
+void test_advance_seconds_of_day()
+{
+    const long NOON = 12L * 3600;
+
+    // Zero elapsed is identity
+    TEST_ASSERT_EQUAL_INT32(NOON, TimeLogic::advanceSecondsOfDay(NOON, 0));
+    // +90 s
+    TEST_ASSERT_EQUAL_INT32(NOON + 90, TimeLogic::advanceSecondsOfDay(NOON, 90000));
+    // Sub-second remainders truncate (999 ms -> +0 s)
+    TEST_ASSERT_EQUAL_INT32(NOON, TimeLogic::advanceSecondsOfDay(NOON, 999));
+    // Wrap past midnight: 23:59:30 + 60 s -> 00:00:30
+    TEST_ASSERT_EQUAL_INT32(30, TimeLogic::advanceSecondsOfDay(23L * 3600 + 59 * 60 + 30, 60000));
+    // More than 24 h elapsed still lands in [0, 86400)
+    TEST_ASSERT_EQUAL_INT32(NOON + 60, TimeLogic::advanceSecondsOfDay(NOON, 24UL * 3600 * 1000 + 60000));
+}
+
 // --- TimeLogic: sleep window -----------------------------------------------------
 
 void test_sleep_window_same_day()
@@ -209,6 +227,53 @@ void test_battery_gate_disabled_and_sentinel()
     TEST_ASSERT_FALSE(SchedLogic::updateBatteryGate(false, 0.1f, 4.0f, 0.1f));
 }
 
+// --- SchedLogic: critical-battery hibernation ------------------------------------
+
+void test_critical_battery_sentinel()
+{
+    // USB / no-battery sentinel never hibernates and resets the debounce counter
+    int lowReads = 2;
+    TEST_ASSERT_FALSE(SchedLogic::updateCriticalBattery(false, 0.1f, 3.5f, 3.7f, lowReads, 3));
+    TEST_ASSERT_EQUAL_INT(0, lowReads);
+    lowReads = 2;
+    TEST_ASSERT_FALSE(SchedLogic::updateCriticalBattery(true, 0.1f, 3.5f, 3.7f, lowReads, 3));
+    TEST_ASSERT_EQUAL_INT(0, lowReads);
+}
+
+void test_critical_battery_consecutive_reads()
+{
+    int lowReads = 0;
+    // Two lows are not enough
+    TEST_ASSERT_FALSE(SchedLogic::updateCriticalBattery(false, 3.4f, 3.5f, 3.7f, lowReads, 3));
+    TEST_ASSERT_FALSE(SchedLogic::updateCriticalBattery(false, 3.4f, 3.5f, 3.7f, lowReads, 3));
+    // A good read (TX sag transient over) resets the streak
+    TEST_ASSERT_FALSE(SchedLogic::updateCriticalBattery(false, 3.6f, 3.5f, 3.7f, lowReads, 3));
+    TEST_ASSERT_EQUAL_INT(0, lowReads);
+    // Three consecutive lows hibernate
+    TEST_ASSERT_FALSE(SchedLogic::updateCriticalBattery(false, 3.4f, 3.5f, 3.7f, lowReads, 3));
+    TEST_ASSERT_FALSE(SchedLogic::updateCriticalBattery(false, 3.4f, 3.5f, 3.7f, lowReads, 3));
+    TEST_ASSERT_TRUE(SchedLogic::updateCriticalBattery(false, 3.4f, 3.5f, 3.7f, lowReads, 3));
+}
+
+void test_critical_battery_recovery_hysteresis()
+{
+    int lowReads = 0;
+    // While hibernating, anything below recovery stays hibernating...
+    TEST_ASSERT_TRUE(SchedLogic::updateCriticalBattery(true, 3.55f, 3.5f, 3.7f, lowReads, 3));
+    TEST_ASSERT_TRUE(SchedLogic::updateCriticalBattery(true, 3.69f, 3.5f, 3.7f, lowReads, 3));
+    // ...and a single read at >= recovery exits
+    TEST_ASSERT_FALSE(SchedLogic::updateCriticalBattery(true, 3.7f, 3.5f, 3.7f, lowReads, 3));
+}
+
+void test_critical_battery_boot_single_read()
+{
+    // The boot-time guard uses requiredReads=1: one low read hibernates
+    int lowReads = 0;
+    TEST_ASSERT_TRUE(SchedLogic::updateCriticalBattery(false, 3.4f, 3.5f, 3.7f, lowReads, 1));
+    lowReads = 0;
+    TEST_ASSERT_FALSE(SchedLogic::updateCriticalBattery(false, 3.5f, 3.5f, 3.7f, lowReads, 1));
+}
+
 // --- SchedLogic: morning slow mode ----------------------------------------------
 
 void test_morning_slow_mode()
@@ -223,18 +288,21 @@ void test_morning_slow_mode()
     TEST_ASSERT_FALSE(SchedLogic::isMorningSlow(9, 24));
 }
 
-// --- SchedLogic: effective wind interval ------------------------------------------
+// --- SchedLogic: effective send interval ------------------------------------------
 
-void test_effective_wind_interval()
+void test_effective_interval()
 {
     const unsigned long SLOW_MS = 600000UL;
 
     // Normal mode passes the configured interval through
-    TEST_ASSERT_EQUAL_UINT32(1000UL, SchedLogic::effectiveWindIntervalMs(false, 1000UL, SLOW_MS));
+    TEST_ASSERT_EQUAL_UINT32(1000UL, SchedLogic::effectiveIntervalMs(false, 1000UL, SLOW_MS));
     // Slow mode floors a livestream cadence to 10 minutes
-    TEST_ASSERT_EQUAL_UINT32(SLOW_MS, SchedLogic::effectiveWindIntervalMs(true, 1000UL, SLOW_MS));
+    TEST_ASSERT_EQUAL_UINT32(SLOW_MS, SchedLogic::effectiveIntervalMs(true, 1000UL, SLOW_MS));
     // Slow mode never speeds up an already-slower cadence
-    TEST_ASSERT_EQUAL_UINT32(900000UL, SchedLogic::effectiveWindIntervalMs(true, 900000UL, SLOW_MS));
+    TEST_ASSERT_EQUAL_UINT32(900000UL, SchedLogic::effectiveIntervalMs(true, 900000UL, SLOW_MS));
+    // Temp/diag path: 5 min default floors to 10 min while the battery gate is active
+    TEST_ASSERT_EQUAL_UINT32(SLOW_MS, SchedLogic::effectiveIntervalMs(true, 300000UL, SLOW_MS));
+    TEST_ASSERT_EQUAL_UINT32(300000UL, SchedLogic::effectiveIntervalMs(false, 300000UL, SLOW_MS));
 }
 
 // --- WindStats: ring buffer + rolling/window means ------------------------------
@@ -436,14 +504,19 @@ int main()
     RUN_TEST(test_normalize_minutes_of_day);
     RUN_TEST(test_modem_local_to_utc);
     RUN_TEST(test_utc_to_local);
+    RUN_TEST(test_advance_seconds_of_day);
     RUN_TEST(test_sleep_window_same_day);
     RUN_TEST(test_sleep_window_midnight_wrap);
     RUN_TEST(test_sleep_window_disabled_when_equal);
     RUN_TEST(test_restart_interval_clamp);
     RUN_TEST(test_battery_gate_hysteresis);
     RUN_TEST(test_battery_gate_disabled_and_sentinel);
+    RUN_TEST(test_critical_battery_sentinel);
+    RUN_TEST(test_critical_battery_consecutive_reads);
+    RUN_TEST(test_critical_battery_recovery_hysteresis);
+    RUN_TEST(test_critical_battery_boot_single_read);
     RUN_TEST(test_morning_slow_mode);
-    RUN_TEST(test_effective_wind_interval);
+    RUN_TEST(test_effective_interval);
     RUN_TEST(test_ring_push_and_wrap);
     RUN_TEST(test_rolling_mean_exact_3s);
     RUN_TEST(test_rolling_mean_partial_data);

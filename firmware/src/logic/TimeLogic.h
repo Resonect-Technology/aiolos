@@ -47,6 +47,23 @@ namespace TimeLogic
     }
 
     /**
+     * @brief Advance a synced seconds-of-day value by elapsed milliseconds
+     *
+     * Used to keep a ticking local clock between network time syncs.
+     * Result is normalized into [0, 86400).
+     */
+    inline long advanceSecondsOfDay(long syncedSecondsOfDay, unsigned long elapsedMs)
+    {
+        long seconds = syncedSecondsOfDay + (long)(elapsedMs / 1000UL);
+        seconds %= 86400L;
+        if (seconds < 0)
+        {
+            seconds += 86400L;
+        }
+        return seconds;
+    }
+
+    /**
      * @brief Check whether an hour falls inside a sleep window
      *
      * Window is [startHour, endHour), supports crossing midnight

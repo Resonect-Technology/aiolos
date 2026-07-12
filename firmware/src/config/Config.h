@@ -145,7 +145,17 @@
 #define DEFAULT_LIVESTREAM_START_HOUR -1    // Local hour to start live wind cadence; -1 = morning slow mode disabled
 #define DEFAULT_LOW_BATTERY_THRESHOLD 4.0f  // Volts; battery gate forces slow mode below this
 #define BATTERY_GATE_HYSTERESIS_V 0.1f      // Gate enters below (threshold - hysteresis), exits at >= threshold
-#define SLOW_MODE_WIND_INTERVAL_MS 600000UL // (10min) Wind send interval floor while in slow mode
+#define SLOW_MODE_WIND_INTERVAL_MS 600000UL     // (10min) Wind send interval floor while in slow mode
+#define SLOW_MODE_TEMPDIAG_INTERVAL_MS 600000UL // (10min) Temp/diag interval floor while battery gate active
+
+// Critical-battery hibernation (compile-time on purpose - a hard safety floor
+// must not be remotely mis-configurable). Single Li-ion 18650: 3.5 V is
+// ~10-15% charge; recovery at 3.7 V leaves margin for GPRS load sag so a
+// recovered station cannot flap straight back into hibernation.
+#define CRITICAL_BATTERY_VOLTAGE 3.5f        // Volts; hibernate below this
+#define CRITICAL_BATTERY_RECOVERY_V 3.7f     // Resume normal operation at >= this
+#define CRITICAL_BATTERY_CONSECUTIVE_READS 3 // Minute-spaced low reads required to hibernate
+#define CRITICAL_SLEEP_DURATION_S 3600       // Hibernation cycle length (1h) between battery re-checks
 
 // Watchdog settings
 #define WDT_TIMEOUT_S 120 // Watchdog timeout in seconds
@@ -165,7 +175,7 @@
 #else
 #define DEVICE_ID "Aiolos"
 #endif
-#define FIRMWARE_VERSION "2.1.0"
+#define FIRMWARE_VERSION "2.2.0"
 
 // Server settings
 #ifdef CONFIG_SERVER_HOST

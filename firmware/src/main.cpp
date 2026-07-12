@@ -38,6 +38,7 @@ unsigned long lastHeartbeatTime = 0;
 unsigned long lastConfigFetchTime = 0;
 int currentHour = 0, currentMinute = 0, currentSecond = 0;
 unsigned long lastNetworkTimeUpdate = 0; // Track when we last got network time
+long syncedSecondsOfDay = 0;             // Station-local seconds-of-day at the last network sync
 bool otaActive = false;
 unsigned long lastOtaCheck = 0;
 bool isSamplingWind = false; // For wind data averaging
@@ -80,6 +81,11 @@ bool batteryGateActive = false;
 bool morningSlowActive = false;
 unsigned long lastSlowModeCheck = 0;
 
+// Critical-battery hibernation state - survives deep sleep and software
+// resets; zeroed on power-on reset (battery swap / hard power cycle)
+RTC_DATA_ATTR bool rtcCriticalSleepActive = false;
+RTC_DATA_ATTR uint16_t rtcCriticalSleepCycles = 0;
+
 // Calibration mode - can be enabled via build flags
 #ifdef CALIBRATION_MODE
 const bool CALIBRATION_ENABLED = true;
@@ -98,7 +104,9 @@ void setupWatchdog();
 void resetWatchdog();
 bool isSleepTime();
 bool updateLocalTime();
+void refreshLocalClock();
 void enterDeepSleepUntil(int hour, int minute);
+void enterCriticalSleep(bool sendFinalDiagnostics);
 void testModemConnectivity();
 bool checkAndInitOta();
 bool checkAndInitRemoteOta();
@@ -137,6 +145,37 @@ void setup()
 
     // Initialize battery reading utility
     BatteryUtils::init();
+
+#ifndef DEBUG_MODE
+    // Critical-battery guard: check BEFORE powering the modem - its inrush on
+    // a dying battery can brownout-loop the board and deep-discharge the pack.
+    // Deliberately not gated on ESP_RST_DEEPSLEEP so uptime restarts and
+    // brownout resets are covered too.
+    {
+        float bootVoltage = BatteryUtils::readBatteryVoltage();
+        int bootLowReads = 0;
+        // A single read suffices here: the modem is still off, so a false
+        // positive costs one hibernation cycle at most
+        if (SchedLogic::updateCriticalBattery(rtcCriticalSleepActive, bootVoltage,
+                                              CRITICAL_BATTERY_VOLTAGE, CRITICAL_BATTERY_RECOVERY_V,
+                                              bootLowReads, 1))
+        {
+            rtcCriticalSleepActive = true;
+            rtcCriticalSleepCycles++;
+            Logger.error(LOG_TAG_SYSTEM, "Battery critical at boot (%.2f V), hibernating %d s (cycle %u)",
+                         bootVoltage, CRITICAL_SLEEP_DURATION_S, rtcCriticalSleepCycles);
+            esp_sleep_enable_timer_wakeup((uint64_t)CRITICAL_SLEEP_DURATION_S * 1000000ULL);
+            esp_deep_sleep_start();
+        }
+        if (rtcCriticalSleepActive)
+        {
+            Logger.info(LOG_TAG_SYSTEM, "Battery recovered (%.2f V) after %u hibernation cycles",
+                        bootVoltage, rtcCriticalSleepCycles);
+            rtcCriticalSleepActive = false;
+            rtcCriticalSleepCycles = 0;
+        }
+    }
+#endif
 
     // Set up LED
     pinMode(LED_PIN, OUTPUT);
@@ -315,9 +354,35 @@ void loop()
     // Get current time
     unsigned long currentMillis = millis();
 
+    // Keep the station-local clock ticking between network time syncs
+    refreshLocalClock();
+
     // Wind measurement tick (1 Hz pulse snapshot) — runs regardless of
     // connectivity so live statistics stay warm through outages
     windSensor.service(currentMillis);
+
+#ifndef DEBUG_MODE
+    // Critical-battery check - runs even while offline (unlike the slow-mode
+    // gate below, which only refreshes when online); the modem is the dominant
+    // consumer, so a dying station must hibernate regardless of connectivity
+    static unsigned long lastCriticalCheck = 0;
+    static int criticalLowReads = 0;
+    if (lastCriticalCheck == 0 || currentMillis - lastCriticalCheck >= 60000)
+    {
+        lastCriticalCheck = currentMillis;
+
+        float criticalCheckVoltage = BatteryUtils::readBatteryVoltage();
+        if (SchedLogic::updateCriticalBattery(false, criticalCheckVoltage,
+                                              CRITICAL_BATTERY_VOLTAGE, CRITICAL_BATTERY_RECOVERY_V,
+                                              criticalLowReads, CRITICAL_BATTERY_CONSECUTIVE_READS))
+        {
+            Logger.error(LOG_TAG_SYSTEM, "Battery critically low (%.2f V, %d consecutive reads)",
+                         criticalCheckVoltage, criticalLowReads);
+            enterCriticalSleep(true);
+            return; // Not reached - deep sleep
+        }
+    }
+#endif
 
     // Check for uptime-based restart (default 4 hours, adjustable via remote config)
     if (currentMillis >= dynamicRestartIntervalMs)
@@ -484,8 +549,9 @@ void loop()
     // Only proceed with network operations if GPRS is connected and not in backoff
     if (connectionSuccess && !httpClient.isConnectionThrottled())
     {
-        // Send diagnostics data periodically
-        if (currentMillis - lastDiagnosticsUpdate >= dynamicDiagInterval)
+        // Send diagnostics data periodically (stretched while the battery gate is active)
+        if (currentMillis - lastDiagnosticsUpdate >=
+            SchedLogic::effectiveIntervalMs(batteryGateActive, dynamicDiagInterval, SLOW_MODE_TEMPDIAG_INTERVAL_MS))
         {
             lastDiagnosticsUpdate = currentMillis;
 
@@ -531,7 +597,7 @@ void loop()
 
         bool slowMode = morningSlowActive || batteryGateActive;
         unsigned long effectiveWindInterval =
-            SchedLogic::effectiveWindIntervalMs(slowMode, dynamicWindInterval, SLOW_MODE_WIND_INTERVAL_MS);
+            SchedLogic::effectiveIntervalMs(slowMode, dynamicWindInterval, SLOW_MODE_WIND_INTERVAL_MS);
 
         if (effectiveWindInterval <= LIVESTREAM_THRESHOLD_MS)
         {
@@ -603,8 +669,9 @@ void loop()
             }
         }
 
-        // Measure and send temperature data periodically
-        if (currentMillis - lastTemperatureUpdate >= dynamicTempInterval)
+        // Measure and send temperature data periodically (stretched while the battery gate is active)
+        if (currentMillis - lastTemperatureUpdate >=
+            SchedLogic::effectiveIntervalMs(batteryGateActive, dynamicTempInterval, SLOW_MODE_TEMPDIAG_INTERVAL_MS))
         {
             // Check if we need to start a new temperature conversion
             if (!tempConversionStarted)
@@ -1014,6 +1081,7 @@ bool updateLocalTime()
     currentMinute = localMinutes % 60;
     currentSecond = second;
 
+    syncedSecondsOfDay = (long)localMinutes * 60 + second;
     Logger.setRealTime(currentHour, currentMinute, currentSecond);
     lastNetworkTimeUpdate = millis();
 
@@ -1021,6 +1089,27 @@ bool updateLocalTime()
                 currentHour, currentMinute, currentSecond, hour, minute, timezone, dynamicUtcOffsetMinutes);
 
     return true;
+}
+
+/**
+ * @brief Advance the station-local clock from the last network sync
+ *
+ * currentHour/Minute/Second only change when updateLocalTime() runs (default
+ * every hour), so consumers in between would see a stale clock — sleep entry
+ * could run up to an hour late and wake durations would inherit the skew.
+ * Called once per loop() iteration.
+ */
+void refreshLocalClock()
+{
+    if (lastNetworkTimeUpdate == 0)
+    {
+        return; // Never synced - nothing to advance
+    }
+
+    long secondsOfDay = TimeLogic::advanceSecondsOfDay(syncedSecondsOfDay, millis() - lastNetworkTimeUpdate);
+    currentHour = (int)(secondsOfDay / 3600);
+    currentMinute = (int)((secondsOfDay % 3600) / 60);
+    currentSecond = (int)(secondsOfDay % 60);
 }
 
 /**
@@ -1037,8 +1126,7 @@ bool isSleepTime()
     return false;
 #else
     // Check if we have valid time information (network time has been obtained)
-    // If currentHour, currentMinute, and currentSecond are all 0, it's likely we haven't obtained network time yet
-    if (currentHour == 0 && currentMinute == 0 && currentSecond == 0)
+    if (lastNetworkTimeUpdate == 0)
     {
         Logger.debug(LOG_TAG_SYSTEM, "isSleepTime(): No valid time information available, assuming not sleep time");
         return false;
@@ -1142,6 +1230,43 @@ void enterDeepSleepUntil(int hour, int minute)
     esp_sleep_enable_timer_wakeup(sleepSeconds * 1000000ULL); // Convert to microseconds
 
     // Enter deep sleep
+    esp_deep_sleep_start();
+}
+
+/**
+ * @brief Hibernate because the battery is critically low
+ *
+ * Powers everything down and deep-sleeps for CRITICAL_SLEEP_DURATION_S; the
+ * boot-time guard in setup() re-checks the battery on each wake (before the
+ * modem is powered) and either resumes normal operation or sleeps again.
+ *
+ * @param sendFinalDiagnostics Best-effort final diagnostics POST so the
+ *        dashboard shows the low batteryVoltage that explains the silence
+ */
+void enterCriticalSleep(bool sendFinalDiagnostics)
+{
+    Logger.error(LOG_TAG_SYSTEM, "CRITICAL battery - hibernating for %d s (cycle %u)",
+                 CRITICAL_SLEEP_DURATION_S, (unsigned)(rtcCriticalSleepCycles + 1));
+
+    if (sendFinalDiagnostics && modemManager.isGprsConnected() && !httpClient.isConnectionThrottled())
+    {
+        diagnosticsManager.sendDiagnostics(diagnosticsManager.readInternalTemperature());
+    }
+
+    rtcCriticalSleepActive = true;
+    rtcCriticalSleepCycles++;
+
+    watchdogDisable();
+
+    if (otaActive)
+    {
+        otaManager.end();
+        otaActive = false;
+    }
+
+    modemManager.powerOff();
+
+    esp_sleep_enable_timer_wakeup((uint64_t)CRITICAL_SLEEP_DURATION_S * 1000000ULL);
     esp_deep_sleep_start();
 }
 
