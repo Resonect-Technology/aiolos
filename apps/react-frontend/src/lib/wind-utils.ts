@@ -90,9 +90,10 @@ export const getWindSpeedColor = (rangeIndex: number): string => {
   return WIND_SPEED_COLORS[Math.min(rangeIndex, WIND_SPEED_COLORS.length - 1)] ?? '#f44242';
 };
 
-// Gust readings are highlighted with the near-gale bin color everywhere
-// (tables, trend chart) so "gust orange" always means the same thing
-export const WIND_GUST_COLOR = getWindSpeedColor(7);
+// Gust readings are highlighted with the same amber everywhere (tables, trend
+// chart). Same hue family as the near-gale rose bin, but darkened so it keeps
+// >= 3:1 contrast on both the light and dark surface (validated).
+export const WIND_GUST_COLOR = '#d97706';
 
 // Helper function to get color by wind speed value (in m/s)
 export const getWindSpeedColorByValue = (speed: number): string => {

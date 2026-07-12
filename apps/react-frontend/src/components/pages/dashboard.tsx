@@ -2,6 +2,7 @@ import { ConstructionModeAlert } from '@/components/atoms/alerts/construction-mo
 import { FloatingStatusIndicator } from '@/components/atoms/indicators/floating-status-indicator';
 import { SectionCards } from '@/components/molecules/cards/section-cards-wind';
 import { WindChartInteractive } from '@/components/molecules/charts/wind-chart-interactive';
+import { WindTrendChart } from '@/components/molecules/charts/wind-trend-chart';
 import { WindData1MinTable } from '@/components/molecules/tables/wind-data-1min-table';
 import { WindData10MinTable } from '@/components/molecules/tables/wind-data-10min-table';
 import { WindDataTable } from '@/components/molecules/tables/wind-data-table';
@@ -100,6 +101,10 @@ export function Dashboard() {
               {/* Current conditions first — most valuable on a phone at the beach */}
               <div className="px-4 lg:px-6">
                 <WindChartInteractive windData={windData} selectedUnit={selectedUnit} />
+              </div>
+
+              <div className="px-4 lg:px-6">
+                <WindTrendChart stationId={stationId} selectedUnit={selectedUnit} />
               </div>
 
               <SectionCards
