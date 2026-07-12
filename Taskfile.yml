@@ -39,9 +39,10 @@ tasks:
       - pnpm build
 
   test:
-    desc: "Run the backend Japa suite"
+    desc: "Run all tests: backend Japa suite + firmware native tests"
     cmds:
       - pnpm test
+      - task: firmware:test
 
   check:
     desc: "Full pre-PR gate: format, lint, types, tests"
