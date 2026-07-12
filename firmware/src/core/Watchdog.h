@@ -60,6 +60,10 @@ inline void watchdogEnable()
  */
 inline void watchdogExtend()
 {
+    if (!watchdogInitialized())
+    {
+        return; // Fully disabled is already more relaxed than extended
+    }
     esp_task_wdt_reset();
     watchdogConfigure(WDT_TIMEOUT_S * 2, false);
 }

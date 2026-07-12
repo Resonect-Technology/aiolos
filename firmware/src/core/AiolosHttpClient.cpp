@@ -76,9 +76,13 @@ bool AiolosHttpClient::isConnectionThrottled()
     unsigned long elapsedTime = millis() - _lastAttemptTime;
     if (elapsedTime < _backoffDelay)
     {
-        // To avoid spamming the log, we could log this less frequently,
-        // but for now, this is useful for debugging.
-        Logger.debug(LOG_TAG_HTTP, "Connection is throttled. Time remaining: %lu ms", _backoffDelay - elapsedTime);
+        // Called twice per loop pass - rate-limit the log to avoid flooding
+        static unsigned long lastThrottleLog = 0;
+        if (millis() - lastThrottleLog >= 10000)
+        {
+            lastThrottleLog = millis();
+            Logger.debug(LOG_TAG_HTTP, "Connection is throttled. Time remaining: %lu ms", _backoffDelay - elapsedTime);
+        }
         return true;
     }
 
