@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { intervalMsSchema } from '@repo/schemas';
+
 /**
  * Plausible-reading gate for POST /stations/:station_id/temperature (frozen
  * device contract). Mirrors the legacy isValidTemperature exactly: exclusive
@@ -10,3 +12,9 @@ import { z } from 'zod';
  * controller).
  */
 export const temperatureValueSchema = z.number().gt(-40).lt(60);
+
+/**
+ * Forgiving intervalMs pass-through (mirrors wind ingest): an invalid value
+ * folds into "absent" and never rejects the reading.
+ */
+export const temperatureIntervalMsSchema = intervalMsSchema.optional().catch(undefined);

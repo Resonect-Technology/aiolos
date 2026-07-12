@@ -5,7 +5,10 @@ import type { TemperatureLivePayload } from '@repo/schemas';
 
 import { stationDataCache } from '#app/services/station_data_cache';
 import { prisma } from '#services/prisma';
-import { temperatureValueSchema } from '#validators/station_temperature';
+import {
+  temperatureIntervalMsSchema,
+  temperatureValueSchema,
+} from '#validators/station_temperature';
 
 export default class StationTemperatureController {
   /**
@@ -43,15 +46,21 @@ export default class StationTemperatureController {
     }
     const temperature = parsed.data;
 
+    // Effective send interval — pass-through to cache/SSE only (lets the
+    // dashboard derive staleness at any configured cadence)
+    const intervalMs = temperatureIntervalMsSchema.parse(request.input('intervalMs'));
+
     // Cache the temperature data
     stationDataCache.setTemperatureData(params.station_id, {
       temperature,
+      ...(intervalMs !== undefined && { intervalMs }),
       timestamp: temperatureTimestamp,
     });
 
     // Broadcast to SSE subscribers with timestamp
     await transmit.broadcast(`temperature/live/${params.station_id}`, {
       temperature,
+      ...(intervalMs !== undefined && { intervalMs }),
       timestamp: temperatureTimestamp,
     } satisfies TemperatureLivePayload);
 

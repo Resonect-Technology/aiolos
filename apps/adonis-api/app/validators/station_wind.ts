@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { windDirectionSchema, windIntervalMsSchema, windSpeedSchema } from '@repo/schemas';
+import { windDirectionSchema, intervalMsSchema, windSpeedSchema } from '@repo/schemas';
 
 /**
  * Ingest schema for POST /stations/:station_id/wind (frozen device contract —
@@ -17,7 +17,7 @@ export const windIngestSchema = z.object({
   windDirection: windDirectionSchema,
   gustSpeed: windSpeedSchema.optional(),
   minSpeed: windSpeedSchema.optional(),
-  intervalMs: windIntervalMsSchema.optional(),
+  intervalMs: intervalMsSchema.optional(),
   timestamp: z.string().optional().catch(undefined),
 });
 export type WindIngest = z.infer<typeof windIngestSchema>;

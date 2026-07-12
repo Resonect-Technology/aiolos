@@ -227,17 +227,40 @@ test.group('Firmware Critical Endpoints', (group) => {
     response.assertBodyContains({ error: 'Temperature value is required' });
   });
 
-  test('should reject invalid temperature value', async ({ client }) => {
+  // Implausible values (non-numbers, sensor-error sentinels) are silently
+  // filtered with a 201 — never a 400, so the station doesn't retry them
+  test('should filter invalid temperature value without storing it', async ({ client }) => {
     const tempData = {
       temperature: 'invalid',
     };
 
     const response = await client.post(`/api/stations/${testStationId}/temperature`).json(tempData);
 
-    // Note: The API currently accepts invalid temperature values and stores them
-    // This might be a validation issue that should be addressed in the controller
     response.assertStatus(201);
-    // TODO: This should ideally return 400 with validation error
+    response.assertBodyContains({ filtered: true });
+
+    const latest = await client.get(`/api/stations/${testStationId}/temperature/latest`);
+    latest.assertStatus(404);
+  });
+
+  test('should accept temperature payload with intervalMs', async ({ client }) => {
+    const response = await client
+      .post(`/api/stations/${testStationId}/temperature`)
+      .json({ temperature: 21.4, intervalMs: 300000 });
+
+    response.assertStatus(201);
+    response.assertBodyContains({ temperature: 21.4 });
+  });
+
+  test('should drop an out-of-range temperature interval and keep the reading', async ({
+    client,
+  }) => {
+    const response = await client
+      .post(`/api/stations/${testStationId}/temperature`)
+      .json({ temperature: 21.4, intervalMs: 100 });
+
+    response.assertStatus(201);
+    response.assertBodyContains({ temperature: 21.4 });
   });
 
   test('should retrieve latest temperature reading', async ({ client, assert }) => {

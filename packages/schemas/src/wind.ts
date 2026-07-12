@@ -5,7 +5,8 @@ import { z } from 'zod';
 // always satisfied these bounds, so the same atoms serve both sides.
 export const windSpeedSchema = z.number().min(0).max(60);
 export const windDirectionSchema = z.number().min(0).max(360);
-export const windIntervalMsSchema = z.number().min(500).max(3_600_000);
+/** Station send-interval bounds — shared by the wind and temperature payloads */
+export const intervalMsSchema = z.number().min(500).max(3_600_000);
 
 /** Payload broadcast on `wind/live/:stationId` (optional keys omitted, never null) */
 export const windLivePayloadSchema = z.object({
@@ -13,7 +14,7 @@ export const windLivePayloadSchema = z.object({
   windDirection: windDirectionSchema,
   gustSpeed: windSpeedSchema.optional(),
   minSpeed: windSpeedSchema.optional(),
-  intervalMs: windIntervalMsSchema.optional(),
+  intervalMs: intervalMsSchema.optional(),
   timestamp: z.string(),
 });
 export type WindLivePayload = z.infer<typeof windLivePayloadSchema>;
