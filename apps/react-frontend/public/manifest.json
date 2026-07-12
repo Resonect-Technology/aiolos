@@ -55,35 +55,12 @@
       "purpose": "any"
     }
   ],
-  "screenshots": [
-    {
-      "src": "/screenshot-desktop.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "Aiolos Weather Station Dashboard"
-    },
-    {
-      "src": "/screenshot-mobile.png",
-      "sizes": "390x844",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "Aiolos Weather Station Mobile View"
-    }
-  ],
   "shortcuts": [
     {
       "name": "Dashboard",
       "short_name": "Dashboard",
       "description": "View real-time weather data",
-      "url": "/",
-      "icons": [
-        {
-          "src": "/shortcut-dashboard.png",
-          "sizes": "192x192",
-          "type": "image/png"
-        }
-      ]
+      "url": "/dashboard"
     }
   ],
   "related_applications": [],

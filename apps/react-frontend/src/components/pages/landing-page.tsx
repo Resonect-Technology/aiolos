@@ -1,3 +1,4 @@
+import { PageMeta } from '@/components/atoms/seo/page-meta';
 import { AppSidebar } from '@/components/organisms/navigation/app-sidebar';
 import { SiteHeader } from '@/components/organisms/navigation/site-header';
 import { Button } from '@/components/ui/button';
@@ -5,6 +6,29 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { Wind, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+
+// Structured data for search engines (validate at https://validator.schema.org)
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebApplication',
+  name: 'Aiolos Weather Station',
+  url: 'https://aiolos.resonect.cz/',
+  applicationCategory: 'Weather',
+  operatingSystem: 'Web',
+  description:
+    'Live wind for Vasiliki, Greece — real-time wind speed, direction and gusts for windsurfing, from a solar-powered weather station on Vasiliki Bay, Lefkada.',
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'EUR' },
+  publisher: {
+    '@type': 'Organization',
+    name: 'Resonect Technology s.r.o.',
+    url: 'https://resonect.cz',
+  },
+  contentLocation: {
+    '@type': 'Place',
+    name: 'Vasiliki, Lefkada, Greece',
+    geo: { '@type': 'GeoCoordinates', latitude: 38.629, longitude: 20.604 },
+  },
+};
 
 export function LandingPage() {
   const navigate = useNavigate();
@@ -23,6 +47,15 @@ export function LandingPage() {
         } as React.CSSProperties
       }
     >
+      <PageMeta
+        title="Aiolos — Live Wind for Vasiliki, Greece | Windsurfing Conditions"
+        description="Real-time wind speed, direction and gusts from Vasiliki Bay, Lefkada. Live windsurfing conditions straight from the Aiolos weather station."
+        path="/"
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader />
@@ -35,10 +68,12 @@ export function LandingPage() {
                   <div className="mb-12 text-center">
                     <div className="mb-4 flex flex-col items-center gap-3 md:flex-row md:justify-center">
                       <Wind className="text-primary h-12 w-12" />
-                      <h1 className="text-foreground text-4xl font-bold">Aiolos Wind Station</h1>
+                      <h1 className="text-foreground text-4xl font-bold">
+                        Aiolos — Live Wind for Vasiliki
+                      </h1>
                     </div>
                     <p className="text-muted-foreground mb-2 text-xl">
-                      Live Wind Monitoring System
+                      Live windsurfing conditions from Vasiliki Bay, Lefkada
                     </p>
                     <p className="text-muted-foreground text-lg">
                       Real-time wind, temperature, and atmospheric data from Vasiliki
@@ -74,7 +109,7 @@ export function LandingPage() {
                           <div className="w-full max-w-48">
                             <img
                               src="/station.webp"
-                              alt="Aiolos Weather Station"
+                              alt="Aiolos weather station mounted above Vasiliki Bay"
                               className="h-auto w-full rounded-lg object-cover shadow-md"
                             />
                             <p className="text-foreground/70 mt-2 text-center text-sm">

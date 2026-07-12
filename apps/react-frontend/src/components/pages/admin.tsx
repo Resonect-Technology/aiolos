@@ -1,3 +1,4 @@
+import { PageMeta } from '@/components/atoms/seo/page-meta';
 import { DiagnosticsHistoryTable } from '@/components/molecules/tables/diagnostics-history-table';
 import { AppSidebar } from '@/components/organisms/navigation/app-sidebar';
 import { SiteHeader } from '@/components/organisms/navigation/site-header';
@@ -163,6 +164,12 @@ export function AdminPage() {
         } as React.CSSProperties
       }
     >
+      <PageMeta
+        title="Admin | Aiolos"
+        description="Aiolos weather station administration."
+        path="/admin"
+        noindex
+      />
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader />
