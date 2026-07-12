@@ -3,34 +3,19 @@
  *
  * Provides in-memory caching of latest station data for immediate delivery
  * to new SSE subscribers, solving the low-power mode delay issue.
+ *
+ * Cached shapes are the shared SSE contract types from @repo/schemas —
+ * exactly what gets broadcast on the corresponding channels.
  */
+import type {
+  DiagnosticsLivePayload,
+  TemperatureLivePayload,
+  WindLivePayload,
+} from '@repo/schemas';
 
-interface StationWindData {
-  windSpeed: number;
-  windDirection: number;
-  gustSpeed?: number;
-  minSpeed?: number;
-  intervalMs?: number;
-  timestamp: string;
-}
-
-interface StationTemperatureData {
-  temperature: number;
-  timestamp: string;
-}
-
-interface StationDiagnosticsData {
-  batteryVoltage: number;
-  solarVoltage: number;
-  signalQuality: number;
-  uptime: number;
-  internalTemperature?: number;
-  firmwareVersion?: string;
-  freeHeap?: number;
-  minFreeHeap?: number;
-  resetReason?: string;
-  timestamp: string;
-}
+type StationWindData = WindLivePayload;
+type StationTemperatureData = TemperatureLivePayload;
+type StationDiagnosticsData = DiagnosticsLivePayload;
 
 interface StationCachedData {
   wind?: StationWindData;

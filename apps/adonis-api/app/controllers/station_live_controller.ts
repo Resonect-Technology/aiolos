@@ -1,8 +1,11 @@
 import type { HttpContext } from '@adonisjs/core/http';
 import transmit from '@adonisjs/transmit/services/main';
 
+import type { WindLivePayload } from '@repo/schemas';
+
 import { stationDataCache } from '#app/services/station_data_cache';
 import { windAggregationService } from '#app/services/wind_aggregation_service';
+import { windIngestSchema } from '#validators/station_wind';
 
 // In-memory interval map for dev-only mock streaming
 interface MockStationData {
@@ -11,15 +14,6 @@ interface MockStationData {
   lastWindDirection: number;
 }
 const mockStationStates: Record<string, MockStationData> = {};
-
-// Sanity bounds: 60 m/s (~117 kn) is far above anything real at Vasiliki but
-// below sensor garbage; NaN/Infinity would poison aggregates and SSE.
-const isValidSpeed = (value: unknown): value is number =>
-  typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 60;
-const isValidDirection = (value: unknown): value is number =>
-  typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 360;
-const isValidIntervalMs = (value: unknown): value is number =>
-  typeof value === 'number' && Number.isFinite(value) && value >= 500 && value <= 3_600_000;
 
 export default class StationLiveController {
   /**
@@ -47,31 +41,17 @@ export default class StationLiveController {
     const arrivalTimestamp = new Date().toISOString();
 
     const { station_id } = params;
-    const { windSpeed, windDirection, gustSpeed, minSpeed, intervalMs, timestamp } = request.only([
-      'windSpeed',
-      'windDirection',
-      'gustSpeed',
-      'minSpeed',
-      'intervalMs',
-      'timestamp',
-    ]);
-    if (!isValidSpeed(windSpeed) || !isValidDirection(windDirection)) {
+    // request.all() reads the same merged qs+body request.only() did; the
+    // schema strips unknown keys and rejects any out-of-bounds field
+    const parsed = windIngestSchema.safeParse(request.all());
+    if (!parsed.success) {
       return response.badRequest({ error: 'Invalid wind data' });
     }
-    // Optional fields must be valid when present
-    if (gustSpeed !== undefined && !isValidSpeed(gustSpeed)) {
-      return response.badRequest({ error: 'Invalid wind data' });
-    }
-    if (minSpeed !== undefined && !isValidSpeed(minSpeed)) {
-      return response.badRequest({ error: 'Invalid wind data' });
-    }
-    if (intervalMs !== undefined && !isValidIntervalMs(intervalMs)) {
-      return response.badRequest({ error: 'Invalid wind data' });
-    }
+    const { windSpeed, windDirection, gustSpeed, minSpeed, intervalMs, timestamp } = parsed.data;
 
     // Use station-provided timestamp if valid, otherwise use server arrival time
     const windTimestamp =
-      typeof timestamp === 'string' && !Number.isNaN(Date.parse(timestamp))
+      timestamp !== undefined && !Number.isNaN(Date.parse(timestamp))
         ? timestamp
         : arrivalTimestamp;
 
@@ -103,7 +83,7 @@ export default class StationLiveController {
       ...(minSpeed !== undefined && { minSpeed }),
       ...(intervalMs !== undefined && { intervalMs }),
       timestamp: windTimestamp,
-    });
+    } satisfies WindLivePayload);
 
     return { ok: true };
   }

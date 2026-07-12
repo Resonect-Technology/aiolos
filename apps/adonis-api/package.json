@@ -57,14 +57,17 @@
     "@adonisjs/transmit": "^3.0.1",
     "@prisma/adapter-better-sqlite3": "^7.7.0",
     "@prisma/client": "^7.7.0",
+    "@repo/schemas": "workspace:*",
     "adonis-autoswagger": "^3.73.0",
     "luxon": "^3.6.1",
-    "reflect-metadata": "^0.2.2"
+    "reflect-metadata": "^0.2.2",
+    "zod": "^4.4.3"
   },
   "hotHook": {
     "boundaries": [
       "./app/controllers/**/*.ts",
-      "./app/middleware/*.ts"
+      "./app/middleware/*.ts",
+      "./app/validators/**/*.ts"
     ]
   }
 }

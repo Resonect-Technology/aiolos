@@ -3,6 +3,10 @@ import transmit from '@adonisjs/transmit/services/main';
 
 import { stationDataCache } from '#app/services/station_data_cache';
 import { prisma } from '#services/prisma';
+import {
+  diagnosticsHistoryQuerySchema,
+  diagnosticsIngestSchema,
+} from '#validators/station_diagnostics';
 
 export default class StationDiagnosticsController {
   /**
@@ -16,19 +20,15 @@ export default class StationDiagnosticsController {
     const data = request.body();
 
     try {
-      // Validate required fields
-      const { batteryVoltage, solarVoltage, signalQuality, uptime } = data;
-      if (
-        typeof batteryVoltage !== 'number' ||
-        typeof solarVoltage !== 'number' ||
-        typeof signalQuality !== 'number' ||
-        typeof uptime !== 'number'
-      ) {
+      // Validate required fields; everything else passes through untouched
+      const parsed = diagnosticsIngestSchema.safeParse(data);
+      if (!parsed.success) {
         return response.badRequest({
           error:
             'Invalid diagnostics data. Required fields: batteryVoltage, solarVoltage, signalQuality, uptime',
         });
       }
+      const { batteryVoltage, solarVoltage, signalQuality, uptime } = parsed.data;
 
       // Prepare diagnostics data with timestamp
       const diagnosticsData = {
@@ -115,14 +115,11 @@ export default class StationDiagnosticsController {
   async history({ params, request, response }: HttpContext) {
     const stationId = params.station_id;
 
-    const clamp = (raw: unknown, fallback: number, min: number, max: number) => {
-      const value = Number(raw);
-      if (isNaN(value)) return fallback;
-      return Math.min(max, Math.max(min, Math.trunc(value)));
-    };
-
-    const hours = clamp(request.input('hours'), 24, 1, 720);
-    const limit = clamp(request.input('limit'), 500, 1, 2000);
+    // Coercing schema with per-field fallbacks — never throws
+    const { hours, limit } = diagnosticsHistoryQuerySchema.parse({
+      hours: request.input('hours'),
+      limit: request.input('limit'),
+    });
     const since = new Date(Date.now() - hours * 60 * 60 * 1000);
 
     try {

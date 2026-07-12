@@ -1,19 +1,13 @@
 import type { HttpContext } from '@adonisjs/core/http';
 import transmit from '@adonisjs/transmit/services/main';
 
+import type { TemperatureLivePayload } from '@repo/schemas';
+
 import { stationDataCache } from '#app/services/station_data_cache';
 import { prisma } from '#services/prisma';
+import { temperatureValueSchema } from '#validators/station_temperature';
 
 export default class StationTemperatureController {
-  /**
-   * Validate if temperature reading is reasonable
-   * Filters out common sensor error values like -127
-   */
-  private isValidTemperature(temperature: number): boolean {
-    // Filter out obvious sensor errors and unrealistic values
-    return temperature > -40 && temperature < 60 && temperature !== -127;
-  }
-
   /**
    * @summary Store temperature reading
    * @description Store a temperature reading from the station's external temperature sensor
@@ -25,19 +19,21 @@ export default class StationTemperatureController {
     // Capture arrival timestamp immediately for accuracy
     const arrivalTimestamp = new Date().toISOString();
 
-    const temperature = request.input('temperature');
+    const rawTemperature = request.input('temperature');
 
-    if (temperature === undefined) {
+    if (rawTemperature === undefined) {
       return response.badRequest({ error: 'Temperature value is required' });
     }
 
     // Use station-provided timestamp if available, otherwise use server arrival time
-    const temperatureTimestamp = request.input('timestamp') || arrivalTimestamp;
+    const temperatureTimestamp: string = request.input('timestamp') || arrivalTimestamp;
 
-    // Silently filter invalid temperature readings
-    if (!this.isValidTemperature(temperature)) {
+    // Silently filter implausible readings (sensor errors, non-numbers) —
+    // NEVER a 400: the station shouldn't retry these
+    const parsed = temperatureValueSchema.safeParse(rawTemperature);
+    if (!parsed.success) {
       console.warn(
-        `Filtered invalid temperature reading: ${temperature}°C from station ${params.station_id}`,
+        `Filtered invalid temperature reading: ${rawTemperature}°C from station ${params.station_id}`,
       );
       // Return success but don't update cache/broadcast/store
       return response.created({
@@ -45,6 +41,7 @@ export default class StationTemperatureController {
         filtered: true,
       });
     }
+    const temperature = parsed.data;
 
     // Cache the temperature data
     stationDataCache.setTemperatureData(params.station_id, {
@@ -56,7 +53,7 @@ export default class StationTemperatureController {
     await transmit.broadcast(`temperature/live/${params.station_id}`, {
       temperature,
       timestamp: temperatureTimestamp,
-    });
+    } satisfies TemperatureLivePayload);
 
     const reading = await prisma.temperatureReading.create({
       data: {
