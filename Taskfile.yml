@@ -50,6 +50,11 @@ tasks:
       - pnpm format:check
       - pnpm exec turbo run lint check-types test
 
+  lint:
+    desc: "Lint + type-check all packages (mirrors the CI 'Lint and Type Check' job)"
+    cmds:
+      - pnpm exec turbo run lint check-types
+
   format:
     desc: "Format the repo with oxfmt"
     cmds:
