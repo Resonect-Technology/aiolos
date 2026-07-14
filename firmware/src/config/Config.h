@@ -180,7 +180,7 @@
 #else
 #define DEVICE_ID "Aiolos"
 #endif
-#define FIRMWARE_VERSION "2.2.1"
+#define FIRMWARE_VERSION "2.2.2"
 
 // Server settings
 #ifdef CONFIG_SERVER_HOST
