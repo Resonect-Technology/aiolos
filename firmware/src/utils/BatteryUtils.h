@@ -56,11 +56,12 @@ public:
         // Log the converted value for debugging
         Logger.debug("BATTERY", "Battery ADC: %lu mV at pin, Calibrated Voltage: %.2fV", voltage_mv, batteryVoltage);
 
-        // Check if likely running on USB power (voltage is often near max or zero)
-        if (voltage_mv < 80)
+        // DW01 protection disconnects the pack below 2.5 V, and USB power disconnects
+        // the battery entirely (GPIO35 then floats at ~284 mV - LilyGO issue #12), so
+        // anything below the floor is a phantom reading, not a battery.
+        if (batteryVoltage < BATTERY_SENSE_MIN_PLAUSIBLE_V)
         {
-            Logger.warn("BATTERY", "Battery voltage reading is very low - possibly no battery connected.");
-            // Return a value that indicates an issue, but isn't zero if that has meaning
+            Logger.warn("BATTERY", "Implausible battery reading (%.2f V) - no battery sense (USB power?)", batteryVoltage);
             return 0.1;
         }
 

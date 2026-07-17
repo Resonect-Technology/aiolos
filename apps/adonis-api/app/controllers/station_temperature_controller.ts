@@ -1,14 +1,17 @@
 import type { HttpContext } from '@adonisjs/core/http';
 import transmit from '@adonisjs/transmit/services/main';
+import { DateTime } from 'luxon';
 
 import type { TemperatureLivePayload } from '@repo/schemas';
 
 import { stationDataCache } from '#app/services/station_data_cache';
 import { prisma } from '#services/prisma';
 import {
+  temperatureAggregatedIntervalSchema,
   temperatureIntervalMsSchema,
   temperatureValueSchema,
 } from '#validators/station_temperature';
+import { dateQuerySchema, limitQuerySchema } from '#validators/wind_aggregated';
 
 export default class StationTemperatureController {
   /**
@@ -155,5 +158,71 @@ export default class StationTemperatureController {
       createdAt: reading.createdAt,
       updatedAt: reading.updatedAt,
     }));
+  }
+
+  /**
+   * @summary Get aggregated temperature data
+   * @description Get hourly temperature rollups (avg/min/max) for the specified station. Rollups are kept indefinitely, unlike raw readings.
+   * @paramPath station_id - The station's unique ID - @type(string) @required
+   * @paramQuery interval - Aggregation interval, only "hourly" is supported - @type(string)
+   * @paramQuery date - Day to fetch (YYYY-MM-DD, UTC); defaults to the most recent records - @type(string)
+   * @paramQuery limit - Maximum number of records (default 24, max 744) - @type(number)
+   * @responseBody 200 - Hourly temperature aggregates in chronological order
+   */
+  async aggregated({ params, request, response }: HttpContext) {
+    const qs = request.qs();
+
+    const intervalResult = temperatureAggregatedIntervalSchema.safeParse(qs.interval);
+    if (!intervalResult.success) {
+      return response.badRequest({ error: 'Invalid interval. Supported intervals: hourly' });
+    }
+
+    const limitResult = limitQuerySchema(24, 744).safeParse(qs.limit);
+    if (!limitResult.success) {
+      return response.badRequest({
+        error: 'Invalid limit. Must be between 1 and 744 for hourly interval.',
+      });
+    }
+    const recordLimit = limitResult.data;
+
+    const dateResult = dateQuerySchema.safeParse(qs.date);
+    if (!dateResult.success) {
+      return response.badRequest({ error: 'Invalid date format. Use YYYY-MM-DD format.' });
+    }
+    const date = dateResult.data;
+
+    // Rollup timestamps are UTC ISO strings compared lexicographically
+    const timestampRange = date
+      ? {
+          gte: DateTime.fromISO(date).startOf('day').toUTC().toISO()!,
+          lte: DateTime.fromISO(date).endOf('day').toUTC().toISO()!,
+        }
+      : undefined;
+
+    const aggregatedData = await prisma.temperatureHourly.findMany({
+      where: {
+        stationId: params.station_id,
+        ...(timestampRange ? { timestamp: timestampRange } : {}),
+      },
+      orderBy: { timestamp: 'desc' },
+      take: recordLimit,
+    });
+
+    // Chronological order, same envelope as the wind aggregated endpoint
+    const data = aggregatedData.reverse().map((record) => ({
+      timestamp: record.timestamp,
+      avgTemperature: record.avgTemperature,
+      minTemperature: record.minTemperature,
+      maxTemperature: record.maxTemperature,
+      sampleCount: record.sampleCount,
+    }));
+
+    return {
+      stationId: params.station_id,
+      date: date ? DateTime.fromISO(date).toISODate()! : DateTime.now().toISODate()!,
+      interval: 'hourly',
+      data,
+      totalRecords: data.length,
+    };
   }
 }

@@ -158,6 +158,9 @@
 #define CRITICAL_BATTERY_RECOVERY_V 3.6f     // Resume at >= this (unloaded boot read)
 #define CRITICAL_BATTERY_CONSECUTIVE_READS 3 // Minute-spaced low reads required to hibernate
 #define CRITICAL_SLEEP_DURATION_S 3600       // Hibernation cycle length (1h) between battery re-checks
+#define BATTERY_SENSE_MIN_PLAUSIBLE_V 2.5f   // DW01 cuts the pack below 2.5 V, so lower readings mean
+                                             // no battery sense (USB phantom ~0.28 V - LilyGO
+                                             // T-SIM7000G issue #12)
 
 // Watchdog settings
 #define WDT_TIMEOUT_S 120 // Watchdog timeout in seconds
@@ -177,7 +180,7 @@
 #else
 #define DEVICE_ID "Aiolos"
 #endif
-#define FIRMWARE_VERSION "2.2.0"
+#define FIRMWARE_VERSION "2.2.2"
 
 // Server settings
 #ifdef CONFIG_SERVER_HOST

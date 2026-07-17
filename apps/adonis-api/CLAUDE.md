@@ -21,6 +21,11 @@ AdonisJS 7 API. Prisma 7 on SQLite (better-sqlite3 driver adapter), no Lucid.
 - Wind aggregation: in-memory 1-minute buckets (`wind_aggregation_service`)
   flushed to `wind_data_1min`; a 10-minute timer in `bin/server.ts` aggregates
   into `wind_data_10min` (upsert on stationId+timestamp).
+- Rollups (`rollup_service`): hourly temperature/wind + daily diagnostics
+  tables, kept forever (no retention policy). An hourly timer in `bin/server.ts`
+  runs `catchUp()`, and the 6-hour retention job always runs rollups BEFORE
+  `data_cleanup_service` deletes fine-grained data. Manual backfill:
+  `node ace rollup:backfill [--days N]`.
 - Wind `timestamp` columns are UTC ISO **strings** — see
   `.claude/rules/database.md` before touching any timestamp query.
 - Seeds (`bin/seed.ts`) are idempotent and run on every container boot.

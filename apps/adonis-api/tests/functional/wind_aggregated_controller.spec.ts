@@ -75,7 +75,7 @@ test.group('Wind Aggregated Controller', (group) => {
 
     response.assertStatus(400);
     const body = response.body();
-    assert.equal(body.error, 'Invalid interval. Supported intervals: 1min, 10min');
+    assert.equal(body.error, 'Invalid interval. Supported intervals: 1min, 10min, hourly');
   });
 
   test('should validate date parameter', async ({ client, assert }) => {

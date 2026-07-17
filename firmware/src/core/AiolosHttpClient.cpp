@@ -134,8 +134,10 @@ bool AiolosHttpClient::init(ModemManager &modemManager, const char *serverAddres
         return false;
     }
 
-    // Set the connection timeout. This is important for cellular connections.
-    _arduinoClient->setTimeout(30000L); // 30 seconds
+    // Requests block the main loop until this timeout, so a stalled request
+    // freezes everything (including the wind livestream) this long. Healthy
+    // round trips over cellular are 2-3 s.
+    _arduinoClient->setTimeout(10000L); // 10 seconds
 
     Logger.info(LOG_TAG_HTTP, "HTTP client initialized for server %s:%u", _serverAddress, _serverPort);
     return true;

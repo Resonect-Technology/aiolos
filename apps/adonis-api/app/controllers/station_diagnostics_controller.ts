@@ -1,9 +1,11 @@
 import type { HttpContext } from '@adonisjs/core/http';
 import transmit from '@adonisjs/transmit/services/main';
+import { DateTime } from 'luxon';
 
 import { stationDataCache } from '#app/services/station_data_cache';
 import { prisma } from '#services/prisma';
 import {
+  diagnosticsAggregatedQuerySchema,
   diagnosticsHistoryQuerySchema,
   diagnosticsIngestSchema,
 } from '#validators/station_diagnostics';
@@ -131,6 +133,34 @@ export default class StationDiagnosticsController {
     } catch (error) {
       console.error('Error fetching diagnostics history:', error);
       return response.status(500).json({ error: 'Failed to fetch diagnostics history' });
+    }
+  }
+
+  /**
+   * Get daily diagnostics rollups (battery/solar/signal min/avg/max per UTC
+   * day, kept indefinitely — unlike raw diagnostics), newest first.
+   * Query params: days (default 30, max 3650), limit (default 365, max 3650).
+   */
+  async aggregated({ params, request, response }: HttpContext) {
+    const stationId = params.station_id;
+
+    // Coercing schema with per-field fallbacks — never throws
+    const { days, limit } = diagnosticsAggregatedQuerySchema.parse({
+      days: request.input('days'),
+      limit: request.input('limit'),
+    });
+    // date is "YYYY-MM-DD" text compared lexicographically
+    const since = DateTime.utc().minus({ days }).toISODate()!;
+
+    try {
+      return await prisma.diagnosticsDaily.findMany({
+        where: { stationId, date: { gte: since } },
+        orderBy: { date: 'desc' },
+        take: limit,
+      });
+    } catch (error) {
+      console.error('Error fetching aggregated diagnostics:', error);
+      return response.status(500).json({ error: 'Failed to fetch aggregated diagnostics' });
     }
   }
 }

@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const windUnitSchema = z.enum(['ms', 'kmh', 'knots']);
 export type WindUnit = z.infer<typeof windUnitSchema>;
 
-export const aggregateIntervalSchema = z.enum(['1min', '10min']);
+export const aggregateIntervalSchema = z.enum(['1min', '10min', 'hourly']);
 export type AggregateInterval = z.infer<typeof aggregateIntervalSchema>;
 
 export const tendencySchema = z.enum(['increasing', 'decreasing', 'stable']);
@@ -27,6 +27,12 @@ export const windAggregated10MinSchema = aggregateBase.extend({
   tendency: tendencySchema,
 });
 export type WindAggregated10Min = z.infer<typeof windAggregated10MinSchema>;
+
+// Hourly rollup rows (aggregated from the 10-minute data, kept indefinitely)
+export const windAggregatedHourlySchema = aggregateBase.extend({
+  intervalCount: z.number(),
+});
+export type WindAggregatedHourly = z.infer<typeof windAggregatedHourlySchema>;
 
 // SSE broadcasts on `wind/aggregated/{interval}/:stationId` carry the row plus stationId
 export const windAggregated1MinBroadcastSchema = windAggregated1MinSchema.extend({
@@ -57,3 +63,8 @@ export const windAggregated10MinResponseSchema = responseEnvelope.extend({
   data: z.array(windAggregated10MinSchema),
 });
 export type WindAggregated10MinResponse = z.infer<typeof windAggregated10MinResponseSchema>;
+
+export const windAggregatedHourlyResponseSchema = responseEnvelope.extend({
+  data: z.array(windAggregatedHourlySchema),
+});
+export type WindAggregatedHourlyResponse = z.infer<typeof windAggregatedHourlyResponseSchema>;

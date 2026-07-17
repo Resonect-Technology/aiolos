@@ -18,3 +18,9 @@ export const temperatureValueSchema = z.number().gt(-40).lt(60);
  * folds into "absent" and never rejects the reading.
  */
 export const temperatureIntervalMsSchema = intervalMsSchema.optional().catch(undefined);
+
+/**
+ * Interval for GET /temperature/aggregated — only the hourly rollup exists,
+ * but the parameter mirrors the wind aggregated endpoint for symmetry.
+ */
+export const temperatureAggregatedIntervalSchema = z.literal('hourly').default('hourly');

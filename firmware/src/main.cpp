@@ -1117,8 +1117,10 @@ bool updateLocalTime()
         return false;
     }
 
-    // A stale RTC (e.g. 1980-01-06) means the network never provided time
-    if (year < 2024)
+    // A stale RTC means the network never provided time. SIMCOM's default epoch
+    // 80/01/06 shows up as 1980 or 2080 depending on how the 2-digit year is
+    // expanded, so reject both directions.
+    if (year < 2024 || year > 2077)
     {
         Logger.warn(LOG_TAG_SYSTEM, "Modem time not valid yet (year %d), ignoring", year);
         return false;

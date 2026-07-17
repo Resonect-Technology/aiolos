@@ -147,6 +147,9 @@ router
         router
           .get('/temperature/latest', [StationTemperatureController, 'latest'])
           .as('temperature.latest');
+        router
+          .get('/temperature/aggregated', [StationTemperatureController, 'aggregated'])
+          .as('temperature.aggregated');
 
         // Station diagnostics endpoints
         router
@@ -157,6 +160,9 @@ router
         router
           .get('/diagnostics/history', [StationDiagnosticsController, 'history'])
           .as('diagnostics.history');
+        router
+          .get('/diagnostics/aggregated', [StationDiagnosticsController, 'aggregated'])
+          .as('diagnostics.aggregated');
 
         // Station configuration endpoints (includes all config and flags)
         router.get('/config', [StationConfigsController, 'show']).as('config.show');
