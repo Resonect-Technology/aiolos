@@ -22,7 +22,7 @@
     "@commitlint/config-conventional": "^20.5.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
-    "oxfmt": "^0.43.0",
+    "oxfmt": "^0.68.0",
     "oxlint": "^1.58.0",
     "turbo": "^2.9.14",
     "typescript": "5.9.3"
